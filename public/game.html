@@ -90,8 +90,7 @@
             height: 1.2em;
             background: var(--terminal-green);
             animation: blink 1s infinite;
-            vertical-align: middle;
-            margin-left: 5px;
+            margin-left: 2px;
         }
 
         @keyframes blink {
@@ -184,7 +183,6 @@
         
         <div class="terminal">
             <div id="terminalOutput"></div>
-            <span class="cursor"></span>
         </div>
     </div>
 
@@ -192,6 +190,8 @@
         let isReturningUser = false;
         let userAvatarName = '';
         let userEmail = '';
+        let isTyping = false;
+        let currentInterval = null;
 
         const newUserMessages = [
             "Initializing neural interface...",
@@ -217,15 +217,37 @@
         let messageIndex = 0;
 
         function typeMessage(message) {
-            return new Promise(resolve => {
+            return new Promise((resolve, reject) => {
+                isTyping = true;
                 let index = 0;
-                const interval = setInterval(() => {
+                const lineDiv = document.createElement('div');
+                lineDiv.style.display = 'flex';
+                lineDiv.style.alignItems = 'center';
+                terminalOutput.appendChild(lineDiv);
+                
+                const textSpan = document.createElement('span');
+                const cursorSpan = document.createElement('span');
+                cursorSpan.className = 'cursor';
+                lineDiv.appendChild(textSpan);
+                lineDiv.appendChild(cursorSpan);
+
+                currentInterval = setInterval(() => {
+                    if (!isTyping) {
+                        clearInterval(currentInterval);
+                        cursorSpan.remove();
+                        lineDiv.innerHTML += '<br>';
+                        reject(new Error('Typing interrupted'));
+                        return;
+                    }
+
                     if (index < message.length) {
-                        terminalOutput.innerHTML += message[index];
+                        textSpan.textContent += message[index];
                         index++;
                     } else {
-                        terminalOutput.innerHTML += '<br><br>';
-                        clearInterval(interval);
+                        clearInterval(currentInterval);
+                        cursorSpan.remove();
+                        lineDiv.innerHTML += '<br><br>';
+                        isTyping = false;
                         resolve();
                     }
                 }, 50);
@@ -295,6 +317,7 @@
                 if (response.ok) {
                     await typeMessage(`Avatar registration successful. Welcome, ${avatarName}!`);
                     await typeMessage("SYSTEM: Initializing game environment...");
+                    addPermanentCursor();
                 } else {
                     throw new Error(data.error);
                 }
@@ -303,10 +326,30 @@
             }
         }
 
+        function addPermanentCursor() {
+            const cursorLine = document.createElement('div');
+            cursorLine.style.display = 'flex';
+            cursorLine.style.alignItems = 'center';
+            const cursorSpan = document.createElement('span');
+            cursorSpan.className = 'cursor';
+            cursorLine.appendChild(cursorSpan);
+            terminalOutput.appendChild(cursorLine);
+        }
+
         async function displayMessages() {
-            for (const message of messages) {
-                await typeMessage(message);
-                await new Promise(resolve => setTimeout(resolve, 500));
+            try {
+                for (const message of messages) {
+                    await typeMessage(message);
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                if (!isReturningUser) {
+                    return;
+                }
+                addPermanentCursor();
+            } catch (error) {
+                if (error.message !== 'Typing interrupted') {
+                    throw error;
+                }
             }
         }
 
@@ -354,6 +397,16 @@
         // Add logout functionality
         document.getElementById('logoutButton').addEventListener('click', async () => {
             try {
+                // Interrupt any ongoing typing
+                if (isTyping) {
+                    isTyping = false;
+                    await new Promise(resolve => setTimeout(resolve, 100)); // Wait for typing to stop
+                }
+                
+                // Remove any existing permanent cursor
+                const cursors = terminalOutput.querySelectorAll('.cursor');
+                cursors.forEach(cursor => cursor.remove());
+
                 await typeMessage("SYSTEM: Initiating neural disconnect...");
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 await typeMessage("SYSTEM: Clearing neural buffers...");
@@ -366,7 +419,9 @@
                 await new Promise(resolve => setTimeout(resolve, 500));
                 window.location.href = '/';
             } catch (error) {
-                console.error('Logout error:', error);
+                if (error.message !== 'Typing interrupted') {
+                    console.error('Logout error:', error);
+                }
             }
         });
     </script>
