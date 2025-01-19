@@ -121,9 +121,51 @@
             from { width: 0 }
             to { width: 100% }
         }
+
+        .logout-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .logout-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+            transform: translateY(-2px);
+        }
+
+        .logout-button::before {
+            content: "[ ";
+            color: var(--neon-pink);
+        }
+
+        .logout-button::after {
+            content: " ]";
+            color: var(--neon-pink);
+        }
+
+        .logout-button:hover::before,
+        .logout-button:hover::after {
+            color: var(--dark-bg);
+        }
     </style>
 </head>
 <body>
+    <button class="logout-button" id="logoutButton">Disconnect</button>
     <div class="container">
         <svg class="logo" viewBox="0 0 100 100">
             <defs>
@@ -147,7 +189,11 @@
     </div>
 
     <script>
-        const messages = [
+        let isReturningUser = false;
+        let userAvatarName = '';
+        let userEmail = '';
+
+        const newUserMessages = [
             "Initializing neural interface...",
             "Connecting to cybernet backbone...",
             "Accessing PUNK MUD mainframe...",
@@ -155,6 +201,16 @@
             "Welcome to the dark underbelly of the net.",
             "Your reality begins here...",
             "SYSTEM: Enter your avatar name to continue..."
+        ];
+
+        const returningUserMessages = [
+            "Initializing neural interface...",
+            "Biometric scan complete...",
+            "Identity confirmed...",
+            "Accessing stored neural patterns...",
+            "SYSTEM: Welcome back to the grid, {avatarName}",
+            "Restoring previous session...",
+            "SYSTEM: Neural sync complete. Ready to dive."
         ];
 
         const terminalOutput = document.getElementById('terminalOutput');
@@ -196,15 +252,42 @@
             return inputLine;
         }
 
+        function getAuthHeader() {
+            const token = localStorage.getItem('token');
+            return {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+        }
+
+        async function fetchUserDetails() {
+            try {
+                const response = await fetch('/api/verify-token', {
+                    headers: getAuthHeader()
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                const data = await response.json();
+                userEmail = data.user.email;
+                userAvatarName = data.user.avatarName;
+                isReturningUser = !!userAvatarName;
+
+                return data.user;
+            } catch (error) {
+                console.error('Failed to fetch user details:', error);
+                window.location.href = '/';
+            }
+        }
+
         async function handleAvatarSubmission(avatarName) {
             try {
                 const response = await fetch('/api/register-avatar', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        email: userEmail,
-                        avatarName: avatarName 
-                    })
+                    headers: getAuthHeader(),
+                    body: JSON.stringify({ avatarName })
                 });
 
                 const data = await response.json();
@@ -212,7 +295,6 @@
                 if (response.ok) {
                     await typeMessage(`Avatar registration successful. Welcome, ${avatarName}!`);
                     await typeMessage("SYSTEM: Initializing game environment...");
-                    // Here you can add more game initialization logic
                 } else {
                     throw new Error(data.error);
                 }
@@ -226,38 +308,67 @@
                 await typeMessage(message);
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
-            
-            // After messages are displayed, add the input line
-            const inputLine = createInputLine();
-            terminalOutput.appendChild(inputLine);
-            const avatarInput = document.getElementById('avatarInput');
-            avatarInput.focus();
-
-            // Handle avatar name submission
-            avatarInput.addEventListener('keypress', async (e) => {
-                if (e.key === 'Enter' && avatarInput.value.trim()) {
-                    const avatarName = avatarInput.value.trim();
-                    // Remove input line
-                    inputLine.remove();
-                    // Echo the input
-                    await typeMessage(`> ${avatarName}`);
-                    // Handle the submission
-                    await handleAvatarSubmission(avatarName);
-                }
-            });
         }
 
-        // Get email from URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        const userEmail = urlParams.get('email');
-
         // Start the animation sequence
-        window.onload = () => {
-            if (userEmail) {
-                messages.unshift(`User identified: ${userEmail}`);
+        window.onload = async () => {
+            try {
+                // Fetch user details using JWT
+                const user = await fetchUserDetails();
+                
+                if (user.avatarName) {
+                    isReturningUser = true;
+                    messages = returningUserMessages.map(msg => 
+                        msg.replace('{avatarName}', user.avatarName)
+                    );
+                } else {
+                    messages = newUserMessages;
+                }
+                messages.unshift(`User identified: ${user.email}`);
+                
+                await displayMessages();
+                
+                // Only show avatar input for new users
+                if (!isReturningUser) {
+                    const inputLine = createInputLine();
+                    terminalOutput.appendChild(inputLine);
+                    const avatarInput = document.getElementById('avatarInput');
+                    avatarInput.focus();
+
+                    // Handle avatar name submission
+                    avatarInput.addEventListener('keypress', async (e) => {
+                        if (e.key === 'Enter' && avatarInput.value.trim()) {
+                            const avatarName = avatarInput.value.trim();
+                            inputLine.remove();
+                            await typeMessage(`> ${avatarName}`);
+                            await handleAvatarSubmission(avatarName);
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Initialization error:', error);
+                window.location.href = '/';
             }
-            displayMessages();
         };
+
+        // Add logout functionality
+        document.getElementById('logoutButton').addEventListener('click', async () => {
+            try {
+                await typeMessage("SYSTEM: Initiating neural disconnect...");
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                await typeMessage("SYSTEM: Clearing neural buffers...");
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await typeMessage("SYSTEM: Disconnecting from mainframe...");
+                
+                // Clear the token
+                localStorage.removeItem('token');
+                
+                await new Promise(resolve => setTimeout(resolve, 500));
+                window.location.href = '/';
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        });
     </script>
 </body>
 </html> 

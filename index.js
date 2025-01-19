@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const path = require('path');
 require('dotenv').config();
+const jwt = require('jsonwebtoken');
 
 const User = require('./models/User');
 const { sendAuthCode } = require('./services/emailService');
@@ -22,6 +23,27 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Add middleware to verify JWT
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ error: 'Access denied' });
+    }
+
+    try {
+        const verified = jwt.verify(token, JWT_SECRET);
+        req.user = verified;
+        next();
+    } catch (error) {
+        res.status(403).json({ error: 'Invalid token' });
+    }
+};
+
+// Add at the top with other constants
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'; // In production, always use environment variable
 
 // MongoDB connection
 mongoose.connect('mongodb://mongodb:27017/myapp', {
@@ -108,7 +130,26 @@ app.post('/api/authenticate', async (req, res) => {
         await user.save();
         console.log('Authentication successful - auth code cleared');
 
-        res.json({ message: 'Authentication successful' });
+        // Generate JWT token
+        const token = jwt.sign(
+            { 
+                userId: user._id,
+                email: user.email,
+                avatarName: user.avatarName 
+            }, 
+            JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        // Return user details and token
+        res.json({ 
+            message: 'Authentication successful',
+            user: {
+                email: user.email,
+                avatarName: user.avatarName
+            },
+            token
+        });
     } catch (error) {
         console.error('Authentication error:', error);
         res.status(500).json({ error: 'Failed to authenticate' });
@@ -116,10 +157,11 @@ app.post('/api/authenticate', async (req, res) => {
 });
 
 // Avatar registration route
-app.post('/api/register-avatar', async (req, res) => {
+app.post('/api/register-avatar', authenticateToken, async (req, res) => {
     console.log('\n=== AVATAR REGISTRATION REQUEST ===');
     try {
-        const { email, avatarName } = req.body;
+        const { avatarName } = req.body;
+        const email = req.user.email; // Get email from JWT payload
         console.log(`Registering avatar name "${avatarName}" for email: ${email}`);
 
         // Check if avatar name is already taken
@@ -147,6 +189,16 @@ app.post('/api/register-avatar', async (req, res) => {
         console.error('Avatar registration error:', error);
         res.status(500).json({ error: 'Failed to register avatar' });
     }
+});
+
+// Add a route to verify token and get user data
+app.get('/api/verify-token', authenticateToken, (req, res) => {
+    res.json({ 
+        user: {
+            email: req.user.email,
+            avatarName: req.user.avatarName
+        }
+    });
 });
 
 // Basic route - modify to serve index.html

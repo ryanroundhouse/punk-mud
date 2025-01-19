@@ -213,9 +213,13 @@
                 if (response.ok) {
                     messageDiv.textContent = 'Authentication successful!';
                     messageDiv.style.color = 'var(--neon-blue)';
-                    // Redirect to game page with email parameter
+                    
+                    // Store the token
+                    localStorage.setItem('token', data.token);
+                    
+                    // Redirect to game page without parameters
                     setTimeout(() => {
-                        window.location.href = `/game.html?email=${encodeURIComponent(currentEmail)}`;
+                        window.location.href = '/game.html';
                     }, 1000);
                 } else {
                     throw new Error(data.error);
