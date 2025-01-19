@@ -1,0 +1,17 @@
+{
+  "name": "Express MongoDB Dev Container",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "mongodb.mongodb-vscode"
+      ]
+    }
+  },
+  "forwardPorts": [3000, 27017],
+  "postCreateCommand": "npm install"
+} 

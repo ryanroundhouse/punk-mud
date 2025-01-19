@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUNK MUD - Login</title>
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--neon-blue);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .container {
+            background: rgba(10, 10, 15, 0.9);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-pink),
+                       0 0 40px rgba(255, 46, 136, 0.3);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .logo {
+            width: 200px;
+            height: 200px;
+            margin-bottom: 2rem;
+            filter: drop-shadow(0 0 10px var(--neon-blue));
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        input {
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--neon-blue);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+        }
+
+        input:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        button {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            border: none;
+            padding: 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: var(--neon-blue);
+            box-shadow: 0 0 20px var(--neon-blue);
+            transform: translateY(-2px);
+        }
+
+        .glitch-text {
+            font-size: 2rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin: 1rem 0;
+            position: relative;
+            text-shadow: 2px 2px var(--neon-pink);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <svg class="logo" viewBox="0 0 100 100">
+            <defs>
+                <linearGradient id="neon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#ff2e88" />
+                    <stop offset="100%" style="stop-color:#00fff9" />
+                </linearGradient>
+            </defs>
+            <path fill="url(#neon-gradient)" d="M50 5
+                L90 25
+                L90 75
+                L50 95
+                L10 75
+                L10 25
+                Z" />
+            <path fill="none" stroke="#00fff9" stroke-width="2" d="M30 40
+                L70 40
+                M40 55
+                L60 55
+                M45 70
+                L55 70" />
+            <circle cx="35" cy="30" r="3" fill="#00fff9" />
+            <circle cx="65" cy="30" r="3" fill="#00fff9" />
+        </svg>
+        
+        <div class="glitch-text">PUNK MUD</div>
+        
+        <form id="loginForm" class="login-form">
+            <div id="emailStep">
+                <input type="text" 
+                       id="emailInput"
+                       name="email"
+                       placeholder="Enter your email" 
+                       required>
+                <button type="button" id="jackInButton">JACK IN</button>
+            </div>
+            
+            <div id="codeStep" style="display: none;">
+                <input type="text" 
+                       id="codeInput"
+                       name="code"
+                       placeholder="Enter 5-digit code" 
+                       pattern="[0-9]{5}"
+                       maxlength="5"
+                       title="Please enter the 5-digit code">
+                <button type="button" id="authenticateButton">AUTHENTICATE</button>
+            </div>
+        </form>
+        
+        <div id="message" class="message" style="margin-top: 1rem; color: var(--neon-pink);"></div>
+    </div>
+
+    <script>
+        const loginForm = document.getElementById('loginForm');
+        const emailStep = document.getElementById('emailStep');
+        const codeStep = document.getElementById('codeStep');
+        const messageDiv = document.getElementById('message');
+        const jackInButton = document.getElementById('jackInButton');
+        const authenticateButton = document.getElementById('authenticateButton');
+        let currentEmail = '';
+
+        jackInButton.addEventListener('click', async () => {
+            const emailInput = document.getElementById('emailInput');
+            if (!emailInput.checkValidity()) {
+                messageDiv.textContent = 'Please enter a valid email address';
+                return;
+            }
+
+            currentEmail = emailInput.value;
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentEmail })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    emailStep.style.display = 'none';
+                    codeStep.style.display = 'block';
+                    messageDiv.textContent = 'Check your email for the authentication code';
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                messageDiv.textContent = error.message || 'Failed to send authentication code';
+            }
+        });
+
+        authenticateButton.addEventListener('click', async () => {
+            const codeInput = document.getElementById('codeInput');
+            if (!codeInput.value.match(/^\d{5}$/)) {
+                messageDiv.textContent = 'Please enter a valid 5-digit code';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/authenticate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: currentEmail, 
+                        code: codeInput.value 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    messageDiv.textContent = 'Authentication successful!';
+                    messageDiv.style.color = 'var(--neon-blue)';
+                    // Redirect to game page with email parameter
+                    setTimeout(() => {
+                        window.location.href = `/game.html?email=${encodeURIComponent(currentEmail)}`;
+                    }, 1000);
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                messageDiv.textContent = error.message || 'Failed to authenticate';
+            }
+        });
+    </script>
+</body>
+</html> 

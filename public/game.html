@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUNK MUD - Terminal</title>
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+            --terminal-green: #00ff00;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .container {
+            background: rgba(10, 10, 15, 0.95);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-pink),
+                       0 0 40px rgba(255, 46, 136, 0.3);
+            text-align: center;
+            max-width: 800px;
+            width: 90%;
+            min-height: 60vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 0 10px var(--neon-blue));
+        }
+
+        .welcome-text {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            text-shadow: 0 0 10px var(--terminal-green);
+            animation: flicker 2s infinite;
+        }
+
+        .terminal {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1.5rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            text-align: left;
+            flex-grow: 1;
+            overflow-y: auto;
+            position: relative;
+            min-height: 300px;
+        }
+
+        .terminal::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 25px;
+            background: linear-gradient(to bottom, 
+                rgba(0, 255, 0, 0.1) 0%,
+                transparent 100%);
+            pointer-events: none;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 1.2em;
+            background: var(--terminal-green);
+            animation: blink 1s infinite;
+            vertical-align: middle;
+            margin-left: 5px;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            92% { opacity: 1; }
+            93% { opacity: 0.3; }
+            94% { opacity: 1; }
+            95% { opacity: 0.5; }
+            96% { opacity: 1; }
+        }
+
+        #terminalOutput {
+            margin-bottom: 1rem;
+            line-height: 1.5;
+        }
+
+        .typing {
+            animation: typing 3s steps(40, end);
+        }
+
+        @keyframes typing {
+            from { width: 0 }
+            to { width: 100% }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <svg class="logo" viewBox="0 0 100 100">
+            <defs>
+                <linearGradient id="neon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#ff2e88" />
+                    <stop offset="100%" style="stop-color:#00fff9" />
+                </linearGradient>
+            </defs>
+            <path fill="url(#neon-gradient)" d="M50 5 L90 25 L90 75 L50 95 L10 75 L10 25 Z" />
+            <path fill="none" stroke="#00fff9" stroke-width="2" d="M30 40 L70 40 M40 55 L60 55 M45 70 L55 70" />
+            <circle cx="35" cy="30" r="3" fill="#00fff9" />
+            <circle cx="65" cy="30" r="3" fill="#00fff9" />
+        </svg>
+        
+        <div class="welcome-text">WELCOME TO THE GRID, RUNNER</div>
+        
+        <div class="terminal">
+            <div id="terminalOutput"></div>
+            <span class="cursor"></span>
+        </div>
+    </div>
+
+    <script>
+        const messages = [
+            "Initializing neural interface...",
+            "Connecting to cybernet backbone...",
+            "Accessing PUNK MUD mainframe...",
+            "Connection established.",
+            "Welcome to the dark underbelly of the net.",
+            "Your reality begins here...",
+            "SYSTEM: Enter your avatar name to continue..."
+        ];
+
+        const terminalOutput = document.getElementById('terminalOutput');
+        let messageIndex = 0;
+
+        function typeMessage(message) {
+            return new Promise(resolve => {
+                let index = 0;
+                const interval = setInterval(() => {
+                    if (index < message.length) {
+                        terminalOutput.innerHTML += message[index];
+                        index++;
+                    } else {
+                        terminalOutput.innerHTML += '<br><br>';
+                        clearInterval(interval);
+                        resolve();
+                    }
+                }, 50);
+            });
+        }
+
+        function createInputLine() {
+            const inputLine = document.createElement('div');
+            inputLine.style.display = 'flex';
+            inputLine.style.alignItems = 'center';
+            inputLine.style.gap = '10px';
+            inputLine.innerHTML = `
+                <span style="color: var(--terminal-green)">></span>
+                <input type="text" id="avatarInput" 
+                       style="background: transparent;
+                              border: none;
+                              color: var(--terminal-green);
+                              font-family: 'Courier New', monospace;
+                              font-size: 1rem;
+                              flex-grow: 1;
+                              outline: none;" 
+                       placeholder="Enter avatar name">
+            `;
+            return inputLine;
+        }
+
+        async function handleAvatarSubmission(avatarName) {
+            try {
+                const response = await fetch('/api/register-avatar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: userEmail,
+                        avatarName: avatarName 
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    await typeMessage(`Avatar registration successful. Welcome, ${avatarName}!`);
+                    await typeMessage("SYSTEM: Initializing game environment...");
+                    // Here you can add more game initialization logic
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                await typeMessage("ERROR: " + (error.message || "Failed to register avatar"));
+            }
+        }
+
+        async function displayMessages() {
+            for (const message of messages) {
+                await typeMessage(message);
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            // After messages are displayed, add the input line
+            const inputLine = createInputLine();
+            terminalOutput.appendChild(inputLine);
+            const avatarInput = document.getElementById('avatarInput');
+            avatarInput.focus();
+
+            // Handle avatar name submission
+            avatarInput.addEventListener('keypress', async (e) => {
+                if (e.key === 'Enter' && avatarInput.value.trim()) {
+                    const avatarName = avatarInput.value.trim();
+                    // Remove input line
+                    inputLine.remove();
+                    // Echo the input
+                    await typeMessage(`> ${avatarName}`);
+                    // Handle the submission
+                    await handleAvatarSubmission(avatarName);
+                }
+            });
+        }
+
+        // Get email from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const userEmail = urlParams.get('email');
+
+        // Start the animation sequence
+        window.onload = () => {
+            if (userEmail) {
+                messages.unshift(`User identified: ${userEmail}`);
+            }
+            displayMessages();
+        };
+    </script>
+</body>
+</html> 
