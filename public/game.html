@@ -223,11 +223,15 @@
         </div>
     </div>
 
+    <!-- Add socket.io client library before the existing script tag -->
+    <script src="/socket.io/socket.io.js"></script>
+
     <script>
         const chatInput = document.getElementById('chatInput');
         const sendButton = document.getElementById('sendButton');
         const chatMessages = document.getElementById('chatMessages');
         const terminalOutput = document.getElementById('terminalOutput');
+        let socket;
 
         // Check authentication on page load
         window.onload = async () => {
@@ -270,10 +274,27 @@
         }
 
         function initializeChat() {
-            // Add some example messages
+            const token = localStorage.getItem('token');
+            
+            // Connect to socket.io with authentication
+            socket = io({
+                auth: {
+                    token: token
+                }
+            });
+
+            // Handle connection errors
+            socket.on('connect_error', (error) => {
+                console.error('Socket connection error:', error);
+                addChatMessage('SYSTEM', 'Error connecting to chat server', new Date());
+            });
+
+            // Handle incoming messages
+            socket.on('chat message', (data) => {
+                addChatMessage(data.username, data.message, new Date(data.timestamp));
+            });
+
             addChatMessage('SYSTEM', 'Welcome to PUNK MUD chat');
-            addChatMessage('CyberRogue', 'Hey everyone!');
-            addChatMessage('NetRunner42', 'What\'s the latest in the underground?');
         }
 
         // Handle chat input
@@ -291,14 +312,18 @@
 
         function handleChatMessage() {
             const message = chatInput.value.trim();
-            // Here you would normally send the message to your server
-            // For now, we'll just add it to the chat locally
-            addChatMessage('You', message);
+            if (!message) return;
+            
+            // Send message through WebSocket
+            socket.emit('chat message', message);
             chatInput.value = '';
         }
 
         // Handle logout
         document.getElementById('logoutButton').addEventListener('click', () => {
+            if (socket) {
+                socket.disconnect();
+            }
             localStorage.removeItem('token');
             window.location.href = '/';
         });

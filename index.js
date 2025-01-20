@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const path = require('path');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const User = require('./models/User');
 const { sendAuthCode } = require('./services/emailService');
@@ -206,6 +208,61 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+// Create HTTP server explicitly
+const server = http.createServer(app);
+const io = new Server(server);
+
+// Add socket.io authentication and connection handling
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    if (!token) {
+        return next(new Error('Authentication error'));
+    }
+
+    try {
+        const verified = jwt.verify(token, JWT_SECRET);
+        socket.user = verified;
+        next();
+    } catch (error) {
+        next(new Error('Invalid token'));
+    }
+});
+
+io.on('connection', (socket) => {
+    console.log(`User connected: ${socket.user.email}`);
+
+    // Handle chat messages
+    socket.on('chat message', async (message) => {
+        try {
+            // Fetch latest user data to ensure we have current avatar name
+            const user = await User.findById(socket.user.userId);
+            if (!user || !user.avatarName) {
+                throw new Error('User not found or missing avatar name');
+            }
+
+            // Broadcast the message to all connected clients
+            io.emit('chat message', {
+                username: user.avatarName,
+                message: message,
+                timestamp: new Date()
+            });
+        } catch (error) {
+            console.error('Error handling chat message:', error);
+            // Send error only to the sender
+            socket.emit('chat message', {
+                username: 'SYSTEM',
+                message: 'Error sending message',
+                timestamp: new Date()
+            });
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`User disconnected: ${socket.user.email}`);
+    });
+});
+
+// Replace app.listen with server.listen
+server.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
 }); 
