@@ -40,7 +40,7 @@
             text-align: center;
             max-width: 800px;
             width: 90%;
-            min-height: 60vh;
+            height: 80vh;
             display: flex;
             flex-direction: column;
         }
@@ -68,7 +68,9 @@
             flex-grow: 1;
             overflow-y: auto;
             position: relative;
-            min-height: 300px;
+            max-height: calc(100% - 150px);
+            scrollbar-width: thin;
+            scrollbar-color: var(--terminal-green) var(--dark-bg);
         }
 
         .terminal::before {
@@ -161,6 +163,19 @@
         .logout-button:hover::after {
             color: var(--dark-bg);
         }
+
+        .terminal::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .terminal::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        .terminal::-webkit-scrollbar-thumb {
+            background-color: var(--terminal-green);
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -210,49 +225,147 @@
             "Accessing stored neural patterns...",
             "SYSTEM: Welcome back to the grid, {avatarName}",
             "Restoring previous session...",
-            "SYSTEM: Neural sync complete. Ready to dive."
+            "SYSTEM: Neural sync complete.",
+            "SYSTEM: Type 'dive' to enter PUNK MUD..."
         ];
 
         const terminalOutput = document.getElementById('terminalOutput');
-        let messageIndex = 0;
 
-        function typeMessage(message) {
-            return new Promise((resolve, reject) => {
-                isTyping = true;
-                let index = 0;
-                const lineDiv = document.createElement('div');
-                lineDiv.style.display = 'flex';
-                lineDiv.style.alignItems = 'center';
-                terminalOutput.appendChild(lineDiv);
-                
-                const textSpan = document.createElement('span');
-                const cursorSpan = document.createElement('span');
-                cursorSpan.className = 'cursor';
-                lineDiv.appendChild(textSpan);
-                lineDiv.appendChild(cursorSpan);
+        // New Terminal class to handle message output
+        class Terminal {
+            constructor(outputElement) {
+                this.outputElement = outputElement;
+                this.isTyping = false;
+                this.currentInterval = null;
+                this.skipAll = false;
+                this.bindKeyEvents();
+            }
 
-                currentInterval = setInterval(() => {
-                    if (!isTyping) {
-                        clearInterval(currentInterval);
-                        cursorSpan.remove();
-                        lineDiv.innerHTML += '<br>';
-                        reject(new Error('Typing interrupted'));
+            bindKeyEvents() {
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && this.isTyping) {
+                        this.skipAll = true;
+                        this.skipTyping = true;
+                    }
+                });
+            }
+
+            async writeMessage(message, options = {}) {
+                const {
+                    delay = 50,
+                    addBreak = true,
+                    addInput = false,
+                    skipDelay = false
+                } = options;
+
+                return new Promise((resolve, reject) => {
+                    if (this.skipAll && skipDelay) {
+                        // Immediately write the message without animation
+                        const lineDiv = document.createElement('div');
+                        lineDiv.style.display = 'flex';
+                        lineDiv.style.alignItems = 'center';
+                        this.outputElement.appendChild(lineDiv);
+                        
+                        const textSpan = document.createElement('span');
+                        textSpan.textContent = message;
+                        lineDiv.appendChild(textSpan);
+                        
+                        if (addBreak) {
+                            lineDiv.innerHTML += '<br>' + (addBreak === true ? '<br>' : '');
+                        }
+                        resolve();
                         return;
                     }
 
-                    if (index < message.length) {
-                        textSpan.textContent += message[index];
-                        index++;
-                    } else {
-                        clearInterval(currentInterval);
-                        cursorSpan.remove();
-                        lineDiv.innerHTML += '<br><br>';
-                        isTyping = false;
-                        resolve();
+                    this.isTyping = true;
+                    this.skipTyping = false;
+                    let index = 0;
+                    const lineDiv = document.createElement('div');
+                    lineDiv.style.display = 'flex';
+                    lineDiv.style.alignItems = 'center';
+                    this.outputElement.appendChild(lineDiv);
+                    
+                    const textSpan = document.createElement('span');
+                    const cursorSpan = document.createElement('span');
+                    cursorSpan.className = 'cursor';
+                    lineDiv.appendChild(textSpan);
+                    lineDiv.appendChild(cursorSpan);
+
+                    this.currentInterval = setInterval(() => {
+                        if (!this.isTyping) {
+                            clearInterval(this.currentInterval);
+                            cursorSpan.remove();
+                            lineDiv.innerHTML += '<br>';
+                            reject(new Error('Typing interrupted'));
+                            return;
+                        }
+
+                        if (this.skipTyping) {
+                            // Complete the message immediately
+                            textSpan.textContent = message;
+                            clearInterval(this.currentInterval);
+                            cursorSpan.remove();
+                            if (addBreak) {
+                                lineDiv.innerHTML += '<br>' + (addBreak === true ? '<br>' : '');
+                            }
+                            this.isTyping = false;
+                            resolve();
+                            return;
+                        }
+
+                        if (index < message.length) {
+                            textSpan.textContent += message[index];
+                            index++;
+                            this.outputElement.scrollTop = this.outputElement.scrollHeight;
+                        } else {
+                            clearInterval(this.currentInterval);
+                            cursorSpan.remove();
+                            if (addBreak) {
+                                lineDiv.innerHTML += '<br>' + (addBreak === true ? '<br>' : '');
+                            }
+                            this.isTyping = false;
+                            this.outputElement.scrollTop = this.outputElement.scrollHeight;
+                            resolve();
+                        }
+                    }, delay);
+                });
+            }
+
+            async writeLines(messages, delayBetweenLines = 500) {
+                this.skipAll = false;
+                for (const message of messages) {
+                    await this.writeMessage(message, { skipDelay: this.skipAll });
+                    if (!this.skipAll) {
+                        await new Promise(resolve => setTimeout(resolve, delayBetweenLines));
                     }
-                }, 50);
-            });
+                }
+                this.skipAll = false;
+            }
+
+            addPermanentCursor() {
+                const cursorLine = document.createElement('div');
+                cursorLine.style.display = 'flex';
+                cursorLine.style.alignItems = 'center';
+                const cursorSpan = document.createElement('span');
+                cursorSpan.className = 'cursor';
+                cursorLine.appendChild(cursorSpan);
+                this.outputElement.appendChild(cursorLine);
+            }
+
+            clearCursors() {
+                const cursors = this.outputElement.querySelectorAll('.cursor');
+                cursors.forEach(cursor => cursor.remove());
+            }
+
+            interrupt() {
+                this.isTyping = false;
+                if (this.currentInterval) {
+                    clearInterval(this.currentInterval);
+                }
+            }
         }
+
+        const terminal = new Terminal(terminalOutput);
 
         function createInputLine() {
             const inputLine = document.createElement('div');
@@ -270,6 +383,26 @@
                               flex-grow: 1;
                               outline: none;" 
                        placeholder="Enter avatar name">
+            `;
+            return inputLine;
+        }
+
+        function createDivePrompt() {
+            const inputLine = document.createElement('div');
+            inputLine.style.display = 'flex';
+            inputLine.style.alignItems = 'center';
+            inputLine.style.gap = '10px';
+            inputLine.innerHTML = `
+                <span style="color: var(--terminal-green)">></span>
+                <input type="text" id="diveInput" 
+                       style="background: transparent;
+                              border: none;
+                              color: var(--terminal-green);
+                              font-family: 'Courier New', monospace;
+                              font-size: 1rem;
+                              flex-grow: 1;
+                              outline: none;" 
+                       placeholder="Type 'dive' to enter">
             `;
             return inputLine;
         }
@@ -315,48 +448,49 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    await typeMessage(`Avatar registration successful. Welcome, ${avatarName}!`);
-                    await typeMessage("SYSTEM: Initializing game environment...");
-                    addPermanentCursor();
+                    await terminal.writeMessage(`Avatar registration successful. Welcome, ${avatarName}!`);
+                    await terminal.writeMessage("SYSTEM: Initializing game environment...");
+                    terminal.addPermanentCursor();
                 } else {
                     throw new Error(data.error);
                 }
             } catch (error) {
-                await typeMessage("ERROR: " + (error.message || "Failed to register avatar"));
+                await terminal.writeMessage("ERROR: " + (error.message || "Failed to register avatar"));
             }
         }
 
-        function addPermanentCursor() {
-            const cursorLine = document.createElement('div');
-            cursorLine.style.display = 'flex';
-            cursorLine.style.alignItems = 'center';
-            const cursorSpan = document.createElement('span');
-            cursorSpan.className = 'cursor';
-            cursorLine.appendChild(cursorSpan);
-            terminalOutput.appendChild(cursorLine);
+        // Add this new function before window.onload
+        function setupDivePrompt() {
+            const divePrompt = createDivePrompt();
+            terminalOutput.appendChild(divePrompt);
+            const diveInput = document.getElementById('diveInput');
+            diveInput.focus();
+
+            diveInput.addEventListener('keypress', async (e) => {
+                if (e.key === 'Enter') {
+                    const input = diveInput.value.trim().toLowerCase();
+                    divePrompt.remove();
+                    await terminal.writeMessage(`> ${input}`);
+                    
+                    if (input === 'dive') {
+                        await terminal.writeLines([
+                            "SYSTEM: Initiating neural dive sequence...",
+                            "SYSTEM: Synchronizing neural patterns...", 
+                            "SYSTEM: Dive successful. Welcome to PUNK MUD."
+                        ]);
+                        terminal.addPermanentCursor();
+                        // Here you would add code to transition to the game
+                    } else {
+                        await terminal.writeMessage("ERROR: Invalid command. Neural dive aborted.");
+                        setupDivePrompt(); // Recursively setup a new prompt
+                    }
+                }
+            });
         }
 
-        async function displayMessages() {
-            try {
-                for (const message of messages) {
-                    await typeMessage(message);
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                }
-                if (!isReturningUser) {
-                    return;
-                }
-                addPermanentCursor();
-            } catch (error) {
-                if (error.message !== 'Typing interrupted') {
-                    throw error;
-                }
-            }
-        }
-
-        // Start the animation sequence
+        // Update the initialization code
         window.onload = async () => {
             try {
-                // Fetch user details using JWT
                 const user = await fetchUserDetails();
                 
                 if (user.avatarName) {
@@ -369,24 +503,24 @@
                 }
                 messages.unshift(`User identified: ${user.email}`);
                 
-                await displayMessages();
+                await terminal.writeLines(messages);
                 
-                // Only show avatar input for new users
                 if (!isReturningUser) {
                     const inputLine = createInputLine();
                     terminalOutput.appendChild(inputLine);
                     const avatarInput = document.getElementById('avatarInput');
                     avatarInput.focus();
 
-                    // Handle avatar name submission
                     avatarInput.addEventListener('keypress', async (e) => {
                         if (e.key === 'Enter' && avatarInput.value.trim()) {
                             const avatarName = avatarInput.value.trim();
                             inputLine.remove();
-                            await typeMessage(`> ${avatarName}`);
+                            await terminal.writeMessage(`> ${avatarName}`);
                             await handleAvatarSubmission(avatarName);
                         }
                     });
+                } else {
+                    setupDivePrompt(); // Replace the existing dive prompt code with this single line
                 }
             } catch (error) {
                 console.error('Initialization error:', error);
@@ -394,26 +528,20 @@
             }
         };
 
-        // Add logout functionality
+        // Update the logout handler
         document.getElementById('logoutButton').addEventListener('click', async () => {
             try {
-                // Interrupt any ongoing typing
-                if (isTyping) {
-                    isTyping = false;
-                    await new Promise(resolve => setTimeout(resolve, 100)); // Wait for typing to stop
-                }
+                terminal.interrupt();
+                await new Promise(resolve => setTimeout(resolve, 100));
                 
-                // Remove any existing permanent cursor
-                const cursors = terminalOutput.querySelectorAll('.cursor');
-                cursors.forEach(cursor => cursor.remove());
+                terminal.clearCursors();
 
-                await typeMessage("SYSTEM: Initiating neural disconnect...");
+                await terminal.writeMessage("SYSTEM: Initiating neural disconnect...");
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                await typeMessage("SYSTEM: Clearing neural buffers...");
+                await terminal.writeMessage("SYSTEM: Clearing neural buffers...");
                 await new Promise(resolve => setTimeout(resolve, 500));
-                await typeMessage("SYSTEM: Disconnecting from mainframe...");
+                await terminal.writeMessage("SYSTEM: Disconnecting from mainframe...");
                 
-                // Clear the token
                 localStorage.removeItem('token');
                 
                 await new Promise(resolve => setTimeout(resolve, 500));
