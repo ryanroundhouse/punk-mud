@@ -255,11 +255,12 @@
                     delay = 50,
                     addBreak = true,
                     addInput = false,
-                    skipDelay = false
+                    skipDelay = false,
+                    immediate = false
                 } = options;
 
                 return new Promise((resolve, reject) => {
-                    if (this.skipAll && skipDelay) {
+                    if (this.skipAll && skipDelay || immediate) {
                         // Immediately write the message without animation
                         const lineDiv = document.createElement('div');
                         lineDiv.style.display = 'flex';
@@ -273,6 +274,7 @@
                         if (addBreak) {
                             lineDiv.innerHTML += '<br>' + (addBreak === true ? '<br>' : '');
                         }
+                        this.outputElement.scrollTop = this.outputElement.scrollHeight;
                         resolve();
                         return;
                     }
@@ -337,9 +339,11 @@
                     await this.writeMessage(message, { skipDelay: this.skipAll });
                     if (!this.skipAll) {
                         await new Promise(resolve => setTimeout(resolve, delayBetweenLines));
+                        this.outputElement.scrollTop = this.outputElement.scrollHeight;
                     }
                 }
                 this.skipAll = false;
+                this.outputElement.scrollTop = this.outputElement.scrollHeight;
             }
 
             addPermanentCursor() {
@@ -470,7 +474,7 @@
                 if (e.key === 'Enter') {
                     const input = diveInput.value.trim().toLowerCase();
                     divePrompt.remove();
-                    await terminal.writeMessage(`> ${input}`);
+                    await terminal.writeMessage(`> ${input}`, { immediate: true });
                     
                     if (input === 'dive') {
                         await terminal.writeLines([
@@ -531,16 +535,15 @@
         // Update the logout handler
         document.getElementById('logoutButton').addEventListener('click', async () => {
             try {
-                terminal.interrupt();
                 await new Promise(resolve => setTimeout(resolve, 100));
                 
                 terminal.clearCursors();
 
-                await terminal.writeMessage("SYSTEM: Initiating neural disconnect...");
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                await terminal.writeMessage("SYSTEM: Clearing neural buffers...");
-                await new Promise(resolve => setTimeout(resolve, 500));
-                await terminal.writeMessage("SYSTEM: Disconnecting from mainframe...");
+                await terminal.writeLines([
+                    "SYSTEM: Initiating neural disconnect...",
+                    "SYSTEM: Clearing neural buffers...", 
+                    "SYSTEM: Disconnecting from mainframe..."
+                ]);
                 
                 localStorage.removeItem('token');
                 
