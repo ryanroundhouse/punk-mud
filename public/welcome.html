@@ -452,14 +452,46 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    await terminal.writeMessage(`Avatar registration successful. Welcome, ${avatarName}!`);
-                    await terminal.writeMessage("SYSTEM: Initializing game environment...");
-                    terminal.addPermanentCursor();
+                    await terminal.writeLines([
+                        `Avatar registration successful. Welcome, ${avatarName}!`,
+                        "SYSTEM: Initializing game environment...",
+                        "SYSTEM: Neural sync complete.",
+                        "SYSTEM: Type 'dive' to enter PUNK MUD..."
+                    ]);
+                    setupDivePrompt();
                 } else {
-                    throw new Error(data.error);
+                    await terminal.writeMessage("ERROR: " + (data.error || "Failed to register avatar"));
+                    // Re-prompt for avatar name
+                    const inputLine = createInputLine();
+                    terminalOutput.appendChild(inputLine);
+                    const avatarInput = document.getElementById('avatarInput');
+                    avatarInput.focus();
+
+                    avatarInput.addEventListener('keypress', async (e) => {
+                        if (e.key === 'Enter' && avatarInput.value.trim()) {
+                            const newAvatarName = avatarInput.value.trim();
+                            inputLine.remove();
+                            await terminal.writeMessage(`> ${newAvatarName}`, { immediate: true });
+                            await handleAvatarSubmission(newAvatarName);
+                        }
+                    });
                 }
             } catch (error) {
-                await terminal.writeMessage("ERROR: " + (error.message || "Failed to register avatar"));
+                await terminal.writeMessage("ERROR: " + (error.message || "Failed to register avatar"), { immediate: true });
+                // Re-prompt for avatar name
+                const inputLine = createInputLine();
+                terminalOutput.appendChild(inputLine);
+                const avatarInput = document.getElementById('avatarInput');
+                avatarInput.focus();
+
+                avatarInput.addEventListener('keypress', async (e) => {
+                    if (e.key === 'Enter' && avatarInput.value.trim()) {
+                        const newAvatarName = avatarInput.value.trim();
+                        inputLine.remove();
+                        await terminal.writeMessage(`> ${newAvatarName}`, { immediate: true });
+                        await handleAvatarSubmission(newAvatarName);
+                    }
+                });
             }
         }
 
@@ -519,7 +551,7 @@
                         if (e.key === 'Enter' && avatarInput.value.trim()) {
                             const avatarName = avatarInput.value.trim();
                             inputLine.remove();
-                            await terminal.writeMessage(`> ${avatarName}`);
+                            await terminal.writeMessage(`> ${avatarName}`, { immediate: true });
                             await handleAvatarSubmission(avatarName);
                         }
                     });
