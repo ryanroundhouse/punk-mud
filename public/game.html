@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUNK MUD - Game</title>
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+            --terminal-green: #00ff00;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .game-container {
+            display: flex;
+            width: 95%;
+            height: 90vh;
+            gap: 1rem;
+        }
+
+        .main-panel {
+            flex: 2;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-pink),
+                       0 0 40px rgba(255, 46, 136, 0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-panel {
+            flex: 1;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 1rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-blue),
+                       0 0 40px rgba(0, 255, 249, 0.3);
+            display: flex;
+            flex-direction: column;
+            max-width: 400px;
+        }
+
+        .chat-header {
+            font-size: 1.2rem;
+            color: var(--neon-blue);
+            text-align: center;
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--neon-blue);
+            margin-bottom: 1rem;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            margin-bottom: 1rem;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-blue) var(--dark-bg);
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background-color: var(--neon-blue);
+            border-radius: 4px;
+        }
+
+        .chat-input-container {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chat-input {
+            flex-grow: 1;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--neon-blue);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .send-button {
+            background: var(--neon-blue);
+            color: var(--dark-bg);
+            border: none;
+            padding: 0.8rem 1.2rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .send-button:hover {
+            background: var(--neon-pink);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .terminal {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1.5rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            text-align: left;
+            flex-grow: 1;
+            overflow-y: auto;
+            position: relative;
+            scrollbar-width: thin;
+            scrollbar-color: var(--terminal-green) var(--dark-bg);
+        }
+
+        .terminal::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .terminal::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        .terminal::-webkit-scrollbar-thumb {
+            background-color: var(--terminal-green);
+            border-radius: 4px;
+        }
+
+        .chat-message {
+            margin-bottom: 0.8rem;
+            word-wrap: break-word;
+        }
+
+        .chat-username {
+            color: var(--neon-pink);
+            font-weight: bold;
+        }
+
+        .chat-timestamp {
+            color: #666;
+            font-size: 0.8rem;
+            margin-left: 0.5rem;
+        }
+
+        .logout-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .logout-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+    </style>
+</head>
+<body>
+    <button class="logout-button" id="logoutButton">Disconnect</button>
+    <div class="game-container">
+        <div class="main-panel">
+            <div class="terminal" id="gameOutput">
+                <div id="terminalOutput"></div>
+            </div>
+        </div>
+        
+        <div class="chat-panel">
+            <div class="chat-header">GLOBAL CHAT</div>
+            <div class="chat-messages" id="chatMessages">
+                <!-- Chat messages will be inserted here -->
+            </div>
+            <div class="chat-input-container">
+                <input type="text" 
+                       class="chat-input" 
+                       id="chatInput" 
+                       placeholder="Enter message..."
+                       maxlength="200">
+                <button class="send-button" id="sendButton">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+        const chatMessages = document.getElementById('chatMessages');
+        const terminalOutput = document.getElementById('terminalOutput');
+
+        // Check authentication on page load
+        window.onload = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/verify-token', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                // Initialize chat connection here
+                initializeChat();
+            } catch (error) {
+                console.error('Authentication error:', error);
+                window.location.href = '/';
+            }
+        };
+
+        function addChatMessage(username, message, timestamp = new Date()) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message';
+            messageDiv.innerHTML = `
+                <span class="chat-username">${username}:</span>
+                <span class="chat-text">${message}</span>
+                <span class="chat-timestamp">${timestamp.toLocaleTimeString()}</span>
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function initializeChat() {
+            // Add some example messages
+            addChatMessage('SYSTEM', 'Welcome to PUNK MUD chat');
+            addChatMessage('CyberRogue', 'Hey everyone!');
+            addChatMessage('NetRunner42', 'What\'s the latest in the underground?');
+        }
+
+        // Handle chat input
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && chatInput.value.trim()) {
+                handleChatMessage();
+            }
+        });
+
+        sendButton.addEventListener('click', () => {
+            if (chatInput.value.trim()) {
+                handleChatMessage();
+            }
+        });
+
+        function handleChatMessage() {
+            const message = chatInput.value.trim();
+            // Here you would normally send the message to your server
+            // For now, we'll just add it to the chat locally
+            addChatMessage('You', message);
+            chatInput.value = '';
+        }
+
+        // Handle logout
+        document.getElementById('logoutButton').addEventListener('click', () => {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+        });
+    </script>
+</body>
+</html> 

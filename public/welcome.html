@@ -514,8 +514,8 @@
                             "SYSTEM: Synchronizing neural patterns...", 
                             "SYSTEM: Dive successful. Welcome to PUNK MUD."
                         ]);
-                        terminal.addPermanentCursor();
-                        // Here you would add code to transition to the game
+                        // Redirect to game.html instead of showing cursor
+                        window.location.href = '/game.html';
                     } else {
                         await terminal.writeMessage("ERROR: Invalid command. Neural dive aborted.");
                         setupDivePrompt(); // Recursively setup a new prompt
