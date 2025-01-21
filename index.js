@@ -5,6 +5,9 @@ require('dotenv').config();
 const jwt = require('jsonwebtoken');
 const http = require('http');
 const { Server } = require('socket.io');
+const multer = require('multer');
+const fs = require('fs').promises;
+const winston = require('winston');
 
 const User = require('./models/User');
 const { sendAuthCode } = require('./services/emailService');
@@ -12,18 +15,87 @@ const { sendAuthCode } = require('./services/emailService');
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Configure logger
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+    ),
+    transports: [
+        new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+        new winston.transports.File({ filename: 'logs/combined.log' })
+    ]
+});
+
+// Add console logging in development
+if (process.env.NODE_ENV !== 'production') {
+    logger.add(new winston.transports.Console({
+        format: winston.format.combine(
+            winston.format.colorize(),
+            winston.format.simple()
+        )
+    }));
+}
+
+// Global error handler middleware
+const errorHandler = (err, req, res, next) => {
+    logger.error('Unhandled error:', {
+        error: {
+            message: err.message,
+            stack: err.stack
+        },
+        request: {
+            method: req.method,
+            path: req.path,
+            body: req.body,
+            query: req.query,
+            user: req.user ? req.user.email : 'unauthenticated'
+        }
+    });
+
+    if (err.name === 'ValidationError') {
+        return res.status(400).json({
+            error: 'Validation Error',
+            details: err.message
+        });
+    }
+
+    if (err.name === 'MongoError' && err.code === 11000) {
+        return res.status(409).json({
+            error: 'Duplicate Entry',
+            details: 'A record with this key already exists'
+        });
+    }
+
+    res.status(500).json({
+        error: 'Internal Server Error',
+        message: process.env.NODE_ENV === 'production' 
+            ? 'An unexpected error occurred' 
+            : err.message
+    });
+};
+
+// Add async handler wrapper
+const asyncHandler = (fn) => (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+};
+
 // Middleware
 app.use(express.json());
 // Add static file serving middleware
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Add logging middleware for all requests
+// Update the existing request logging middleware
 app.use((req, res, next) => {
-  console.log(`\n[${new Date().toISOString()}] ${req.method} ${req.path}`);
-  if (Object.keys(req.body).length > 0) {
-    console.log('Request body:', JSON.stringify(req.body, null, 2));
-  }
-  next();
+    logger.info('Incoming request', {
+        method: req.method,
+        path: req.path,
+        body: req.body,
+        query: req.query,
+        ip: req.ip
+    });
+    next();
 });
 
 // Add middleware to verify JWT
@@ -47,13 +119,24 @@ const authenticateToken = (req, res, next) => {
 // Add at the top with other constants
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'; // In production, always use environment variable
 
+// Add near the start of your server setup, before defining routes
+const uploadDir = path.join(__dirname, 'public/assets/zones');
+fs.mkdir(uploadDir, { recursive: true })
+    .then(() => logger.info('Upload directory ensured:', uploadDir))
+    .catch(err => logger.error('Error creating upload directory:', err));
+
 // MongoDB connection
 mongoose.connect('mongodb://mongodb:27017/myapp', {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
+.then(() => {
+    logger.info('Connected to MongoDB');
+})
+.catch(err => {
+    logger.error('MongoDB connection error:', err);
+    process.exit(1);
+});
 
 // Generate random 5-digit code
 const generateAuthCode = () => Math.floor(10000 + Math.random() * 90000).toString();
@@ -262,7 +345,278 @@ io.on('connection', (socket) => {
     });
 });
 
+// Update the multer storage configuration
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadDir = path.join(__dirname, 'public/assets/zones');
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        // Keep the file extension
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, 'zone-' + uniqueSuffix + ext);
+    }
+});
+
+const upload = multer({ 
+    storage: storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        
+        if (extname && mimetype) {
+            return cb(null, true);
+        }
+        cb(new Error('Only image files are allowed!'));
+    }
+});
+
+// Node Schema
+const nodeSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    address: {
+        type: String,
+        required: true,
+        unique: true,
+        validate: {
+            validator: function(v) {
+                return /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(v);
+            },
+            message: props => `${props.value} is not a valid IP address!`
+        }
+    },
+    description: {
+        type: String,
+        required: true
+    },
+    image: {
+        type: String,
+        default: ''
+    },
+    exits: [{
+        direction: {
+            type: String,
+            required: true
+        },
+        target: {
+            type: String,
+            required: true
+        }
+    }],
+    createdAt: {
+        type: Date,
+        default: Date.now
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+const Node = mongoose.model('Node', nodeSchema);
+
+// Middleware to verify builder access
+const verifyBuilderAccess = async (req, res, next) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.userId);
+        
+        if (!user || !user.isBuilder) {
+            return res.status(403).json({ error: 'Not authorized to access builder' });
+        }
+
+        req.user = user;
+        next();
+    } catch (error) {
+        res.status(401).json({ error: 'Invalid token' });
+    }
+};
+
+// Node endpoints
+app.post('/api/nodes', verifyBuilderAccess, asyncHandler(async (req, res) => {
+    const { name, address, description, image, exits } = req.body;
+    
+    if (!name || !address || !description) {
+        throw new Error('Missing required fields');
+    }
+
+    // Check if node with address already exists
+    const existingNode = await Node.findOne({ address });
+    if (existingNode) {
+        logger.info('Updating existing node', {
+            address,
+            userId: req.user._id
+        });
+
+        // Update existing node
+        existingNode.name = name;
+        existingNode.description = description;
+        existingNode.image = image;
+        existingNode.exits = exits;
+        existingNode.updatedAt = Date.now();
+        
+        await existingNode.save();
+        
+        logger.info('Node updated successfully', {
+            nodeId: existingNode._id,
+            address
+        });
+        
+        return res.json(existingNode);
+    }
+
+    // Create new node
+    const node = new Node({
+        name,
+        address,
+        description,
+        image,
+        exits
+    });
+    
+    await node.save();
+    
+    logger.info('New node created', {
+        nodeId: node._id,
+        address,
+        userId: req.user._id
+    });
+    
+    res.status(201).json(node);
+}));
+
+app.get('/api/nodes', verifyBuilderAccess, async (req, res) => {
+    try {
+        const nodes = await Node.find().sort({ name: 1 });
+        res.json(nodes);
+    } catch (error) {
+        console.error('Error fetching nodes:', error);
+        res.status(500).json({ error: 'Error fetching nodes' });
+    }
+});
+
+app.delete('/api/nodes/:address', verifyBuilderAccess, async (req, res) => {
+    try {
+        const node = await Node.findOneAndDelete({ address: req.params.address });
+        if (!node) {
+            return res.status(404).json({ error: 'Node not found' });
+        }
+        
+        // If node had an image, delete it
+        if (node.image) {
+            const imagePath = path.join(__dirname, 'public', node.image);
+            await fs.unlink(imagePath).catch(console.error);
+        }
+        
+        res.json({ message: 'Node deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting node:', error);
+        res.status(500).json({ error: 'Error deleting node' });
+    }
+});
+
+// Image upload endpoint
+app.post('/api/upload-image', verifyBuilderAccess, asyncHandler(async (req, res) => {
+    upload.single('image')(req, res, async (err) => {
+        if (err) {
+            logger.error('Upload error:', err);
+            if (err instanceof multer.MulterError) {
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(400).json({
+                        error: 'File too large',
+                        details: 'Maximum file size is 5MB'
+                    });
+                }
+            }
+            return res.status(500).json({
+                error: 'Upload failed',
+                details: 'Unable to process image upload'
+            });
+        }
+
+        if (!req.file) {
+            logger.error('No file in request');
+            return res.status(400).json({
+                error: 'No file',
+                details: 'No image file provided'
+            });
+        }
+
+        logger.info('File upload details:', {
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            filename: req.file.filename,
+            path: req.file.path,
+            size: req.file.size
+        });
+
+        try {
+            const relativePath = '/assets/zones/' + req.file.filename;
+            
+            // Verify file exists after upload
+            const fullPath = path.join(__dirname, 'public', relativePath);
+            await fs.access(fullPath);
+            
+            logger.info('Image upload successful', {
+                relativePath,
+                fullPath,
+                exists: true
+            });
+            
+            res.json({ path: relativePath });
+        } catch (error) {
+            logger.error('Error verifying uploaded file:', error);
+            throw error;
+        }
+    });
+}));
+
+// Add to User schema
+const userSchema = new mongoose.Schema({
+    // ... existing user schema fields ...
+    isBuilder: {
+        type: Boolean,
+        default: false
+    }
+});
+
 // Replace app.listen with server.listen
 server.listen(port, () => {
     console.log(`Server is running on port ${port}`);
+});
+
+// Handle uncaught exceptions and unhandled rejections
+process.on('uncaughtException', (error) => {
+    logger.error('Uncaught Exception:', error);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (error) => {
+    logger.error('Unhandled Rejection:', error);
+    process.exit(1);
+});
+
+// Add error handling middleware last
+app.use(errorHandler);
+
+// Add this temporary debug endpoint
+app.get('/api/check-image/:filename', (req, res) => {
+    const imagePath = path.join(__dirname, 'public/assets/zones', req.params.filename);
+    fs.access(imagePath)
+        .then(() => res.json({ exists: true, path: imagePath }))
+        .catch(() => res.json({ exists: false, path: imagePath }));
 }); 

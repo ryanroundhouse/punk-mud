@@ -17,6 +17,10 @@ const userSchema = new mongoose.Schema({
     authCode: {
         code: String,
         expiresAt: Date
+    },
+    isBuilder: {
+        type: Boolean,
+        default: false
     }
 });
 
