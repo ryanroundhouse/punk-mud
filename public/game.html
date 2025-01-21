@@ -133,29 +133,58 @@
         }
 
         .terminal {
-            background: rgba(0, 0, 0, 0.7);
-            padding: 1.5rem;
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            line-height: 1.6;
+        }
+
+        .node-name {
+            color: var(--neon-pink);
+            font-size: 2rem;
+            text-transform: uppercase;
+            margin-bottom: 2rem;
+            text-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .node-image {
+            max-width: 100%;
+            max-height: 300px;
+            width: auto;
+            height: auto;
+            margin: 1rem 0;
+            border: 2px solid var(--neon-blue);
+            border-radius: 5px;
+            box-shadow: 0 0 15px var(--neon-blue);
+            display: block;
+            object-fit: contain;
+        }
+
+        .node-description {
+            margin: 2rem 0;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
             border-radius: 5px;
             border: 1px solid var(--terminal-green);
-            text-align: left;
-            flex-grow: 1;
-            overflow-y: auto;
-            position: relative;
-            scrollbar-width: thin;
-            scrollbar-color: var(--terminal-green) var(--dark-bg);
+            white-space: pre-wrap;
         }
 
-        .terminal::-webkit-scrollbar {
-            width: 8px;
+        .exits-list {
+            margin-top: 2rem;
         }
 
-        .terminal::-webkit-scrollbar-track {
-            background: var(--dark-bg);
+        .exit-item {
+            color: var(--neon-blue);
+            cursor: pointer;
+            padding: 0.5rem;
+            transition: all 0.3s ease;
         }
 
-        .terminal::-webkit-scrollbar-thumb {
-            background-color: var(--terminal-green);
-            border-radius: 4px;
+        .exit-item:hover {
+            background: rgba(0, 255, 249, 0.1);
+            text-shadow: 0 0 5px var(--neon-blue);
         }
 
         .chat-message {
@@ -203,7 +232,12 @@
     <div class="game-container">
         <div class="main-panel">
             <div class="terminal" id="gameOutput">
-                <div id="terminalOutput"></div>
+                <div id="terminalOutput">
+                    <div class="node-name" id="nodeName"></div>
+                    <img id="nodeImage" class="node-image" style="display: none;">
+                    <div class="node-description" id="nodeDescription"></div>
+                    <div class="exits-list" id="nodeExits"></div>
+                </div>
             </div>
         </div>
         
@@ -233,7 +267,52 @@
         const terminalOutput = document.getElementById('terminalOutput');
         let socket;
 
-        // Check authentication on page load
+        // Function to load and display node
+        async function loadNode(address = '122.124.10.10') {
+            try {
+                const response = await fetch(`/api/nodes/${address}`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load node');
+                }
+
+                const node = await response.json();
+                
+                // Update node display
+                document.getElementById('nodeName').textContent = node.name;
+                document.getElementById('nodeDescription').textContent = node.description;
+                
+                // Handle image
+                const nodeImage = document.getElementById('nodeImage');
+                if (node.image) {
+                    nodeImage.src = node.image;
+                    nodeImage.style.display = 'block';
+                } else {
+                    nodeImage.style.display = 'none';
+                }
+
+                // Display exits
+                const exitsContainer = document.getElementById('nodeExits');
+                exitsContainer.innerHTML = '<h3>Available Exits:</h3>';
+                node.exits.forEach(exit => {
+                    const exitElement = document.createElement('div');
+                    exitElement.className = 'exit-item';
+                    exitElement.textContent = `[${exit.direction}]`;
+                    exitElement.addEventListener('click', () => loadNode(exit.target));
+                    exitsContainer.appendChild(exitElement);
+                });
+            } catch (error) {
+                console.error('Error loading node:', error);
+                document.getElementById('terminalOutput').innerHTML = 
+                    '<div style="color: var(--neon-pink)">ERROR: Connection failed</div>';
+            }
+        }
+
+        // Load initial node when page loads
         window.onload = async () => {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -253,8 +332,9 @@
                     throw new Error('Invalid token');
                 }
 
-                // Initialize chat connection here
+                // Initialize chat and load initial node
                 initializeChat();
+                loadNode();
             } catch (error) {
                 console.error('Authentication error:', error);
                 window.location.href = '/';

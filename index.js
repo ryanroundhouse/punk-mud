@@ -619,4 +619,18 @@ app.get('/api/check-image/:filename', (req, res) => {
     fs.access(imagePath)
         .then(() => res.json({ exists: true, path: imagePath }))
         .catch(() => res.json({ exists: false, path: imagePath }));
+});
+
+// Add this endpoint to get a specific node
+app.get('/api/nodes/:address', authenticateToken, async (req, res) => {
+    try {
+        const node = await Node.findOne({ address: req.params.address });
+        if (!node) {
+            return res.status(404).json({ error: 'Node not found' });
+        }
+        res.json(node);
+    } catch (error) {
+        logger.error('Error fetching node:', error);
+        res.status(500).json({ error: 'Error fetching node' });
+    }
 }); 
