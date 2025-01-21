@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUNK MUD - Node Builder</title>
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+            --terminal-green: #00ff00;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .builder-container {
+            width: 95%;
+            height: 90vh;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-pink),
+                       0 0 40px rgba(255, 46, 136, 0.3);
+            position: relative;
+        }
+
+        .layout-container {
+            display: flex;
+            gap: 2rem;
+            height: 100%;
+        }
+
+        .left-panel {
+            flex: 1;
+            height: 100%;
+            position: relative;
+        }
+
+        .node-form {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            height: calc(100% - 5rem);
+            box-sizing: border-box;
+            position: relative;
+            margin-top: 5rem;
+        }
+
+        #newNodeBtn {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #saveNodeBtn {
+            position: absolute;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1;
+        }
+
+        .form-group:nth-child(-n+3) {
+            width: calc(100% - 350px);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+            position: relative;
+            width: calc(100% - 350px);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--neon-blue);
+        }
+
+        input[type="text"],
+        textarea,
+        select {
+            width: 90%;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .exits-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .exit-entry {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .remove-exit {
+            color: var(--neon-pink);
+            cursor: pointer;
+        }
+
+        .image-upload-section {
+            position: absolute;
+            right: 2rem;
+            top: 2rem;
+            width: 300px;
+        }
+
+        .image-preview-container {
+            width: 300px;
+            height: 200px;
+            border: 2px solid var(--neon-blue);
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            margin-bottom: 1rem;
+        }
+
+        .image-upload-controls {
+            width: 100%;
+        }
+
+        .image-preview {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+
+        .no-image-text {
+            color: var(--neon-blue);
+            font-style: italic;
+            opacity: 0.7;
+        }
+
+        #nodeList {
+            margin-top: 1rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .node-item {
+            padding: 0.5rem;
+            cursor: pointer;
+            border-bottom: 1px solid var(--neon-blue);
+        }
+
+        .node-item:hover {
+            background: rgba(0, 255, 249, 0.1);
+        }
+
+        .right-panel {
+            width: 300px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            display: flex;
+            flex-direction: column;
+            margin-top: 5rem;
+            height: calc(100% - rem);
+        }
+
+        .filter-container {
+            margin-bottom: 1rem;
+        }
+
+        .nodes-list {
+            flex: 1;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-blue) var(--dark-bg);
+        }
+
+        .nodes-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .nodes-list::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        .nodes-list::-webkit-scrollbar-thumb {
+            background-color: var(--neon-blue);
+            border-radius: 4px;
+        }
+
+        .node-entry {
+            padding: 0.8rem;
+            border-bottom: 1px solid var(--neon-blue);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .node-entry:hover {
+            background: rgba(0, 255, 249, 0.1);
+        }
+
+        .node-entry-name {
+            color: var(--neon-pink);
+            font-weight: bold;
+            margin-bottom: 0.3rem;
+        }
+
+        .node-entry-address {
+            color: var(--neon-blue);
+            font-size: 0.9rem;
+        }
+
+        .action-button {
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .action-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .form-group:nth-child(4) {
+            margin-top: 0;
+        }
+
+        .form-group:nth-child(3) {
+            width: calc(100% - 350px);
+        }
+
+        .form-group:last-child {
+            width: 100%;
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="builder-container">
+        <div class="layout-container">
+            <div class="left-panel">
+                <button class="action-button" id="newNodeBtn">Add New Node</button>
+                <div class="node-form">
+                    <div class="form-group">
+                        <label for="nodeName">Node Name:</label>
+                        <input type="text" id="nodeName" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="address">IP Address:</label>
+                        <input type="text" 
+                               id="nodeAddress" 
+                               pattern="^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+                               placeholder="xxx.xxx.xxx.xxx"
+                               title="Please enter a valid IP address"
+                               required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description">Description:</label>
+                        <textarea id="description" required></textarea>
+                    </div>
+
+                    <div class="image-upload-section">
+                        <div class="image-preview-container">
+                            <img id="imagePreview" class="image-preview">
+                            <span class="no-image-text" id="noImageText">No image uploaded</span>
+                        </div>
+                        <div class="image-upload-controls">
+                            <label for="imageUpload">Zone Image:</label>
+                            <input type="file" id="imageUpload" accept="image/*">
+                            <input type="hidden" id="imagePath">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Exits:</label>
+                        <div id="exitsContainer" class="exits-container">
+                            <button class="action-button" id="addExitBtn">Add Exit</button>
+                        </div>
+                    </div>
+
+                    <div id="nodeList">
+                        <!-- Existing nodes will be listed here -->
+                    </div>
+                </div>
+                <button class="action-button" id="saveNodeBtn">Save Node</button>
+            </div>
+
+            <div class="right-panel">
+                <div class="filter-container">
+                    <input type="text" 
+                           id="nodeFilter" 
+                           placeholder="Filter nodes..."
+                           class="chat-input">
+                </div>
+                <div class="nodes-list" id="nodesListPanel">
+                    <!-- Nodes will be listed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const newNodeBtn = document.getElementById('newNodeBtn');
+        const saveNodeBtn = document.getElementById('saveNodeBtn');
+        const imageUpload = document.getElementById('imageUpload');
+        const imagePreview = document.getElementById('imagePreview');
+        const addExitBtn = document.getElementById('addExitBtn');
+        const exitsContainer = document.getElementById('exitsContainer');
+        
+        const nodeFilter = document.getElementById('nodeFilter');
+        let allNodes = []; // Store all nodes for filtering
+        
+        // Check authentication
+        window.onload = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/verify-token', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                // Load existing nodes
+                loadNodes();
+            } catch (error) {
+                console.error('Authentication error:', error);
+                window.location.href = '/';
+            }
+        };
+
+        // Handle image upload
+        imageUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            const noImageText = document.getElementById('noImageText');
+            
+            if (file) {
+                // Preview image
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                    noImageText.style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+
+                // Upload image to server
+                const formData = new FormData();
+                formData.append('image', file);
+
+                try {
+                    const response = await fetch('/api/upload-image', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+
+                    const data = await response.json();
+                    document.getElementById('imagePath').value = data.path;
+                } catch (error) {
+                    console.error('Error uploading image:', error);
+                }
+            }
+        });
+
+        // Add exit field
+        addExitBtn.addEventListener('click', () => {
+            const exitEntry = document.createElement('div');
+            exitEntry.className = 'exit-entry';
+            exitEntry.innerHTML = `
+                <input type="text" placeholder="Direction" class="exit-direction">
+                <input type="text" placeholder="Target Node Coordinates" class="exit-target">
+                <span class="remove-exit">×</span>
+            `;
+
+            exitEntry.querySelector('.remove-exit').addEventListener('click', () => {
+                exitEntry.remove();
+            });
+
+            exitsContainer.insertBefore(exitEntry, addExitBtn);
+        });
+
+        // Save node
+        saveNodeBtn.addEventListener('click', async () => {
+            const exits = Array.from(document.querySelectorAll('.exit-entry')).map(exit => ({
+                direction: exit.querySelector('.exit-direction').value,
+                target: exit.querySelector('.exit-target').value
+            }));
+
+            const nodeData = {
+                name: document.getElementById('nodeName').value,
+                address: document.getElementById('nodeAddress').value,
+                description: document.getElementById('description').value,
+                image: document.getElementById('imagePath').value,
+                exits: exits
+            };
+
+            try {
+                const response = await fetch('/api/nodes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(nodeData)
+                });
+
+                if (response.ok) {
+                    alert('Node saved successfully!');
+                    loadNodes();
+                } else {
+                    throw new Error('Failed to save node');
+                }
+            } catch (error) {
+                console.error('Error saving node:', error);
+                alert('Error saving node');
+            }
+        });
+
+        // Load existing nodes
+        async function loadNodes() {
+            try {
+                const response = await fetch('/api/nodes', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                allNodes = await response.json();
+                filterAndDisplayNodes();
+            } catch (error) {
+                console.error('Error loading nodes:', error);
+            }
+        }
+
+        // Add filter functionality
+        function filterAndDisplayNodes() {
+            const filterValue = nodeFilter.value.toLowerCase();
+            const nodesListPanel = document.getElementById('nodesListPanel');
+            nodesListPanel.innerHTML = '';
+            
+            allNodes
+                .filter(node => 
+                    node.name.toLowerCase().includes(filterValue) ||
+                    node.address.toLowerCase().includes(filterValue)
+                )
+                .forEach(node => {
+                    const nodeEntry = document.createElement('div');
+                    nodeEntry.className = 'node-entry';
+                    nodeEntry.innerHTML = `
+                        <div class="node-entry-name">${node.name}</div>
+                        <div class="node-entry-address">${node.address}</div>
+                    `;
+                    nodeEntry.addEventListener('click', () => loadNodeData(node));
+                    nodesListPanel.appendChild(nodeEntry);
+                });
+        }
+
+        // Add filter event listener
+        nodeFilter.addEventListener('input', filterAndDisplayNodes);
+
+        // Update the existing loadNodeData function to highlight selected node
+        function loadNodeData(node) {
+            document.getElementById('nodeName').value = node.name;
+            document.getElementById('nodeAddress').value = node.address;
+            document.getElementById('description').value = node.description;
+            document.getElementById('imagePath').value = node.image;
+            
+            const noImageText = document.getElementById('noImageText');
+            
+            if (node.image) {
+                imagePreview.src = node.image;
+                imagePreview.style.display = 'block';
+                noImageText.style.display = 'none';
+            } else {
+                imagePreview.style.display = 'none';
+                noImageText.style.display = 'block';
+            }
+
+            // Clear existing exits
+            const exitEntries = document.querySelectorAll('.exit-entry');
+            exitEntries.forEach(entry => entry.remove());
+
+            // Add existing exits
+            node.exits.forEach(exit => {
+                const exitEntry = document.createElement('div');
+                exitEntry.className = 'exit-entry';
+                exitEntry.innerHTML = `
+                    <input type="text" value="${exit.direction}" class="exit-direction">
+                    <input type="text" value="${exit.target}" class="exit-target">
+                    <span class="remove-exit">×</span>
+                `;
+
+                exitEntry.querySelector('.remove-exit').addEventListener('click', () => {
+                    exitEntry.remove();
+                });
+
+                exitsContainer.insertBefore(exitEntry, addExitBtn);
+            });
+
+            // Highlight selected node
+            document.querySelectorAll('.node-entry').forEach(entry => {
+                entry.style.backgroundColor = '';
+                if (entry.querySelector('.node-entry-address').textContent === node.address) {
+                    entry.style.backgroundColor = 'rgba(0, 255, 249, 0.2)';
+                }
+            });
+        }
+
+        // Clear form for new node
+        newNodeBtn.addEventListener('click', () => {
+            document.getElementById('nodeName').value = '';
+            document.getElementById('nodeAddress').value = '';
+            document.getElementById('description').value = '';
+            document.getElementById('imagePath').value = '';
+            imagePreview.style.display = 'none';
+            const noImageText = document.getElementById('noImageText');
+            noImageText.style.display = 'block';
+            
+            const exitEntries = document.querySelectorAll('.exit-entry');
+            exitEntries.forEach(entry => entry.remove());
+        });
+    </script>
+</body>
+</html> 
