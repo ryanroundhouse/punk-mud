@@ -266,21 +266,52 @@
         const chatMessages = document.getElementById('chatMessages');
         const terminalOutput = document.getElementById('terminalOutput');
         let socket;
+        let currentNode = null;
 
-        // Function to load and display node
-        async function loadNode(address = '122.124.10.10') {
+        // Add function to get user's current location
+        async function getCurrentLocation() {
             try {
-                const response = await fetch(`/api/nodes/${address}`, {
+                const response = await fetch(`/api/nodes/current`, {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
-
+                
                 if (!response.ok) {
-                    throw new Error('Failed to load node');
+                    throw new Error('Failed to get current location');
+                }
+                
+                const node = await response.json();
+                return node;
+            } catch (error) {
+                console.error('Error getting current location:', error);
+                throw error;
+            }
+        }
+
+        // Function to load and display node
+        async function loadNode(address = null) {
+            try {
+                let node;
+                if (!address) {
+                    // Get current location directly from the nodes endpoint
+                    node = await getCurrentLocation();
+                } else {
+                    const response = await fetch(`/api/nodes/${address}`, {
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error || 'Failed to load node');
+                    }
+
+                    node = await response.json();
                 }
 
-                const node = await response.json();
+                currentNode = node;
                 
                 // Update node display
                 document.getElementById('nodeName').textContent = node.name;
@@ -295,24 +326,46 @@
                     nodeImage.style.display = 'none';
                 }
 
-                // Display exits
+                // Display exits with target node names
                 const exitsContainer = document.getElementById('nodeExits');
                 exitsContainer.innerHTML = '<h3>Available Exits:</h3>';
+                
+                // Fetch all nodes to get their names
+                const nodesResponse = await fetch('/api/nodes', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                const allNodes = await nodesResponse.json();
+
                 node.exits.forEach(exit => {
+                    const targetNode = allNodes.find(n => n.address === exit.target);
+                    const targetName = targetNode ? targetNode.name : 'Unknown';
+                    
                     const exitElement = document.createElement('div');
                     exitElement.className = 'exit-item';
-                    exitElement.textContent = `[${exit.direction}]`;
-                    exitElement.addEventListener('click', () => loadNode(exit.target));
+                    exitElement.textContent = `[${exit.direction}] → [${targetName}]`;
+                    exitElement.addEventListener('click', () => {
+                        loadNode(exit.target).catch(error => {
+                            // Display error message in the terminal
+                            const errorMsg = document.createElement('div');
+                            errorMsg.style.color = 'var(--neon-pink)';
+                            errorMsg.textContent = `ERROR: ${error.message}`;
+                            document.getElementById('terminalOutput').appendChild(errorMsg);
+                            // Auto-remove error message after 3 seconds
+                            setTimeout(() => errorMsg.remove(), 3000);
+                        });
+                    });
                     exitsContainer.appendChild(exitElement);
                 });
             } catch (error) {
                 console.error('Error loading node:', error);
                 document.getElementById('terminalOutput').innerHTML = 
-                    '<div style="color: var(--neon-pink)">ERROR: Connection failed</div>';
+                    `<div style="color: var(--neon-pink)">ERROR: ${error.message}</div>`;
             }
         }
 
-        // Load initial node when page loads
+        // Update window.onload to load the user's current location
         window.onload = async () => {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -332,9 +385,9 @@
                     throw new Error('Invalid token');
                 }
 
-                // Initialize chat and load initial node
+                // Initialize chat and load current location
                 initializeChat();
-                loadNode();
+                loadNode(); // Will fetch current location from server
             } catch (error) {
                 console.error('Authentication error:', error);
                 window.location.href = '/';

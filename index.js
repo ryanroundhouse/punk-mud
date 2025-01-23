@@ -11,6 +11,7 @@ const winston = require('winston');
 
 const User = require('./models/User');
 const { sendAuthCode } = require('./services/emailService');
+const Node = require('./models/Node');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -212,6 +213,12 @@ app.post('/api/authenticate', async (req, res) => {
 
         // Clear the auth code
         user.authCode = undefined;
+        
+        // Set default location if none exists
+        if (!user.currentNode) {
+            user.currentNode = '122.124.10.10';
+        }
+        
         await user.save();
         console.log('Authentication successful - auth code cleared');
 
@@ -376,54 +383,6 @@ const upload = multer({
     }
 });
 
-// Node Schema
-const nodeSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
-        trim: true
-    },
-    address: {
-        type: String,
-        required: true,
-        unique: true,
-        validate: {
-            validator: function(v) {
-                return /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(v);
-            },
-            message: props => `${props.value} is not a valid IP address!`
-        }
-    },
-    description: {
-        type: String,
-        required: true
-    },
-    image: {
-        type: String,
-        default: ''
-    },
-    exits: [{
-        direction: {
-            type: String,
-            required: true
-        },
-        target: {
-            type: String,
-            required: true
-        }
-    }],
-    createdAt: {
-        type: Date,
-        default: Date.now
-    },
-    updatedAt: {
-        type: Date,
-        default: Date.now
-    }
-});
-
-const Node = mongoose.model('Node', nodeSchema);
-
 // Middleware to verify builder access
 const verifyBuilderAccess = async (req, res, next) => {
     try {
@@ -585,15 +544,6 @@ app.post('/api/upload-image', verifyBuilderAccess, asyncHandler(async (req, res)
     });
 }));
 
-// Add to User schema
-const userSchema = new mongoose.Schema({
-    // ... existing user schema fields ...
-    isBuilder: {
-        type: Boolean,
-        default: false
-    }
-});
-
 // Replace app.listen with server.listen
 server.listen(port, () => {
     console.log(`Server is running on port ${port}`);
@@ -621,16 +571,75 @@ app.get('/api/check-image/:filename', (req, res) => {
         .catch(() => res.json({ exists: false, path: imagePath }));
 });
 
-// Add this endpoint to get a specific node
+// Update the node endpoint to check and update player location
 app.get('/api/nodes/:address', authenticateToken, async (req, res) => {
     try {
-        const node = await Node.findOne({ address: req.params.address });
-        if (!node) {
-            return res.status(404).json({ error: 'Node not found' });
+        // Get user's current location
+        const user = await User.findById(req.user.userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
         }
+
+        // Set default location if none exists
+        if (!user.currentNode) {
+            user.currentNode = '122.124.10.10';
+            await user.save();
+        }
+
+        // If no specific address requested, use user's current location
+        const targetAddress = req.params.address === 'current' ? user.currentNode : req.params.address;
+
+        const node = await Node.findOne({ address: targetAddress });
+        if (!node) {
+            // If node not found, reset to starting node
+            user.currentNode = '122.124.10.10';
+            await user.save();
+            
+            const startNode = await Node.findOne({ address: '122.124.10.10' });
+            if (!startNode) {
+                return res.status(404).json({ error: 'Starting node not found - critical error' });
+            }
+            return res.json(startNode);
+        }
+
+        // If moving to a new node, verify the movement
+        if (targetAddress !== user.currentNode) {
+            const currentNode = await Node.findOne({ address: user.currentNode });
+            if (!currentNode) {
+                // If current node is invalid, reset to starting node
+                user.currentNode = '122.124.10.10';
+                await user.save();
+                return res.status(400).json({ error: 'Invalid current location - reset to start' });
+            }
+
+            // Check if there's a valid exit from the current node to the target node
+            const hasValidExit = currentNode.exits.some(exit => exit.target === targetAddress);
+            if (!hasValidExit) {
+                return res.status(403).json({ error: 'Invalid movement - nodes are not connected' });
+            }
+
+            // Update user's location after successful movement validation
+            user.currentNode = targetAddress;
+            await user.save();
+        }
+
         res.json(node);
     } catch (error) {
         logger.error('Error fetching node:', error);
         res.status(500).json({ error: 'Error fetching node' });
+    }
+});
+
+// Add endpoint to get user's current location
+app.get('/api/user/location', authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json({ currentNode: user.currentNode });
+    } catch (error) {
+        logger.error('Error fetching user location:', error);
+        res.status(500).json({ error: 'Error fetching user location' });
     }
 }); 

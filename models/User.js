@@ -21,6 +21,10 @@ const userSchema = new mongoose.Schema({
     isBuilder: {
         type: Boolean,
         default: false
+    },
+    currentNode: {
+        type: String,
+        default: '122.124.10.10' // Default starting node
     }
 });
 

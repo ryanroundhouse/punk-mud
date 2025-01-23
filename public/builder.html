@@ -272,6 +272,38 @@
             width: 100%;
             margin-top: 2rem;
         }
+
+        .exit-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .exit-controls select {
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+        }
+
+        .exit-entry {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            background: rgba(0, 255, 249, 0.05);
+            padding: 0.5rem;
+            border-radius: 5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .exit-info {
+            flex: 1;
+            color: var(--terminal-green);
+        }
     </style>
 </head>
 <body>
@@ -315,7 +347,20 @@
                     <div class="form-group">
                         <label>Exits:</label>
                         <div id="exitsContainer" class="exits-container">
-                            <button class="action-button" id="addExitBtn">Add Exit</button>
+                            <div class="exit-controls">
+                                <select id="exitDirection">
+                                    <option value="north">North</option>
+                                    <option value="south">South</option>
+                                    <option value="east">East</option>
+                                    <option value="west">West</option>
+                                    <option value="up">Up</option>
+                                    <option value="down">Down</option>
+                                </select>
+                                <select id="exitTarget">
+                                    <!-- Will be populated with nodes -->
+                                </select>
+                                <button class="action-button" id="addExitBtn">Add Exit</button>
+                            </div>
                         </div>
                     </div>
 
@@ -417,11 +462,24 @@
 
         // Add exit field
         addExitBtn.addEventListener('click', () => {
+            const direction = document.getElementById('exitDirection').value;
+            const targetSelect = document.getElementById('exitTarget');
+            const targetAddress = targetSelect.value;
+            const targetName = targetSelect.options[targetSelect.selectedIndex].text;
+
+            if (!targetAddress) {
+                alert('Please select a target node');
+                return;
+            }
+
             const exitEntry = document.createElement('div');
             exitEntry.className = 'exit-entry';
             exitEntry.innerHTML = `
-                <input type="text" placeholder="Direction" class="exit-direction">
-                <input type="text" placeholder="Target Node Coordinates" class="exit-target">
+                <div class="exit-info">
+                    <strong>${direction}</strong> → ${targetName}
+                </div>
+                <input type="hidden" class="exit-direction" value="${direction}">
+                <input type="hidden" class="exit-target" value="${targetAddress}">
                 <span class="remove-exit">×</span>
             `;
 
@@ -429,7 +487,7 @@
                 exitEntry.remove();
             });
 
-            exitsContainer.insertBefore(exitEntry, addExitBtn);
+            exitsContainer.insertBefore(exitEntry, document.querySelector('.exit-controls'));
         });
 
         // Save node
@@ -479,6 +537,16 @@
                 });
                 allNodes = await response.json();
                 filterAndDisplayNodes();
+                
+                // Populate exit target dropdown
+                const exitTarget = document.getElementById('exitTarget');
+                exitTarget.innerHTML = '<option value="">Select Target Node</option>';
+                allNodes.forEach(node => {
+                    const option = document.createElement('option');
+                    option.value = node.address;
+                    option.textContent = `${node.name} (${node.address})`;
+                    exitTarget.appendChild(option);
+                });
             } catch (error) {
                 console.error('Error loading nodes:', error);
             }
@@ -534,11 +602,17 @@
 
             // Add existing exits
             node.exits.forEach(exit => {
+                const targetNode = allNodes.find(n => n.address === exit.target);
+                const targetName = targetNode ? `${targetNode.name} (${targetNode.address})` : exit.target;
+                
                 const exitEntry = document.createElement('div');
                 exitEntry.className = 'exit-entry';
                 exitEntry.innerHTML = `
-                    <input type="text" value="${exit.direction}" class="exit-direction">
-                    <input type="text" value="${exit.target}" class="exit-target">
+                    <div class="exit-info">
+                        <strong>${exit.direction}</strong> → ${targetName}
+                    </div>
+                    <input type="hidden" class="exit-direction" value="${exit.direction}">
+                    <input type="hidden" class="exit-target" value="${exit.target}">
                     <span class="remove-exit">×</span>
                 `;
 
@@ -546,7 +620,7 @@
                     exitEntry.remove();
                 });
 
-                exitsContainer.insertBefore(exitEntry, addExitBtn);
+                exitsContainer.insertBefore(exitEntry, document.querySelector('.exit-controls'));
             });
 
             // Highlight selected node
