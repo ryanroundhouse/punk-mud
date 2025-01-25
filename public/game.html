@@ -163,12 +163,34 @@
         }
 
         .node-description {
-            margin: 2rem 0;
+            margin: 2rem 0 0.5rem 0;
             padding: 1rem;
             background: rgba(0, 0, 0, 0.3);
             border-radius: 5px;
             border: 1px solid var(--terminal-green);
             white-space: pre-wrap;
+            max-height: 150px;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .node-description.expanded {
+            max-height: 2000px;
+            transition: max-height 0.5s ease-in;
+        }
+
+        .description-toggle {
+            color: var(--neon-blue);
+            cursor: pointer;
+            padding: 0.5rem;
+            text-align: right;
+            user-select: none;
+            margin: 0 0 2rem 0;
+            font-size: 0.9rem;
+        }
+
+        .description-toggle:hover {
+            text-shadow: 0 0 5px var(--neon-blue);
         }
 
         .exits-list {
@@ -225,6 +247,36 @@
             color: var(--dark-bg);
             box-shadow: 0 0 10px var(--neon-pink);
         }
+
+        .users-panel {
+            margin: 2rem 0;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            border: 1px solid var(--neon-blue);
+        }
+
+        .users-panel h3 {
+            color: var(--neon-blue);
+            margin-top: 0;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .present-users {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .present-user {
+            background: rgba(0, 255, 249, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 <body>
@@ -236,13 +288,21 @@
                     <div class="node-name" id="nodeName"></div>
                     <img id="nodeImage" class="node-image" style="display: none;">
                     <div class="node-description" id="nodeDescription"></div>
+                    <div class="description-toggle" id="descriptionToggle">[ Show More ]</div>
+
+                    <!-- Add the users panel here -->
+                    <div class="users-panel">
+                        <h3>Faces in the Crowd</h3>
+                        <div id="presentUsers" class="present-users"></div>
+                    </div>
+
                     <div class="exits-list" id="nodeExits"></div>
                 </div>
             </div>
         </div>
         
         <div class="chat-panel">
-            <div class="chat-header">GLOBAL CHAT</div>
+            <div class="chat-header">CHAT LOG</div>
             <div class="chat-messages" id="chatMessages">
                 <!-- Chat messages will be inserted here -->
             </div>
@@ -268,6 +328,7 @@
         let socket;
         let currentNode = null;
         let currentUsername = null;
+        let isDescriptionExpanded = false;
 
         // Add function to get user's current location
         async function getCurrentLocation() {
@@ -361,6 +422,21 @@
                     });
                     exitsContainer.appendChild(exitElement);
                 });
+
+                // After setting node description
+                const descriptionElement = document.getElementById('nodeDescription');
+                const toggleElement = document.getElementById('descriptionToggle');
+                
+                // Reset description state
+                descriptionElement.classList.remove('expanded');
+                isDescriptionExpanded = false;
+                toggleElement.textContent = '[ Show More ]';
+
+                // Show toggle only if content overflows
+                setTimeout(() => {
+                    toggleElement.style.display = 
+                        descriptionElement.scrollHeight > 150 ? 'block' : 'none';
+                }, 0);
             } catch (error) {
                 console.error('Error loading node:', error);
                 document.getElementById('terminalOutput').innerHTML = 
@@ -402,6 +478,21 @@
                 // Initialize chat and load current location
                 initializeChat();
                 loadNode();
+
+                // Add description toggle handler
+                document.getElementById('descriptionToggle').addEventListener('click', () => {
+                    const description = document.getElementById('nodeDescription');
+                    const toggle = document.getElementById('descriptionToggle');
+                    isDescriptionExpanded = !isDescriptionExpanded;
+                    
+                    if (isDescriptionExpanded) {
+                        description.classList.add('expanded');
+                        toggle.textContent = '[ Show Less ]';
+                    } else {
+                        description.classList.remove('expanded');
+                        toggle.textContent = '[ Show More ]';
+                    }
+                });
             } catch (error) {
                 console.error('Authentication error:', error);
                 window.location.href = '/';
@@ -448,6 +539,18 @@
                     return;
                 }
                 addChatMessage(data.username, data.message, new Date(data.timestamp));
+            });
+
+            socket.on('users update', (users) => {
+                const presentUsersDiv = document.getElementById('presentUsers');
+                presentUsersDiv.innerHTML = '';
+                
+                users.forEach(username => {
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'present-user';
+                    userDiv.textContent = username;
+                    presentUsersDiv.appendChild(userDiv);
+                });
             });
         }
 

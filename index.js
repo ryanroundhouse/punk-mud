@@ -348,6 +348,7 @@ io.use((socket, next) => {
 // Add these after other constants
 const connectedClients = new Map(); // stores socket connection per client
 const nodeClients = new Map(); // stores list of clients per node
+const nodeUsernames = new Map(); // stores username lists per node
 
 // Add a Set to track which node channels we're subscribed to
 const subscribedNodes = new Set();
@@ -384,7 +385,7 @@ io.on('connection', (socket) => {
                 timestamp: new Date()
             };
 
-            // Publish message to Redis channel for this node
+            // Only publish to Redis, don't emit directly
             await redisClient.publish(
                 `node:${user.currentNode}:chat`,
                 JSON.stringify(chatMessage)
@@ -428,6 +429,9 @@ function addUserToNode(userId, nodeAddress) {
         nodeClients.set(nodeAddress, new Set());
     }
     nodeClients.get(nodeAddress).add(userId);
+    
+    // Update the usernames list and broadcast
+    updateNodeUsernames(nodeAddress);
     logger.info(`User ${userId} added to node ${nodeAddress}`);
 }
 
@@ -437,8 +441,12 @@ function removeUserFromNode(userId, nodeAddress) {
         nodeSet.delete(userId);
         if (nodeSet.size === 0) {
             nodeClients.delete(nodeAddress);
+            nodeUsernames.delete(nodeAddress);
             // Unsubscribe from empty node's chat
             unsubscribeFromNodeChat(nodeAddress);
+        } else {
+            // Update the usernames list and broadcast
+            updateNodeUsernames(nodeAddress);
         }
     }
 }
@@ -459,7 +467,7 @@ async function subscribeToNodeChat(nodeAddress) {
         await redisSubscriber.subscribe(channel, (message) => {
             try {
                 const chatMessage = JSON.parse(message);
-                // Broadcast to all users in this node
+                // Get the node's users and emit to each one
                 const nodeUsers = nodeClients.get(nodeAddress);
                 if (nodeUsers) {
                     nodeUsers.forEach(userId => {
@@ -776,6 +784,13 @@ app.get('/api/nodes/:address', authenticateToken, async (req, res) => {
                 `You have entered ${node.name}.`,
                 user._id.toString()
             );
+
+            // Send initial users list to the joining user
+            const userSocket = connectedClients.get(user._id.toString());
+            if (userSocket) {
+                const usernames = nodeUsernames.get(targetAddress) || [];
+                userSocket.emit('users update', usernames);
+            }
         }
 
         // If moving to a new node, verify the movement
@@ -828,7 +843,7 @@ process.on('SIGTERM', async () => {
     process.exit(0);
 });
 
-// Update the publishSystemMessage function to handle personalized messages
+// Update the publishSystemMessage function
 async function publishSystemMessage(nodeAddress, message, personalMessage, userId) {
     const baseMessage = {
         username: 'SYSTEM',
@@ -839,17 +854,17 @@ async function publishSystemMessage(nodeAddress, message, personalMessage, userI
     // Get the node's users
     const nodeUsers = nodeClients.get(nodeAddress);
     if (nodeUsers) {
+        // For system messages, emit directly instead of using Redis
+        // This prevents duplicate system messages
         nodeUsers.forEach(targetUserId => {
             const userSocket = connectedClients.get(targetUserId);
             if (userSocket) {
-                // Send personalized message to the specific user
                 if (targetUserId === userId && personalMessage) {
                     userSocket.emit('chat message', {
                         ...baseMessage,
                         message: personalMessage
                     });
                 } else {
-                    // Send regular message to other users
                     userSocket.emit('chat message', {
                         ...baseMessage,
                         message: message
@@ -857,5 +872,38 @@ async function publishSystemMessage(nodeAddress, message, personalMessage, userI
                 }
             }
         });
+    }
+}
+
+// Add this new function to handle username updates
+async function updateNodeUsernames(nodeAddress) {
+    try {
+        const nodeSet = nodeClients.get(nodeAddress);
+        if (!nodeSet) return;
+
+        // Get usernames for all users in the node
+        const usernames = [];
+        for (const userId of nodeSet) {
+            const user = await User.findById(userId);
+            if (user && user.avatarName) {
+                usernames.push(user.avatarName);
+            }
+        }
+
+        // Store the username list
+        nodeUsernames.set(nodeAddress, usernames);
+
+        // Broadcast to all users in the node
+        const nodeUsers = nodeClients.get(nodeAddress);
+        if (nodeUsers) {
+            nodeUsers.forEach(userId => {
+                const userSocket = connectedClients.get(userId);
+                if (userSocket) {
+                    userSocket.emit('users update', usernames);
+                }
+            });
+        }
+    } catch (error) {
+        logger.error('Error updating node usernames:', error);
     }
 } 
