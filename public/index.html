@@ -160,6 +160,8 @@
         const messageDiv = document.getElementById('message');
         const jackInButton = document.getElementById('jackInButton');
         const authenticateButton = document.getElementById('authenticateButton');
+        const emailInput = document.getElementById('emailInput');
+        const codeInput = document.getElementById('codeInput');
         let currentEmail = '';
 
         async function checkExistingToken() {
@@ -188,7 +190,24 @@
 
         window.onload = () => {
             checkExistingToken();
+            emailInput.focus(); // Auto-focus the email input
         };
+
+        // Add event listener for Enter key
+        emailInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                jackInButton.click();
+            }
+        });
+
+        // Add event listener for Enter key on code input
+        codeInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                authenticateButton.click();
+            }
+        });
 
         jackInButton.addEventListener('click', async () => {
             const emailInput = document.getElementById('emailInput');
@@ -211,6 +230,8 @@
                     emailStep.style.display = 'none';
                     codeStep.style.display = 'block';
                     messageDiv.textContent = 'Check your email for the authentication code';
+                    // Add auto-focus to code input when it becomes visible
+                    codeInput.focus();
                 } else {
                     throw new Error(data.error);
                 }
