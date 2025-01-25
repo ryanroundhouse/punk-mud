@@ -320,52 +320,25 @@ io.use((socket, next) => {
 
 io.on('connection', (socket) => {
     console.log(`User connected: ${socket.user.email}`);
-    
-    // Add user to their current node's room
-    async function joinCurrentRoom() {
-        try {
-            const user = await User.findById(socket.user.userId);
-            if (user && user.currentNode) {
-                // Leave previous room if any
-                if (socket.currentRoom) {
-                    socket.leave(socket.currentRoom);
-                }
-                // Join new room
-                socket.currentRoom = user.currentNode;
-                socket.join(user.currentNode);
-                
-                // Notify room of new user
-                socket.to(user.currentNode).emit('chat message', {
-                    username: 'SYSTEM',
-                    message: `${user.avatarName} has entered the zone.`,
-                    timestamp: new Date()
-                });
-            }
-        } catch (error) {
-            console.error('Error joining room:', error);
-        }
-    }
-
-    // Initial room join
-    joinCurrentRoom();
 
     // Handle chat messages
     socket.on('chat message', async (message) => {
         try {
-            // Fetch latest user data to ensure we have current avatar name and location
+            // Fetch latest user data to ensure we have current avatar name
             const user = await User.findById(socket.user.userId);
             if (!user || !user.avatarName) {
                 throw new Error('User not found or missing avatar name');
             }
 
-            // Broadcast the message only to users in the same room
-            io.to(user.currentNode).emit('chat message', {
+            // Broadcast the message to all connected clients
+            io.emit('chat message', {
                 username: user.avatarName,
                 message: message,
                 timestamp: new Date()
             });
         } catch (error) {
             console.error('Error handling chat message:', error);
+            // Send error only to the sender
             socket.emit('chat message', {
                 username: 'SYSTEM',
                 message: 'Error sending message',
@@ -374,55 +347,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Handle room changes when user moves
-    socket.on('change room', async (newRoom) => {
-        try {
-            const user = await User.findById(socket.user.userId);
-            if (!user || !user.avatarName) {
-                throw new Error('User not found or missing avatar name');
-            }
-
-            // Notify old room that user has left
-            if (socket.currentRoom) {
-                socket.to(socket.currentRoom).emit('chat message', {
-                    username: 'SYSTEM',
-                    message: `${user.avatarName} has left the zone.`,
-                    timestamp: new Date()
-                });
-            }
-
-            // Leave current room and join new one
-            if (socket.currentRoom) {
-                socket.leave(socket.currentRoom);
-            }
-            socket.currentRoom = newRoom;
-            socket.join(newRoom);
-
-            // Notify new room that user has entered
-            socket.to(newRoom).emit('chat message', {
-                username: 'SYSTEM',
-                message: `${user.avatarName} has entered the zone.`,
-                timestamp: new Date()
-            });
-        } catch (error) {
-            console.error('Error changing rooms:', error);
-        }
-    });
-
-    socket.on('disconnect', async () => {
-        try {
-            const user = await User.findById(socket.user.userId);
-            if (user && socket.currentRoom) {
-                // Notify room that user has disconnected
-                socket.to(socket.currentRoom).emit('chat message', {
-                    username: 'SYSTEM',
-                    message: `${user.avatarName} has disconnected.`,
-                    timestamp: new Date()
-                });
-            }
-        } catch (error) {
-            console.error('Error handling disconnect:', error);
-        }
+    socket.on('disconnect', () => {
         console.log(`User disconnected: ${socket.user.email}`);
     });
 });

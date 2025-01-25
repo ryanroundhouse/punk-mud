@@ -242,7 +242,7 @@
         </div>
         
         <div class="chat-panel">
-            <div class="chat-header">LOCAL CHAT</div>
+            <div class="chat-header">GLOBAL CHAT</div>
             <div class="chat-messages" id="chatMessages">
                 <!-- Chat messages will be inserted here -->
             </div>
@@ -295,6 +295,7 @@
             try {
                 let node;
                 if (!address) {
+                    // Get current location directly from the nodes endpoint
                     node = await getCurrentLocation();
                 } else {
                     const response = await fetch(`/api/nodes/${address}`, {
@@ -310,18 +311,6 @@
 
                     node = await response.json();
                 }
-
-                // If we've changed rooms, notify the server and mark as visited
-                if (currentNode && currentNode.address !== node.address) {
-                    socket.emit('change room', node.address);
-                    // Clear chat messages when changing rooms
-                    chatMessages.innerHTML = '';
-                    addChatMessage('SYSTEM', `You have entered: ${node.name}`);
-                }
-
-                // Mark current node as visited
-                visitedNodes.add(node.address);
-                localStorage.setItem('visitedNodes', JSON.stringify([...visitedNodes]));
 
                 currentNode = node;
                 
@@ -429,22 +418,25 @@
         function initializeChat() {
             const token = localStorage.getItem('token');
             
+            // Connect to socket.io with authentication
             socket = io({
                 auth: {
                     token: token
                 }
             });
 
+            // Handle connection errors
             socket.on('connect_error', (error) => {
                 console.error('Socket connection error:', error);
                 addChatMessage('SYSTEM', 'Error connecting to chat server', new Date());
             });
 
+            // Handle incoming messages
             socket.on('chat message', (data) => {
                 addChatMessage(data.username, data.message, new Date(data.timestamp));
             });
 
-            addChatMessage('SYSTEM', 'Connected to local chat');
+            addChatMessage('SYSTEM', 'Welcome to PUNK MUD chat');
         }
 
         // Handle chat input
@@ -464,8 +456,12 @@
             const message = chatInput.value.trim();
             if (!message) return;
             
+            console.log('Sending chat message:', message);
+            
             // Send message through WebSocket
             socket.emit('chat message', message);
+            
+            // Clear input after sending
             chatInput.value = '';
         }
 
