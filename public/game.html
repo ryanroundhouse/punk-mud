@@ -260,6 +260,18 @@
             color: var(--neon-blue);
             margin-bottom: 0.5rem;
         }
+
+        .user-link {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: var(--neon-blue);
+        }
+
+        .user-link:hover {
+            text-shadow: 0 0 5px var(--neon-blue);
+            color: var(--neon-pink);
+        }
     </style>
 </head>
 <body>
@@ -528,8 +540,11 @@
                 
                 users.forEach(username => {
                     const userDiv = document.createElement('div');
-                    userDiv.className = 'present-user';
-                    userDiv.textContent = username;
+                    const userLink = document.createElement('a');
+                    userLink.className = 'user-link';
+                    userLink.textContent = username;
+                    userLink.href = '/characterbuilder.html?view=' + encodeURIComponent(username);
+                    userDiv.appendChild(userLink);
                     presentUsersDiv.appendChild(userDiv);
                 });
             });

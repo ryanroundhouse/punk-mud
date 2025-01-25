@@ -1008,4 +1008,26 @@ app.post('/api/upload-character-image', authenticateToken, asyncHandler(async (r
             throw error;
         }
     });
-})); 
+}));
+
+// Add this endpoint after the other character-related endpoints
+app.get('/api/user/character/:username', authenticateToken, async (req, res) => {
+    try {
+        // Find user by avatar name
+        const character = await User.findOne({ avatarName: req.params.username });
+        
+        if (!character) {
+            return res.status(404).json({ error: 'Character not found' });
+        }
+        
+        // Only return public information
+        res.json({
+            avatarName: character.avatarName,
+            description: character.description,
+            image: character.image
+        });
+    } catch (error) {
+        logger.error('Error fetching character data:', error);
+        res.status(500).json({ error: 'Error fetching character data' });
+    }
+}); 

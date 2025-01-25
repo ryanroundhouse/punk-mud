@@ -356,6 +356,27 @@
             color: var(--dark-bg);
             box-shadow: 0 0 10px var(--neon-pink);
         }
+
+        .user-link {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: var(--neon-blue);
+        }
+
+        .user-link:hover {
+            text-shadow: 0 0 5px var(--neon-blue);
+            color: var(--neon-pink);
+        }
+
+        .chat-header {
+            font-size: 1.2rem;
+            color: var(--neon-blue);
+            text-align: center;
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--neon-blue);
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 <body>
@@ -395,6 +416,7 @@
             </div>
 
             <div class="right-panel">
+                <div class="chat-header">CHAT LOG</div>
                 <div class="users-list">
                     <div class="users-list-title">Users Present:</div>
                     <div id="usersList"></div>
@@ -429,6 +451,10 @@
                 return;
             }
 
+            // Get the username to view from URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const viewUsername = urlParams.get('view');
+
             try {
                 const response = await fetch('/api/verify-token', {
                     headers: {
@@ -441,10 +467,19 @@
                 }
 
                 const data = await response.json();
-                document.getElementById('avatarName').textContent = data.user.avatarName || 'UNNAMED';
+                const currentUsername = data.user.avatarName;
+                document.getElementById('avatarName').textContent = viewUsername || currentUsername;
 
-                // Load character data
-                await loadCharacterData();
+                // If viewing another user's character, disable editing
+                if (viewUsername && viewUsername !== currentUsername) {
+                    document.getElementById('description').readOnly = true;
+                    document.getElementById('imageUpload').disabled = true;
+                    document.getElementById('saveCharacterBtn').style.display = 'none';
+                    document.querySelector('.image-upload-controls').style.display = 'none';
+                }
+
+                // Load character data for the viewed user
+                await loadCharacterData(viewUsername);
 
                 // Initialize socket connection
                 initializeSocket(token);
@@ -454,9 +489,13 @@
             }
         };
 
-        async function loadCharacterData() {
+        async function loadCharacterData(viewUsername = null) {
             try {
-                const response = await fetch('/api/user/character', {
+                const url = viewUsername ? 
+                    `/api/user/character/${encodeURIComponent(viewUsername)}` : 
+                    '/api/user/character';
+                
+                const response = await fetch(url, {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
@@ -574,7 +613,18 @@
             });
 
             socket.on('users update', (users) => {
-                usersList.innerHTML = users.map(user => `<div>${user}</div>`).join('');
+                const presentUsersDiv = document.getElementById('usersList');
+                presentUsersDiv.innerHTML = '';
+                
+                users.forEach(username => {
+                    const userDiv = document.createElement('div');
+                    const userLink = document.createElement('a');
+                    userLink.className = 'user-link';
+                    userLink.textContent = username;
+                    userLink.href = '/characterbuilder.html?view=' + encodeURIComponent(username);
+                    userDiv.appendChild(userLink);
+                    presentUsersDiv.appendChild(userDiv);
+                });
             });
         }
 
