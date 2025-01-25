@@ -2,4 +2,5 @@ node_modules/
 .env
 *.log 
 logs/
-public/assets/
+public/assets/zones/
+.DS_Store
