@@ -267,6 +267,7 @@
         const terminalOutput = document.getElementById('terminalOutput');
         let socket;
         let currentNode = null;
+        let currentUsername = null;
 
         // Add function to get user's current location
         async function getCurrentLocation() {
@@ -367,7 +368,7 @@
             }
         }
 
-        // Update window.onload to load the user's current location
+        // Update window.onload to set username immediately
         window.onload = async () => {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -387,9 +388,20 @@
                     throw new Error('Invalid token');
                 }
 
+                // Parse username directly from token
+                try {
+                    const tokenParts = token.split('.');
+                    if (tokenParts.length === 3) {
+                        const payload = JSON.parse(atob(tokenParts[1]));
+                        currentUsername = payload.avatarName;
+                    }
+                } catch (e) {
+                    console.error('Error parsing token:', e);
+                }
+
                 // Initialize chat and load current location
                 initializeChat();
-                loadNode(); // Will fetch current location from server
+                loadNode();
             } catch (error) {
                 console.error('Authentication error:', error);
                 window.location.href = '/';
@@ -399,9 +411,18 @@
         function addChatMessage(username, message, timestamp = new Date()) {
             const messageDiv = document.createElement('div');
             messageDiv.className = 'chat-message';
+            
+            const isSystemMessage = username === 'SYSTEM';
+            const isOwnMessage = username === currentUsername;
+            
+            let usernameColor = 'var(--neon-pink)'; // Default color
+            if (isOwnMessage) {
+                usernameColor = 'var(--neon-blue)';
+            }
+            
             messageDiv.innerHTML = `
-                <span class="chat-username">${username}:</span>
-                <span class="chat-text">${message}</span>
+                <span class="chat-username" style="color: ${usernameColor}">${username}:</span>
+                <span class="chat-text" ${isSystemMessage ? 'style="color: var(--neon-blue)"' : ''}>${message}</span>
                 <span class="chat-timestamp">${timestamp.toLocaleTimeString()}</span>
             `;
             chatMessages.appendChild(messageDiv);
@@ -419,14 +440,15 @@
 
             socket.on('connect_error', (error) => {
                 console.error('Socket connection error:', error);
-                addChatMessage('SYSTEM', 'Error connecting to chat server', new Date());
             });
 
             socket.on('chat message', (data) => {
+                // Skip system disconnect messages
+                if (data.username === 'SYSTEM' && data.message.includes('has disconnected')) {
+                    return;
+                }
                 addChatMessage(data.username, data.message, new Date(data.timestamp));
             });
-
-            addChatMessage('SYSTEM', 'Connected to local chat');
         }
 
         // Handle chat input
