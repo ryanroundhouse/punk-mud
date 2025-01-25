@@ -13,5 +13,9 @@
     }
   },
   "forwardPorts": [3000, 27017],
-  "postCreateCommand": "npm install"
+  "postCreateCommand": "npm install",
+  "mounts": [
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/node/.ssh,type=bind,readonly"
+  ],
+  "remoteUser": "node"
 } 
