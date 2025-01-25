@@ -31,9 +31,15 @@
             background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
         }
 
-        .builder-container {
-            width: calc(100% - 50px); /* Account for left and right margins */
-            min-height: calc(90vh - 50px); /* Account for top and bottom margins */
+        .game-container {
+            display: flex;
+            width: 95%;
+            height: 90vh;
+            gap: 1rem;
+        }
+
+        .main-panel {
+            flex: 2;
             background: rgba(10, 10, 15, 0.95);
             padding: 2rem;
             border-radius: 10px;
@@ -41,43 +47,38 @@
                        0 0 40px rgba(255, 46, 136, 0.3);
             display: flex;
             flex-direction: column;
-            box-sizing: border-box;
-            margin: 25px;
         }
 
-        .layout-container {
-            display: flex;
-            gap: 2rem;
+        .chat-panel {
             flex: 1;
-            min-height: 0;
-        }
-
-        .left-panel {
-            flex: 1;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 1rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-blue),
+                       0 0 40px rgba(0, 255, 249, 0.3);
             display: flex;
             flex-direction: column;
-            min-height: 0; /* Allow panel to shrink */
+            max-width: 400px;
         }
 
         .character-form {
-            background: rgba(0, 0, 0, 0.7);
-            padding: 2rem;
-            border-radius: 5px;
-            border: 1px solid var(--terminal-green);
+            flex: 1;
             display: grid;
             grid-template-columns: 1fr 300px;
             grid-template-rows: auto 1fr auto;
             gap: 2rem;
-            flex: 1;
-            min-height: 0; /* Allow form to shrink */
+            padding: 0;
+            background: transparent;
+            border: none;
         }
 
         .character-header {
-            padding: 1rem 0;
-            background: rgba(0, 0, 0, 0.8);
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
             display: flex;
             align-items: center;
             grid-column: 1 / -1;  /* span both columns */
+            border-radius: 5px;
         }
 
         .form-group {
@@ -228,17 +229,6 @@
             opacity: 0.7;
         }
 
-        .right-panel {
-            width: 300px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 1rem;
-            border-radius: 5px;
-            border: 1px solid var(--terminal-green);
-            display: flex;
-            flex-direction: column;
-            flex: 0 0 300px; /* Don't grow, don't shrink, stay at 300px width */
-        }
-
         .chat-container {
             flex: 1;
             overflow-y: auto;
@@ -381,56 +371,54 @@
 </head>
 <body>
     <button class="return-button" onclick="window.location.href='/game.html'">Return to Game</button>
-    <div class="builder-container">
-        <div class="layout-container">
-            <div class="left-panel">
-                <div class="character-form">
-                    <div class="character-header">
-                        <span class="character-name" id="avatarName"></span>
-                    </div>
+    <div class="game-container">
+        <div class="main-panel">
+            <div class="character-form">
+                <div class="character-header">
+                    <span class="character-name" id="avatarName"></span>
+                </div>
 
-                    <div class="form-group">
-                        <label for="description">Description:</label>
-                        <textarea id="description" required></textarea>
-                    </div>
+                <div class="form-group">
+                    <label for="description">Description:</label>
+                    <textarea id="description" required></textarea>
+                </div>
 
-                    <div class="image-upload-section">
-                        <div class="image-preview-container">
-                            <img id="imagePreview" class="image-preview">
-                            <span class="no-image-text" id="noImageText">No image uploaded</span>
-                        </div>
-                        <div class="image-upload-controls">
-                            <label for="imageUpload" class="custom-file-upload">
-                                Select Image
-                            </label>
-                            <input type="file" id="imageUpload" accept="image/*">
-                            <div class="file-name" id="fileName"></div>
-                            <input type="hidden" id="imagePath">
-                        </div>
+                <div class="image-upload-section">
+                    <div class="image-preview-container">
+                        <img id="imagePreview" class="image-preview">
+                        <span class="no-image-text" id="noImageText">No image uploaded</span>
                     </div>
+                    <div class="image-upload-controls">
+                        <label for="imageUpload" class="custom-file-upload">
+                            Select Image
+                        </label>
+                        <input type="file" id="imageUpload" accept="image/*">
+                        <div class="file-name" id="fileName"></div>
+                        <input type="hidden" id="imagePath">
+                    </div>
+                </div>
 
-                    <div class="button-container">
-                        <button class="action-button" id="saveCharacterBtn">Save Character</button>
-                    </div>
+                <div class="button-container">
+                    <button class="action-button" id="saveCharacterBtn">Save Character</button>
                 </div>
             </div>
-
-            <div class="right-panel">
-                <div class="chat-header">CHAT LOG</div>
-                <div class="users-list">
-                    <div class="users-list-title">Users Present:</div>
-                    <div id="usersList"></div>
-                </div>
-                <div class="chat-container" id="chatMessages">
-                    <!-- Chat messages will appear here -->
-                </div>
-                <div class="chat-input-container">
-                    <input type="text" 
-                           id="chatInput" 
-                           class="chat-input" 
-                           placeholder="Type your message...">
-                    <button class="action-button" id="sendMessageBtn">Send</button>
-                </div>
+        </div>
+        
+        <div class="chat-panel">
+            <div class="chat-header">CHAT LOG</div>
+            <div class="users-list">
+                <div class="users-list-title">Users Present:</div>
+                <div id="usersList"></div>
+            </div>
+            <div class="chat-container" id="chatMessages">
+                <!-- Chat messages will appear here -->
+            </div>
+            <div class="chat-input-container">
+                <input type="text" 
+                       id="chatInput" 
+                       class="chat-input" 
+                       placeholder="Type your message...">
+                <button class="action-button" id="sendMessageBtn">Send</button>
             </div>
         </div>
     </div>
