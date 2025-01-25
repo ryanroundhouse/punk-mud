@@ -8,6 +8,7 @@ const { Server } = require('socket.io');
 const multer = require('multer');
 const fs = require('fs').promises;
 const winston = require('winston');
+const { createClient } = require('redis');
 
 const User = require('./models/User');
 const { sendAuthCode } = require('./services/emailService');
@@ -125,6 +126,32 @@ const uploadDir = path.join(__dirname, 'public/assets/zones');
 fs.mkdir(uploadDir, { recursive: true })
     .then(() => logger.info('Upload directory ensured:', uploadDir))
     .catch(err => logger.error('Error creating upload directory:', err));
+
+// Add Redis client configuration after other constants
+const redisClient = createClient({
+    url: process.env.REDIS_URL || 'redis://redis:6379'
+});
+
+const redisSubscriber = redisClient.duplicate();
+
+// Add Redis connection handling
+Promise.all([redisClient.connect(), redisSubscriber.connect()])
+    .then(() => {
+        logger.info('Connected to Redis');
+    })
+    .catch(err => {
+        logger.error('Redis connection error:', err);
+        process.exit(1);
+    });
+
+// Add Redis error handling
+redisClient.on('error', (err) => {
+    logger.error('Redis error:', err);
+});
+
+redisSubscriber.on('error', (err) => {
+    logger.error('Redis subscriber error:', err);
+});
 
 // MongoDB connection
 mongoose.connect('mongodb://mongodb:27017/myapp', {
@@ -318,27 +345,52 @@ io.use((socket, next) => {
     }
 });
 
+// Add these after other constants
+const connectedClients = new Map(); // stores socket connection per client
+const nodeClients = new Map(); // stores list of clients per node
+
+// Add a Set to track which node channels we're subscribed to
+const subscribedNodes = new Set();
+
+// Update the socket.io connection handling
 io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.user.email}`);
+    logger.info(`User connected: ${socket.user.email}`);
+    
+    // Store socket connection
+    connectedClients.set(socket.user.userId, socket);
+
+    // Get user's current node and add them to the node clients map
+    User.findById(socket.user.userId)
+        .then(user => {
+            if (user && user.currentNode) {
+                addUserToNode(socket.user.userId, user.currentNode);
+                // Subscribe to the node's chat channel
+                subscribeToNodeChat(user.currentNode);
+            }
+        })
+        .catch(err => logger.error('Error fetching user location:', err));
 
     // Handle chat messages
     socket.on('chat message', async (message) => {
         try {
-            // Fetch latest user data to ensure we have current avatar name
             const user = await User.findById(socket.user.userId);
-            if (!user || !user.avatarName) {
-                throw new Error('User not found or missing avatar name');
+            if (!user || !user.avatarName || !user.currentNode) {
+                throw new Error('User not found or missing required data');
             }
 
-            // Broadcast the message to all connected clients
-            io.emit('chat message', {
+            const chatMessage = {
                 username: user.avatarName,
                 message: message,
                 timestamp: new Date()
-            });
+            };
+
+            // Publish message to Redis channel for this node
+            await redisClient.publish(
+                `node:${user.currentNode}:chat`,
+                JSON.stringify(chatMessage)
+            );
         } catch (error) {
-            console.error('Error handling chat message:', error);
-            // Send error only to the sender
+            logger.error('Error handling chat message:', error);
             socket.emit('chat message', {
                 username: 'SYSTEM',
                 message: 'Error sending message',
@@ -347,10 +399,95 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('disconnect', () => {
-        console.log(`User disconnected: ${socket.user.email}`);
+    socket.on('disconnect', async () => {
+        logger.info(`User disconnected: ${socket.user.email}`);
+        
+        try {
+            const user = await User.findById(socket.user.userId);
+            if (user && user.currentNode) {
+                // Only need the general message for disconnection
+                await publishSystemMessage(
+                    user.currentNode, 
+                    `${user.avatarName} has disconnected.`,
+                    null,
+                    user._id.toString()
+                );
+            }
+            
+            removeUserFromAllNodes(socket.user.userId);
+            connectedClients.delete(socket.user.userId);
+        } catch (error) {
+            logger.error('Error handling disconnect:', error);
+        }
     });
 });
+
+// Helper functions for managing node clients
+function addUserToNode(userId, nodeAddress) {
+    if (!nodeClients.has(nodeAddress)) {
+        nodeClients.set(nodeAddress, new Set());
+    }
+    nodeClients.get(nodeAddress).add(userId);
+    logger.info(`User ${userId} added to node ${nodeAddress}`);
+}
+
+function removeUserFromNode(userId, nodeAddress) {
+    const nodeSet = nodeClients.get(nodeAddress);
+    if (nodeSet) {
+        nodeSet.delete(userId);
+        if (nodeSet.size === 0) {
+            nodeClients.delete(nodeAddress);
+            // Unsubscribe from empty node's chat
+            unsubscribeFromNodeChat(nodeAddress);
+        }
+    }
+}
+
+function removeUserFromAllNodes(userId) {
+    for (const [nodeAddress, users] of nodeClients.entries()) {
+        if (users.has(userId)) {
+            removeUserFromNode(userId, nodeAddress);
+        }
+    }
+}
+
+async function subscribeToNodeChat(nodeAddress) {
+    const channel = `node:${nodeAddress}:chat`;
+    
+    // Only subscribe if we haven't already
+    if (!subscribedNodes.has(channel)) {
+        await redisSubscriber.subscribe(channel, (message) => {
+            try {
+                const chatMessage = JSON.parse(message);
+                // Broadcast to all users in this node
+                const nodeUsers = nodeClients.get(nodeAddress);
+                if (nodeUsers) {
+                    nodeUsers.forEach(userId => {
+                        const userSocket = connectedClients.get(userId);
+                        if (userSocket) {
+                            userSocket.emit('chat message', chatMessage);
+                        }
+                    });
+                }
+            } catch (error) {
+                logger.error('Error broadcasting chat message:', error);
+            }
+        });
+        subscribedNodes.add(channel);
+        logger.info(`Subscribed to chat channel for node ${nodeAddress}`);
+    }
+}
+
+async function unsubscribeFromNodeChat(nodeAddress) {
+    const channel = `node:${nodeAddress}:chat`;
+    // Only unsubscribe if no users are left in the node
+    const nodeUsers = nodeClients.get(nodeAddress);
+    if (!nodeUsers || nodeUsers.size === 0) {
+        await redisSubscriber.unsubscribe(channel);
+        subscribedNodes.delete(channel);
+        logger.info(`Unsubscribed from chat channel for node ${nodeAddress}`);
+    }
+}
 
 // Update the multer storage configuration
 const storage = multer.diskStorage({
@@ -586,22 +723,14 @@ app.get('/api/check-image/:filename', (req, res) => {
 // Update the node endpoint to check and update player location
 app.get('/api/nodes/:address', authenticateToken, async (req, res) => {
     try {
-        // Get user's current location
         const user = await User.findById(req.user.userId);
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        // Set default location if none exists
-        if (!user.currentNode) {
-            user.currentNode = '122.124.10.10';
-            await user.save();
-        }
-
-        // Get the target address from the request parameters
+        const oldNode = user.currentNode;
         const targetAddress = req.params.address === 'current' ? user.currentNode : req.params.address;
 
-        // Log the target address for debugging
         logger.info('Fetching node:', { targetAddress, userId: user._id });
 
         const node = await Node.findOne({ address: targetAddress });
@@ -615,6 +744,38 @@ app.get('/api/nodes/:address', authenticateToken, async (req, res) => {
                 return res.status(404).json({ error: 'Starting node not found - critical error' });
             }
             return res.json(startNode);
+        }
+
+        // If moving to a new node, update the node clients maps
+        if (targetAddress !== oldNode) {
+            // Remove from old node
+            if (oldNode) {
+                const oldNodeData = await Node.findOne({ address: oldNode });
+                removeUserFromNode(user._id.toString(), oldNode);
+                // Publish exit message
+                await publishSystemMessage(
+                    oldNode, 
+                    `${user.avatarName} has left.`,
+                    `You have left ${oldNodeData ? oldNodeData.name : 'the area'}.`,
+                    user._id.toString()
+                );
+            }
+            
+            // Add to new node
+            addUserToNode(user._id.toString(), targetAddress);
+            // Update subscriptions
+            if (oldNode) {
+                await unsubscribeFromNodeChat(oldNode);
+            }
+            await subscribeToNodeChat(targetAddress);
+            
+            // Publish entry message with personalized message for the entering user
+            await publishSystemMessage(
+                targetAddress,
+                `${user.avatarName} has entered.`,
+                `You have entered ${node.name}.`,
+                user._id.toString()
+            );
         }
 
         // If moving to a new node, verify the movement
@@ -657,4 +818,44 @@ app.get('/api/user/location', authenticateToken, async (req, res) => {
         logger.error('Error fetching user location:', error);
         res.status(500).json({ error: 'Error fetching user location' });
     }
-}); 
+});
+
+// Add graceful shutdown handling for Redis
+process.on('SIGTERM', async () => {
+    logger.info('SIGTERM received. Shutting down gracefully...');
+    await redisClient.quit();
+    await redisSubscriber.quit();
+    process.exit(0);
+});
+
+// Update the publishSystemMessage function to handle personalized messages
+async function publishSystemMessage(nodeAddress, message, personalMessage, userId) {
+    const baseMessage = {
+        username: 'SYSTEM',
+        timestamp: new Date(),
+        type: 'system'
+    };
+
+    // Get the node's users
+    const nodeUsers = nodeClients.get(nodeAddress);
+    if (nodeUsers) {
+        nodeUsers.forEach(targetUserId => {
+            const userSocket = connectedClients.get(targetUserId);
+            if (userSocket) {
+                // Send personalized message to the specific user
+                if (targetUserId === userId && personalMessage) {
+                    userSocket.emit('chat message', {
+                        ...baseMessage,
+                        message: personalMessage
+                    });
+                } else {
+                    // Send regular message to other users
+                    userSocket.emit('chat message', {
+                        ...baseMessage,
+                        message: message
+                    });
+                }
+            }
+        });
+    }
+} 
