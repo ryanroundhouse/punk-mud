@@ -14,6 +14,13 @@ const userSchema = new mongoose.Schema({
         sparse: true,  // Allows null values to not count for uniqueness
         trim: true
     },
+    description: {
+        type: String,
+        default: ''
+    },
+    image: {
+        type: String
+    },
     authCode: {
         code: String,
         expiresAt: Date

@@ -906,4 +906,106 @@ async function updateNodeUsernames(nodeAddress) {
     } catch (error) {
         logger.error('Error updating node usernames:', error);
     }
-} 
+}
+
+// Get character data
+app.get('/api/user/character', authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json({
+            avatarName: user.avatarName,
+            description: user.description,
+            image: user.image
+        });
+    } catch (error) {
+        logger.error('Error fetching character data:', error);
+        res.status(500).json({ error: 'Error fetching character data' });
+    }
+});
+
+// Update character data
+app.post('/api/user/character', authenticateToken, async (req, res) => {
+    try {
+        const { description, image } = req.body;
+        
+        const user = await User.findByIdAndUpdate(
+            req.user.userId,
+            { 
+                description,
+                image
+            },
+            { new: true }
+        );
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        res.json({
+            avatarName: user.avatarName,
+            description: user.description,
+            image: user.image
+        });
+    } catch (error) {
+        logger.error('Error updating character:', error);
+        res.status(500).json({ error: 'Error updating character' });
+    }
+});
+
+// Add character image upload endpoint
+app.post('/api/upload-character-image', authenticateToken, asyncHandler(async (req, res) => {
+    const uploadDir = path.join(__dirname, 'public/assets/characters');
+    await fs.mkdir(uploadDir, { recursive: true });
+
+    const characterUpload = multer({
+        storage: multer.diskStorage({
+            destination: uploadDir,
+            filename: function (req, file, cb) {
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+                const ext = path.extname(file.originalname);
+                cb(null, 'character-' + uniqueSuffix + ext);
+            }
+        }),
+        limits: {
+            fileSize: 5 * 1024 * 1024 // 5MB limit
+        },
+        fileFilter: (req, file, cb) => {
+            const allowedTypes = /jpeg|jpg|png|gif/;
+            const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+            const mimetype = allowedTypes.test(file.mimetype);
+            
+            if (extname && mimetype) {
+                return cb(null, true);
+            }
+            cb(new Error('Only image files are allowed!'));
+        }
+    }).single('image');
+
+    characterUpload(req, res, async (err) => {
+        if (err) {
+            logger.error('Upload error:', err);
+            return res.status(400).json({
+                error: 'Upload failed',
+                details: err.message
+            });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({
+                error: 'No file',
+                details: 'No image file provided'
+            });
+        }
+
+        try {
+            const relativePath = '/assets/characters/' + req.file.filename;
+            res.json({ path: relativePath });
+        } catch (error) {
+            logger.error('Error processing uploaded file:', error);
+            throw error;
+        }
+    });
+})); 

@@ -228,7 +228,7 @@
         .logout-button {
             position: absolute;
             top: 20px;
-            right: 20px;
+            left: 20px;
             background: transparent;
             color: var(--neon-pink);
             border: 1px solid var(--neon-pink);
@@ -248,34 +248,17 @@
             box-shadow: 0 0 10px var(--neon-pink);
         }
 
-        .users-panel {
-            margin: 2rem 0;
-            padding: 1rem;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 5px;
-            border: 1px solid var(--neon-blue);
-        }
-
-        .users-panel h3 {
-            color: var(--neon-blue);
-            margin-top: 0;
+        .users-list {
             margin-bottom: 1rem;
-            font-size: 1.2rem;
-        }
-
-        .present-users {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-        }
-
-        .present-user {
-            background: rgba(0, 255, 249, 0.1);
-            padding: 0.5rem 1rem;
-            border-radius: 5px;
+            padding: 0.5rem;
             border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .users-list-title {
             color: var(--neon-blue);
-            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
         }
     </style>
 </head>
@@ -290,12 +273,6 @@
                     <div class="node-description" id="nodeDescription"></div>
                     <div class="description-toggle" id="descriptionToggle">[ Show More ]</div>
 
-                    <!-- Add the users panel here -->
-                    <div class="users-panel">
-                        <h3>Faces in the Crowd</h3>
-                        <div id="presentUsers" class="present-users"></div>
-                    </div>
-
                     <div class="exits-list" id="nodeExits"></div>
                 </div>
             </div>
@@ -303,6 +280,10 @@
         
         <div class="chat-panel">
             <div class="chat-header">CHAT LOG</div>
+            <div class="users-list">
+                <div class="users-list-title">Users Present:</div>
+                <div id="presentUsers"></div>
+            </div>
             <div class="chat-messages" id="chatMessages">
                 <!-- Chat messages will be inserted here -->
             </div>

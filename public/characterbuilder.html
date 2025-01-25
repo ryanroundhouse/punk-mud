@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUNK MUD - Character Builder</title>
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+            --terminal-green: #00ff00;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .builder-container {
+            width: calc(100% - 50px); /* Account for left and right margins */
+            min-height: calc(90vh - 50px); /* Account for top and bottom margins */
+            background: rgba(10, 10, 15, 0.95);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-pink),
+                       0 0 40px rgba(255, 46, 136, 0.3);
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            margin: 25px;
+        }
+
+        .layout-container {
+            display: flex;
+            gap: 2rem;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .left-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0; /* Allow panel to shrink */
+        }
+
+        .character-form {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            grid-template-rows: auto 1fr auto;
+            gap: 2rem;
+            flex: 1;
+            min-height: 0; /* Allow form to shrink */
+        }
+
+        .character-header {
+            padding: 1rem 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            grid-column: 1 / -1;  /* span both columns */
+        }
+
+        .form-group {
+            grid-column: 1;
+            grid-row: 2;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .image-upload-section {
+            grid-column: 2;
+            grid-row: 2;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .button-container {
+            grid-column: 2;
+            grid-row: 3;
+            display: flex;
+            justify-content: flex-end;
+            align-items: flex-end;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--neon-blue);
+        }
+
+        input[type="text"],
+        textarea {
+            width: 90%;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+        }
+
+        textarea {
+            flex: 1;
+            min-height: 200px;
+            resize: vertical;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .image-preview-container {
+            width: 300px;
+            height: 300px;
+            border: 2px solid var(--neon-blue);
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            margin-bottom: 1rem;
+        }
+
+        .image-upload-controls {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .custom-file-upload {
+            display: inline-block;
+            padding: 0.8rem 1.2rem;
+            cursor: pointer;
+            background: transparent;
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .custom-file-upload:hover {
+            background: var(--neon-blue);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .custom-file-upload::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            border: 2px solid var(--neon-blue);
+            border-radius: 6px;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .custom-file-upload:hover::before {
+            opacity: 1;
+            animation: borderGlow 1.5s ease-out infinite;
+        }
+
+        .file-name {
+            color: var(--terminal-green);
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            text-align: center;
+            min-height: 1.2em;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        @keyframes borderGlow {
+            0% {
+                box-shadow: 0 0 5px var(--neon-blue);
+            }
+            50% {
+                box-shadow: 0 0 20px var(--neon-blue);
+            }
+            100% {
+                box-shadow: 0 0 5px var(--neon-blue);
+            }
+        }
+
+        .image-preview {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+
+        .no-image-text {
+            color: var(--neon-blue);
+            font-style: italic;
+            opacity: 0.7;
+        }
+
+        .right-panel {
+            width: 300px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            display: flex;
+            flex-direction: column;
+            flex: 0 0 300px; /* Don't grow, don't shrink, stay at 300px width */
+        }
+
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .chat-message {
+            margin-bottom: 0.5rem;
+            word-wrap: break-word;
+        }
+
+        .chat-username {
+            color: var(--neon-pink);
+            font-weight: bold;
+        }
+
+        .chat-timestamp {
+            color: var(--neon-blue);
+            font-size: 0.8rem;
+            margin-left: 0.5rem;
+        }
+
+        .chat-input-container {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+        }
+
+        .action-button {
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .action-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .system-message {
+            color: var(--neon-blue);
+            font-style: italic;
+        }
+
+        .users-list {
+            margin-bottom: 1rem;
+            padding: 0.5rem;
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .users-list-title {
+            color: var(--neon-blue);
+            margin-bottom: 0.5rem;
+        }
+
+        .character-name {
+            color: var(--neon-pink);
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .character-title {
+            color: var(--neon-blue);
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+
+        .return-button {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .return-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+    </style>
+</head>
+<body>
+    <button class="return-button" onclick="window.location.href='/game.html'">Return to Game</button>
+    <div class="builder-container">
+        <div class="layout-container">
+            <div class="left-panel">
+                <div class="character-form">
+                    <div class="character-header">
+                        <span class="character-name" id="avatarName"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description">Description:</label>
+                        <textarea id="description" required></textarea>
+                    </div>
+
+                    <div class="image-upload-section">
+                        <div class="image-preview-container">
+                            <img id="imagePreview" class="image-preview">
+                            <span class="no-image-text" id="noImageText">No image uploaded</span>
+                        </div>
+                        <div class="image-upload-controls">
+                            <label for="imageUpload" class="custom-file-upload">
+                                Select Image
+                            </label>
+                            <input type="file" id="imageUpload" accept="image/*">
+                            <div class="file-name" id="fileName"></div>
+                            <input type="hidden" id="imagePath">
+                        </div>
+                    </div>
+
+                    <div class="button-container">
+                        <button class="action-button" id="saveCharacterBtn">Save Character</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="users-list">
+                    <div class="users-list-title">Users Present:</div>
+                    <div id="usersList"></div>
+                </div>
+                <div class="chat-container" id="chatMessages">
+                    <!-- Chat messages will appear here -->
+                </div>
+                <div class="chat-input-container">
+                    <input type="text" 
+                           id="chatInput" 
+                           class="chat-input" 
+                           placeholder="Type your message...">
+                    <button class="action-button" id="sendMessageBtn">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket;
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendMessageBtn = document.getElementById('sendMessageBtn');
+        const usersList = document.getElementById('usersList');
+
+        // Check authentication and load character data
+        window.onload = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/verify-token', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                const data = await response.json();
+                document.getElementById('avatarName').textContent = data.user.avatarName || 'UNNAMED';
+
+                // Load character data
+                await loadCharacterData();
+
+                // Initialize socket connection
+                initializeSocket(token);
+            } catch (error) {
+                console.error('Authentication error:', error);
+                window.location.href = '/';
+            }
+        };
+
+        async function loadCharacterData() {
+            try {
+                const response = await fetch('/api/user/character', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) throw new Error('Failed to load character data');
+                
+                const data = await response.json();
+                document.getElementById('description').value = data.description || '';
+                
+                if (data.image) {
+                    document.getElementById('imagePath').value = data.image;
+                    const imagePreview = document.getElementById('imagePreview');
+                    const noImageText = document.getElementById('noImageText');
+                    imagePreview.src = data.image;
+                    imagePreview.style.display = 'block';
+                    noImageText.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading character data:', error);
+            }
+        }
+
+        // Handle image upload
+        document.getElementById('imageUpload').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            const noImageText = document.getElementById('noImageText');
+            const fileName = document.getElementById('fileName');
+            
+            if (file) {
+                fileName.textContent = file.name;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const imagePreview = document.getElementById('imagePreview');
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                    noImageText.style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+
+                const formData = new FormData();
+                formData.append('image', file);
+
+                try {
+                    const response = await fetch('/api/upload-character-image', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+
+                    const data = await response.json();
+                    document.getElementById('imagePath').value = data.path;
+                } catch (error) {
+                    console.error('Error uploading image:', error);
+                }
+            } else {
+                fileName.textContent = '';
+            }
+        });
+
+        // Save character
+        document.getElementById('saveCharacterBtn').addEventListener('click', async () => {
+            const characterData = {
+                description: document.getElementById('description').value,
+                image: document.getElementById('imagePath').value
+            };
+
+            try {
+                const response = await fetch('/api/user/character', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(characterData)
+                });
+
+                if (response.ok) {
+                    alert('Character saved successfully!');
+                } else {
+                    throw new Error('Failed to save character');
+                }
+            } catch (error) {
+                console.error('Error saving character:', error);
+                alert('Error saving character');
+            }
+        });
+
+        function initializeSocket(token) {
+            socket = io({
+                auth: {
+                    token: token
+                }
+            });
+
+            socket.on('chat message', (msg) => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'chat-message';
+                
+                if (msg.type === 'system') {
+                    messageDiv.classList.add('system-message');
+                    messageDiv.textContent = msg.message;
+                } else {
+                    messageDiv.innerHTML = `
+                        <span class="chat-username">${msg.username}:</span>
+                        <span class="chat-message-text">${msg.message}</span>
+                        <span class="chat-timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+                    `;
+                }
+                
+                chatMessages.appendChild(messageDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
+
+            socket.on('users update', (users) => {
+                usersList.innerHTML = users.map(user => `<div>${user}</div>`).join('');
+            });
+        }
+
+        // Send chat message
+        function sendMessage() {
+            const message = chatInput.value.trim();
+            if (message && socket) {
+                socket.emit('chat message', message);
+                chatInput.value = '';
+            }
+        }
+
+        sendMessageBtn.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html> 
