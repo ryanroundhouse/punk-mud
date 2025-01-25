@@ -8,9 +8,14 @@ services:
     volumes:
       - ..:/workspace:cached
     command: sleep infinity
-    network_mode: service:mongodb
     depends_on:
       - mongodb
+      - redis
+    network_mode: service:mongodb
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
 
   mongodb:
     image: mongo:latest
@@ -18,5 +23,22 @@ services:
     volumes:
       - mongodb-data:/data/db
 
+  redis:
+    image: redis:latest
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    environment:
+      - REDIS_REPLICATION_MODE=master
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
-  mongodb-data: 
+  mongodb-data:
+  redis-data: 

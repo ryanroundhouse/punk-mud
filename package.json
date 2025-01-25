@@ -15,6 +15,7 @@
     "mailgun-js": "^0.22.0",
     "mongoose": "^8.0.0",
     "multer": "^1.4.5-lts.1",
+    "redis": "^4.7.0",
     "socket.io": "^4.8.1",
     "winston": "^3.17.0"
   },

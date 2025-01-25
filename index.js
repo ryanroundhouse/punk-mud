@@ -598,8 +598,11 @@ app.get('/api/nodes/:address', authenticateToken, async (req, res) => {
             await user.save();
         }
 
-        // If no specific address requested, use user's current location
+        // Get the target address from the request parameters
         const targetAddress = req.params.address === 'current' ? user.currentNode : req.params.address;
+
+        // Log the target address for debugging
+        logger.info('Fetching node:', { targetAddress, userId: user._id });
 
         const node = await Node.findOne({ address: targetAddress });
         if (!node) {
