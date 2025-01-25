@@ -458,12 +458,24 @@ app.post('/api/nodes', verifyBuilderAccess, asyncHandler(async (req, res) => {
     res.status(201).json(node);
 }));
 
+// Add a new endpoint for getting public node information
+app.get('/api/nodes/public', authenticateToken, async (req, res) => {
+    try {
+        const nodes = await Node.find({}, 'address name'); // Only return address and name fields
+        res.json(nodes);
+    } catch (error) {
+        logger.error('Error fetching public nodes:', error);
+        res.status(500).json({ error: 'Error fetching nodes' });
+    }
+});
+
+// Keep the existing /api/nodes endpoint for builders
 app.get('/api/nodes', verifyBuilderAccess, async (req, res) => {
     try {
         const nodes = await Node.find().sort({ name: 1 });
         res.json(nodes);
     } catch (error) {
-        console.error('Error fetching nodes:', error);
+        logger.error('Error fetching nodes:', error);
         res.status(500).json({ error: 'Error fetching nodes' });
     }
 });

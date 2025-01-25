@@ -267,7 +267,6 @@
         const terminalOutput = document.getElementById('terminalOutput');
         let socket;
         let currentNode = null;
-        let visitedNodes = new Set(JSON.parse(localStorage.getItem('visitedNodes') || '[]'));
 
         // Add function to get user's current location
         async function getCurrentLocation() {
@@ -295,7 +294,6 @@
             try {
                 let node;
                 if (!address) {
-                    // Get current location directly from the nodes endpoint
                     node = await getCurrentLocation();
                 } else {
                     const response = await fetch(`/api/nodes/${address}`, {
@@ -312,8 +310,6 @@
                     node = await response.json();
                 }
 
-                currentNode = node;
-                
                 // Update node display
                 document.getElementById('nodeName').textContent = node.name;
                 document.getElementById('nodeDescription').textContent = node.description;
@@ -327,33 +323,30 @@
                     nodeImage.style.display = 'none';
                 }
 
-                // Display exits
+                // Display exits with target node names
                 const exitsContainer = document.getElementById('nodeExits');
                 exitsContainer.innerHTML = '<h3>Available Exits:</h3>';
                 
-                // Display exits with names for visited nodes
+                // Fetch all nodes to get their names - use the public endpoint
+                const nodesResponse = await fetch('/api/nodes/public', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!nodesResponse.ok) {
+                    throw new Error('Failed to fetch node names');
+                }
+                
+                const allNodes = await nodesResponse.json();
+
                 node.exits.forEach(exit => {
+                    const targetNode = allNodes.find(n => n.address === exit.target);
+                    const targetName = targetNode ? targetNode.name : 'Unknown';
+                    
                     const exitElement = document.createElement('div');
                     exitElement.className = 'exit-item';
-                    
-                    if (visitedNodes.has(exit.target)) {
-                        // Fetch the name of the visited node
-                        fetch(`/api/nodes/${exit.target}`, {
-                            headers: {
-                                'Authorization': `Bearer ${localStorage.getItem('token')}`
-                            }
-                        })
-                        .then(response => response.json())
-                        .then(targetNode => {
-                            exitElement.textContent = `[${exit.direction}] → [${targetNode.name}]`;
-                        })
-                        .catch(() => {
-                            exitElement.textContent = `[${exit.direction}]`;
-                        });
-                    } else {
-                        exitElement.textContent = `[${exit.direction}]`;
-                    }
-
+                    exitElement.textContent = `[${exit.direction}] → [${targetName}]`;
                     exitElement.addEventListener('click', () => {
                         loadNode(exit.target).catch(error => {
                             // Display error message in the terminal
@@ -418,25 +411,22 @@
         function initializeChat() {
             const token = localStorage.getItem('token');
             
-            // Connect to socket.io with authentication
             socket = io({
                 auth: {
                     token: token
                 }
             });
 
-            // Handle connection errors
             socket.on('connect_error', (error) => {
                 console.error('Socket connection error:', error);
                 addChatMessage('SYSTEM', 'Error connecting to chat server', new Date());
             });
 
-            // Handle incoming messages
             socket.on('chat message', (data) => {
                 addChatMessage(data.username, data.message, new Date(data.timestamp));
             });
 
-            addChatMessage('SYSTEM', 'Welcome to PUNK MUD chat');
+            addChatMessage('SYSTEM', 'Connected to local chat');
         }
 
         // Handle chat input
@@ -456,12 +446,8 @@
             const message = chatInput.value.trim();
             if (!message) return;
             
-            console.log('Sending chat message:', message);
-            
             // Send message through WebSocket
             socket.emit('chat message', message);
-            
-            // Clear input after sending
             chatInput.value = '';
         }
 
