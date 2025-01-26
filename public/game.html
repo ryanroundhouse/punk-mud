@@ -47,8 +47,9 @@
                        0 0 40px rgba(255, 46, 136, 0.3);
             display: grid;
             grid-template-columns: 1fr 1fr;
-            grid-template-rows: 33% auto;
-            gap: 0.5rem;
+            grid-template-rows: 33% 1fr auto;
+            gap: 1rem;
+            position: relative;
         }
 
         .node-info {
@@ -126,8 +127,20 @@
 
         .exits-list {
             grid-column: 1 / span 2;
-            grid-row: 2;
+            grid-row: 3;
+            margin: 0;
+            min-height: min-content;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--terminal-green);
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+
+        .exits-list h3 {
             margin-top: 0;
+            margin-bottom: 0.5rem;
+            color: var(--terminal-green);
         }
 
         .chat-panel {
@@ -297,6 +310,66 @@
             text-shadow: 0 0 5px var(--neon-blue);
             color: var(--neon-pink);
         }
+
+        .terminal-container {
+            grid-column: 1 / span 2;
+            grid-row: 2;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--terminal-green);
+            border-radius: 5px;
+            padding: 1rem;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--terminal-green) var(--dark-bg);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .terminal-input-line {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .terminal-input {
+            background: transparent;
+            border: none;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            flex-grow: 1;
+            outline: none;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 1.2em;
+            background: var(--terminal-green);
+            animation: blink 1s infinite;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .terminal-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .terminal-container::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        .terminal-container::-webkit-scrollbar-thumb {
+            background-color: var(--terminal-green);
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -312,6 +385,18 @@
             
             <div class="node-description-container">
                 <div class="node-description" id="nodeDescription"></div>
+            </div>
+
+            <div class="terminal-container" id="terminalOutput">
+                <!-- Terminal output will be displayed here -->
+                <div class="terminal-input-line">
+                    <span style="color: var(--terminal-green)">></span>
+                    <input type="text" 
+                           class="terminal-input" 
+                           id="terminalInput" 
+                           placeholder="Enter command..."
+                           maxlength="200">
+                </div>
             </div>
 
             <div class="exits-list" id="nodeExits"></div>
@@ -350,6 +435,7 @@
         let currentUsername = null;
         const CHAT_STORAGE_KEY = 'chatMessages';
         const MAX_STORED_MESSAGES = 50;
+        const terminalInput = document.getElementById('terminalInput');
 
         // Add function to get user's current location
         async function getCurrentLocation() {
@@ -611,6 +697,44 @@
             }
             localStorage.removeItem('token');
             window.location.href = '/';
+        });
+
+        // Add terminal input handling
+        terminalInput.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter' && terminalInput.value.trim()) {
+                const command = terminalInput.value.trim();
+                
+                // Create new output line for the command
+                const commandLine = document.createElement('div');
+                commandLine.style.color = 'var(--terminal-green)';
+                commandLine.textContent = `> ${command}`;
+                
+                // Insert the command line before the input line
+                const inputLine = terminalInput.parentElement;
+                terminalOutput.insertBefore(commandLine, inputLine);
+                
+                // Clear the input
+                terminalInput.value = '';
+                
+                // Process the command here
+                // For now, just echo it back
+                const responseLine = document.createElement('div');
+                responseLine.textContent = `Command received: ${command}`;
+                terminalOutput.insertBefore(responseLine, inputLine);
+                
+                // Scroll to bottom
+                terminalOutput.scrollTop = terminalOutput.scrollHeight;
+            }
+        });
+
+        // Focus the terminal input when clicking anywhere in the terminal
+        terminalOutput.addEventListener('click', () => {
+            terminalInput.focus();
+        });
+
+        // Auto-focus the terminal input on page load
+        window.addEventListener('load', () => {
+            terminalInput.focus();
         });
     </script>
 </body>
