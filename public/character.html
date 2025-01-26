@@ -431,6 +431,42 @@
         const sendMessageBtn = document.getElementById('sendMessageBtn');
         const usersList = document.getElementById('usersList');
 
+        // Add this near the top of the script section
+        const CHAT_STORAGE_KEY = 'chatMessages';
+        const MAX_STORED_MESSAGES = 50;
+
+        function storeChatMessage(messageData) {
+            let messages = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]');
+            messages.push(messageData);
+            // Keep only the last MAX_STORED_MESSAGES messages
+            if (messages.length > MAX_STORED_MESSAGES) {
+                messages = messages.slice(messages.length - MAX_STORED_MESSAGES);
+            }
+            localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+        }
+
+        function loadStoredChatMessages() {
+            const messages = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]');
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'chat-message';
+                
+                if (msg.type === 'system') {
+                    messageDiv.classList.add('system-message');
+                    messageDiv.textContent = msg.message;
+                } else {
+                    messageDiv.innerHTML = `
+                        <span class="chat-username">${msg.username}:</span>
+                        <span class="chat-message-text">${msg.message}</span>
+                        <span class="chat-timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+                    `;
+                }
+                
+                chatMessages.appendChild(messageDiv);
+            });
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
         // Check authentication and load character data
         window.onload = async () => {
             const token = localStorage.getItem('token');
@@ -598,6 +634,9 @@
                 
                 chatMessages.appendChild(messageDiv);
                 chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                // Store the message
+                storeChatMessage(msg);
             });
 
             socket.on('users update', (users) => {
@@ -614,6 +653,9 @@
                     presentUsersDiv.appendChild(userDiv);
                 });
             });
+
+            // Add this to the window.onload function after socket initialization
+            loadStoredChatMessages();
         }
 
         // Send chat message

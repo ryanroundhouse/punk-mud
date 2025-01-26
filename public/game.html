@@ -45,8 +45,89 @@
             border-radius: 10px;
             box-shadow: 0 0 20px var(--neon-pink),
                        0 0 40px rgba(255, 46, 136, 0.3);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 33% auto;
+            gap: 0.5rem;
+        }
+
+        .node-info {
+            grid-column: 1;
+            grid-row: 1;
             display: flex;
             flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .node-name {
+            color: var(--neon-pink);
+            font-size: 2rem;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .image-wrapper {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            padding: 0.5rem 0;
+        }
+
+        .node-image {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            margin: 0;
+            border: 2px solid var(--neon-blue);
+            border-radius: 5px;
+            box-shadow: 0 0 15px var(--neon-blue);
+            object-fit: contain;
+            display: block;
+        }
+
+        .node-description-container {
+            grid-column: 2;
+            grid-row: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .node-description {
+            flex: 1;
+            margin: 0;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            white-space: pre-wrap;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--terminal-green) var(--dark-bg);
+        }
+
+        .node-description::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .node-description::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        .node-description::-webkit-scrollbar-thumb {
+            background-color: var(--terminal-green);
+            border-radius: 4px;
+        }
+
+        .exits-list {
+            grid-column: 1 / span 2;
+            grid-row: 2;
+            margin-top: 0;
         }
 
         .chat-panel {
@@ -141,62 +222,6 @@
             line-height: 1.6;
         }
 
-        .node-name {
-            color: var(--neon-pink);
-            font-size: 2rem;
-            text-transform: uppercase;
-            margin-bottom: 2rem;
-            text-shadow: 0 0 10px var(--neon-pink);
-        }
-
-        .node-image {
-            max-width: 100%;
-            max-height: 300px;
-            width: auto;
-            height: auto;
-            margin: 1rem 0;
-            border: 2px solid var(--neon-blue);
-            border-radius: 5px;
-            box-shadow: 0 0 15px var(--neon-blue);
-            display: block;
-            object-fit: contain;
-        }
-
-        .node-description {
-            margin: 2rem 0 0.5rem 0;
-            padding: 1rem;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 5px;
-            border: 1px solid var(--terminal-green);
-            white-space: pre-wrap;
-            max-height: 150px;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out;
-        }
-
-        .node-description.expanded {
-            max-height: 2000px;
-            transition: max-height 0.5s ease-in;
-        }
-
-        .description-toggle {
-            color: var(--neon-blue);
-            cursor: pointer;
-            padding: 0.5rem;
-            text-align: right;
-            user-select: none;
-            margin: 0 0 2rem 0;
-            font-size: 0.9rem;
-        }
-
-        .description-toggle:hover {
-            text-shadow: 0 0 5px var(--neon-blue);
-        }
-
-        .exits-list {
-            margin-top: 2rem;
-        }
-
         .exit-item {
             color: var(--neon-blue);
             cursor: pointer;
@@ -278,16 +303,18 @@
     <button class="logout-button" id="logoutButton">Disconnect</button>
     <div class="game-container">
         <div class="main-panel">
-            <div class="terminal" id="gameOutput">
-                <div id="terminalOutput">
-                    <div class="node-name" id="nodeName"></div>
+            <div class="node-info">
+                <div class="node-name" id="nodeName"></div>
+                <div class="image-wrapper">
                     <img id="nodeImage" class="node-image" style="display: none;">
-                    <div class="node-description" id="nodeDescription"></div>
-                    <div class="description-toggle" id="descriptionToggle">[ Show More ]</div>
-
-                    <div class="exits-list" id="nodeExits"></div>
                 </div>
             </div>
+            
+            <div class="node-description-container">
+                <div class="node-description" id="nodeDescription"></div>
+            </div>
+
+            <div class="exits-list" id="nodeExits"></div>
         </div>
         
         <div class="chat-panel">
@@ -321,7 +348,8 @@
         let socket;
         let currentNode = null;
         let currentUsername = null;
-        let isDescriptionExpanded = false;
+        const CHAT_STORAGE_KEY = 'chatMessages';
+        const MAX_STORED_MESSAGES = 50;
 
         // Add function to get user's current location
         async function getCurrentLocation() {
@@ -418,16 +446,13 @@
 
                 // After setting node description
                 const descriptionElement = document.getElementById('nodeDescription');
-                const toggleElement = document.getElementById('descriptionToggle');
                 
                 // Reset description state
                 descriptionElement.classList.remove('expanded');
-                isDescriptionExpanded = false;
-                toggleElement.textContent = '[ Show More ]';
 
                 // Show toggle only if content overflows
                 setTimeout(() => {
-                    toggleElement.style.display = 
+                    descriptionElement.style.display = 
                         descriptionElement.scrollHeight > 150 ? 'block' : 'none';
                 }, 0);
             } catch (error) {
@@ -471,21 +496,6 @@
                 // Initialize chat and load current location
                 initializeChat();
                 loadNode();
-
-                // Add description toggle handler
-                document.getElementById('descriptionToggle').addEventListener('click', () => {
-                    const description = document.getElementById('nodeDescription');
-                    const toggle = document.getElementById('descriptionToggle');
-                    isDescriptionExpanded = !isDescriptionExpanded;
-                    
-                    if (isDescriptionExpanded) {
-                        description.classList.add('expanded');
-                        toggle.textContent = '[ Show Less ]';
-                    } else {
-                        description.classList.remove('expanded');
-                        toggle.textContent = '[ Show More ]';
-                    }
-                });
             } catch (error) {
                 console.error('Authentication error:', error);
                 window.location.href = '/';
@@ -532,6 +542,8 @@
                     return;
                 }
                 addChatMessage(data.username, data.message, new Date(data.timestamp));
+                // Store the message
+                storeChatMessage(data);
             });
 
             socket.on('users update', (users) => {
@@ -547,6 +559,26 @@
                     userDiv.appendChild(userLink);
                     presentUsersDiv.appendChild(userDiv);
                 });
+            });
+
+            // Add this to the initializeChat function after socket initialization
+            loadStoredChatMessages();
+        }
+
+        function storeChatMessage(messageData) {
+            let messages = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]');
+            messages.push(messageData);
+            // Keep only the last MAX_STORED_MESSAGES messages
+            if (messages.length > MAX_STORED_MESSAGES) {
+                messages = messages.slice(messages.length - MAX_STORED_MESSAGES);
+            }
+            localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+        }
+
+        function loadStoredChatMessages() {
+            const messages = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]');
+            messages.forEach(msg => {
+                addChatMessage(msg.username, msg.message, new Date(msg.timestamp));
             });
         }
 
