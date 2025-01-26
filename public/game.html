@@ -701,6 +701,27 @@
                 });
             });
 
+            // Add the console response handler here
+            socket.on('console response', (data) => {
+                const inputLine = terminalInput.parentElement;
+                const responseLine = document.createElement('div');
+                
+                if (data.type === 'list') {
+                    if (data.redirect) {
+                        // Redirect to character page
+                        window.location.href = `/character.html?view=${encodeURIComponent(data.target)}`;
+                        return;
+                    }
+                    responseLine.innerHTML = `Players here:<br>` +
+                        data.users.map(user => `- ${user}`).join('<br>');
+                } else {
+                    responseLine.textContent = data.message;
+                }
+                
+                terminalOutput.insertBefore(responseLine, inputLine);
+                terminalOutput.scrollTop = terminalOutput.scrollHeight;
+            });
+
             // Add this to the initializeChat function after socket initialization
             loadStoredChatMessages();
         }
@@ -753,15 +774,15 @@
             window.location.href = '/';
         });
 
-        // Add terminal input handling
+        // Update the terminal input handling
         terminalInput.addEventListener('keypress', async (e) => {
             if (e.key === 'Enter' && terminalInput.value.trim()) {
-                const command = terminalInput.value.trim();
+                const fullCommand = terminalInput.value.trim();
                 
                 // Create new output line for the command
                 const commandLine = document.createElement('div');
                 commandLine.style.color = 'var(--terminal-green)';
-                commandLine.textContent = `> ${command}`;
+                commandLine.textContent = `> ${fullCommand}`;
                 
                 // Insert the command line before the input line
                 const inputLine = terminalInput.parentElement;
@@ -770,11 +791,28 @@
                 // Clear the input
                 terminalInput.value = '';
                 
-                // Process the command here
-                // For now, just echo it back
-                const responseLine = document.createElement('div');
-                responseLine.textContent = `Command received: ${command}`;
-                terminalOutput.insertBefore(responseLine, inputLine);
+                // Parse command and arguments - make only the command lowercase
+                const [cmd, ...args] = fullCommand.split(' ');
+                const targetName = args.join(' ');
+                
+                // Handle look/list commands
+                if (['ls', 'list', 'look'].includes(cmd.toLowerCase())) {
+                    if (targetName) {
+                        // If a name is provided, emit command to check if user exists in node
+                        socket.emit('console command', { 
+                            command: 'list',
+                            target: targetName  // Keep original case
+                        });
+                    } else {
+                        // Just list all users in node
+                        socket.emit('console command', { command: 'list' });
+                    }
+                } else {
+                    // Handle other commands or show error
+                    const responseLine = document.createElement('div');
+                    responseLine.textContent = `Unknown command: ${fullCommand}`;
+                    terminalOutput.insertBefore(responseLine, inputLine);
+                }
                 
                 // Scroll to bottom
                 terminalOutput.scrollTop = terminalOutput.scrollHeight;

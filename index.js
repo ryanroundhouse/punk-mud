@@ -400,6 +400,62 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Update the console command handler
+    socket.on('console command', async (data) => {
+        try {
+            const user = await User.findById(socket.user.userId);
+            if (!user || !user.currentNode) {
+                throw new Error('User not found or missing location data');
+            }
+
+            switch (data.command) {
+                case 'list':
+                    const nodeUsers = nodeUsernames.get(user.currentNode) || [];
+                    
+                    // If a target name was provided
+                    if (data.target) {
+                        // Find exact match (case-sensitive)
+                        const targetUser = nodeUsers.find(
+                            username => username === data.target
+                        );
+                        
+                        if (targetUser) {
+                            // Send redirect response with exact username
+                            socket.emit('console response', {
+                                type: 'list',
+                                redirect: true,
+                                target: targetUser
+                            });
+                        } else {
+                            socket.emit('console response', {
+                                type: 'error',
+                                message: `Player "${data.target}" not found in this location.`
+                            });
+                        }
+                    } else {
+                        // Regular list response
+                        socket.emit('console response', {
+                            type: 'list',
+                            users: nodeUsers
+                        });
+                    }
+                    break;
+                    
+                default:
+                    socket.emit('console response', {
+                        type: 'error',
+                        message: 'Unknown command'
+                    });
+            }
+        } catch (error) {
+            logger.error('Error handling console command:', error);
+            socket.emit('console response', {
+                type: 'error',
+                message: 'Error processing command'
+            });
+        }
+    });
+
     socket.on('disconnect', async () => {
         logger.info(`User disconnected: ${socket.user.email}`);
         
