@@ -353,6 +353,16 @@ const nodeUsernames = new Map(); // stores username lists per node
 // Add a Set to track which node channels we're subscribed to
 const subscribedNodes = new Set();
 
+// Update the HELP_TEXT constant with proper spacing and HTML entities
+const HELP_TEXT = `
+Available Commands:
+------------------
+ls                   List all players in current location
+ls &lt;name&gt;            View details of player in current location
+?                    Display this help message
+
+`.trim();
+
 // Update the socket.io connection handling
 io.on('connection', (socket) => {
     logger.info(`User connected: ${socket.user.email}`);
@@ -412,15 +422,12 @@ io.on('connection', (socket) => {
                 case 'list':
                     const nodeUsers = nodeUsernames.get(user.currentNode) || [];
                     
-                    // If a target name was provided
                     if (data.target) {
-                        // Find exact match (case-sensitive)
                         const targetUser = nodeUsers.find(
                             username => username === data.target
                         );
                         
                         if (targetUser) {
-                            // Send redirect response with exact username
                             socket.emit('console response', {
                                 type: 'list',
                                 redirect: true,
@@ -433,12 +440,18 @@ io.on('connection', (socket) => {
                             });
                         }
                     } else {
-                        // Regular list response
                         socket.emit('console response', {
                             type: 'list',
                             users: nodeUsers
                         });
                     }
+                    break;
+
+                case 'help':
+                    socket.emit('console response', {
+                        type: 'info',
+                        message: HELP_TEXT
+                    });
                     break;
                     
                 default:

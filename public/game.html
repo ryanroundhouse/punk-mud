@@ -416,7 +416,7 @@
                     <input type="text" 
                            class="terminal-input" 
                            id="terminalInput" 
-                           placeholder="Enter command..."
+                           placeholder="Type ? for help"
                            maxlength="200">
                 </div>
             </div>
@@ -701,7 +701,7 @@
                 });
             });
 
-            // Add the console response handler here
+            // Update the console response handler in initializeChat function
             socket.on('console response', (data) => {
                 const inputLine = terminalInput.parentElement;
                 const responseLine = document.createElement('div');
@@ -715,8 +715,15 @@
                     responseLine.innerHTML = `Players here:<br>` +
                         data.users.map(user => `- ${user}`).join('<br>');
                 } else {
-                    responseLine.textContent = data.message;
+                    // Handle messages with newlines by replacing them with <br> and preserving spaces
+                    responseLine.innerHTML = data.message
+                        .replace(/\n/g, '<br>')
+                        .replace(/\s{2,}/g, match => '&nbsp;'.repeat(match.length));
                 }
+                
+                // Add monospace styling to preserve formatting
+                responseLine.style.whiteSpace = 'pre';
+                responseLine.style.fontFamily = 'monospace';
                 
                 terminalOutput.insertBefore(responseLine, inputLine);
                 terminalOutput.scrollTop = terminalOutput.scrollHeight;
@@ -795,18 +802,18 @@
                 const [cmd, ...args] = fullCommand.split(' ');
                 const targetName = args.join(' ');
                 
-                // Handle look/list commands
-                if (['ls', 'list', 'look'].includes(cmd.toLowerCase())) {
+                // Handle commands
+                if (cmd.toLowerCase() === 'ls') {
                     if (targetName) {
-                        // If a name is provided, emit command to check if user exists in node
                         socket.emit('console command', { 
                             command: 'list',
-                            target: targetName  // Keep original case
+                            target: targetName
                         });
                     } else {
-                        // Just list all users in node
                         socket.emit('console command', { command: 'list' });
                     }
+                } else if (cmd === '?') {
+                    socket.emit('console command', { command: 'help' });
                 } else {
                     // Handle other commands or show error
                     const responseLine = document.createElement('div');
