@@ -251,6 +251,11 @@
         .chat-message {
             margin-bottom: 0.8rem;
             word-wrap: break-word;
+            cursor: pointer;
+        }
+
+        .chat-message.show-timestamp .chat-timestamp {
+            display: inline;
         }
 
         .chat-username {
@@ -262,6 +267,7 @@
             color: #666;
             font-size: 0.8rem;
             margin-left: 0.5rem;
+            display: none;
         }
 
         .logout-button {
@@ -649,16 +655,30 @@
             const isSystemMessage = username === 'SYSTEM';
             const isOwnMessage = username === currentUsername;
             
-            let usernameColor = 'var(--neon-pink)'; // Default color
-            if (isOwnMessage) {
-                usernameColor = 'var(--neon-blue)';
+            if (isSystemMessage && message.startsWith('You have entered')) {
+                // Special case for location entry messages - don't show "SYSTEM:"
+                messageDiv.innerHTML = `
+                    <span class="chat-text" style="color: var(--neon-blue)">${message}</span>
+                    <span class="chat-timestamp">${timestamp.toLocaleTimeString()}</span>
+                `;
+            } else {
+                let usernameColor = 'var(--neon-pink)'; // Default color
+                if (isOwnMessage) {
+                    usernameColor = 'var(--neon-blue)';
+                }
+                
+                messageDiv.innerHTML = `
+                    <span class="chat-username" style="color: ${usernameColor}">${username}:</span>
+                    <span class="chat-text" ${isSystemMessage ? 'style="color: var(--neon-blue)"' : ''}>${message}</span>
+                    <span class="chat-timestamp">${timestamp.toLocaleTimeString()}</span>
+                `;
             }
             
-            messageDiv.innerHTML = `
-                <span class="chat-username" style="color: ${usernameColor}">${username}:</span>
-                <span class="chat-text" ${isSystemMessage ? 'style="color: var(--neon-blue)"' : ''}>${message}</span>
-                <span class="chat-timestamp">${timestamp.toLocaleTimeString()}</span>
-            `;
+            // Add click handler to toggle timestamp
+            messageDiv.addEventListener('click', () => {
+                messageDiv.classList.toggle('show-timestamp');
+            });
+            
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
