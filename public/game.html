@@ -656,7 +656,6 @@
             const isOwnMessage = username === currentUsername;
             
             if (isSystemMessage && message.startsWith('You have entered')) {
-                // Special case for location entry messages - don't show "SYSTEM:"
                 messageDiv.innerHTML = `
                     <span class="chat-text" style="color: var(--neon-blue)">${message}</span>
                     <span class="chat-timestamp">${timestamp.toLocaleTimeString()}</span>
@@ -667,16 +666,20 @@
                     usernameColor = 'var(--neon-blue)';
                 }
                 
+                const usernameSpan = `<span class="chat-username" style="color: ${usernameColor}; cursor: pointer" onclick="viewCharacter('${username}')">${username}:</span>`;
+                
                 messageDiv.innerHTML = `
-                    <span class="chat-username" style="color: ${usernameColor}">${username}:</span>
+                    ${usernameSpan}
                     <span class="chat-text" ${isSystemMessage ? 'style="color: var(--neon-blue)"' : ''}>${message}</span>
                     <span class="chat-timestamp">${timestamp.toLocaleTimeString()}</span>
                 `;
             }
             
-            // Add click handler to toggle timestamp
-            messageDiv.addEventListener('click', () => {
-                messageDiv.classList.toggle('show-timestamp');
+            messageDiv.addEventListener('click', (e) => {
+                // Only toggle timestamp if not clicking username
+                if (!e.target.classList.contains('chat-username')) {
+                    messageDiv.classList.toggle('show-timestamp');
+                }
             });
             
             chatMessages.appendChild(messageDiv);
@@ -715,27 +718,29 @@
                     const userLink = document.createElement('a');
                     userLink.className = 'user-link';
                     userLink.textContent = username;
-                    userLink.href = '/character.html?view=' + encodeURIComponent(username);
+                    userLink.href = '#';
+                    userLink.onclick = (e) => {
+                        e.preventDefault();
+                        viewCharacter(username);
+                    };
                     userDiv.appendChild(userLink);
                     presentUsersDiv.appendChild(userDiv);
                 });
             });
 
-            // Update the console response handler in initializeChat function
+            // Update the console response handler
             socket.on('console response', (data) => {
                 const inputLine = terminalInput.parentElement;
                 const responseLine = document.createElement('div');
                 
                 if (data.type === 'list') {
                     if (data.redirect) {
-                        // Redirect to character page
-                        window.location.href = `/character.html?view=${encodeURIComponent(data.target)}`;
+                        viewCharacter(data.target);
                         return;
                     }
                     responseLine.innerHTML = `Players here:<br>` +
                         data.users.map(user => `- ${user}`).join('<br>');
                 } else {
-                    // Handle messages with newlines by replacing them with <br> and preserving spaces
                     responseLine.innerHTML = data.message
                         .replace(/\n/g, '<br>')
                         .replace(/\s{2,}/g, match => '&nbsp;'.repeat(match.length));
@@ -855,6 +860,17 @@
         window.addEventListener('load', () => {
             terminalInput.focus();
         });
+
+        // Update the viewCharacter function
+        function viewCharacter(username) {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+            localStorage.setItem('returnPage', window.location.pathname);
+            window.location.href = `/character.html?view=${encodeURIComponent(username)}&token=${encodeURIComponent(token)}`;
+        }
     </script>
 
     <div id="imageModal" class="image-modal" style="display: none;">

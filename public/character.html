@@ -237,11 +237,27 @@
             border: 1px solid var(--neon-blue);
             border-radius: 5px;
             background: rgba(0, 0, 0, 0.3);
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-blue) var(--dark-bg);
+        }
+
+        .chat-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-container::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        .chat-container::-webkit-scrollbar-thumb {
+            background-color: var(--neon-blue);
+            border-radius: 4px;
         }
 
         .chat-message {
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.8rem;
             word-wrap: break-word;
+            cursor: pointer;
         }
 
         .chat-username {
@@ -250,9 +266,14 @@
         }
 
         .chat-timestamp {
-            color: var(--neon-blue);
+            color: #666;
             font-size: 0.8rem;
             margin-left: 0.5rem;
+            display: none;
+        }
+
+        .chat-message.show-timestamp .chat-timestamp {
+            display: inline;
         }
 
         .chat-input-container {
@@ -451,28 +472,55 @@
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'chat-message';
                 
-                if (msg.type === 'system') {
+                const isSystemMessage = msg.type === 'system';
+                const isOwnMessage = msg.username === currentUsername;
+                
+                if (isSystemMessage) {
                     messageDiv.classList.add('system-message');
-                    messageDiv.textContent = msg.message;
-                } else {
                     messageDiv.innerHTML = `
-                        <span class="chat-username">${msg.username}:</span>
+                        <span class="chat-text">${msg.message}</span>
+                        <span class="chat-timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+                    `;
+                } else {
+                    let usernameColor = 'var(--neon-pink)'; // Default color
+                    if (isOwnMessage) {
+                        usernameColor = 'var(--neon-blue)';
+                    }
+                    
+                    const usernameSpan = `<span class="chat-username" style="color: ${usernameColor}; cursor: pointer" onclick="viewCharacter('${msg.username}')">${msg.username}:</span>`;
+                    
+                    messageDiv.innerHTML = `
+                        ${usernameSpan}
                         <span class="chat-message-text">${msg.message}</span>
                         <span class="chat-timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</span>
                     `;
                 }
+                
+                messageDiv.addEventListener('click', (e) => {
+                    // Only toggle timestamp if not clicking username
+                    if (!e.target.classList.contains('chat-username')) {
+                        messageDiv.classList.toggle('show-timestamp');
+                    }
+                });
                 
                 chatMessages.appendChild(messageDiv);
             });
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        // Check authentication and load character data
+        // Update the window.onload function
         window.onload = async () => {
             const token = localStorage.getItem('token');
             if (!token) {
-                window.location.href = '/';
-                return;
+                // Try to get token from URL if not in localStorage
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlToken = urlParams.get('token');
+                if (urlToken) {
+                    localStorage.setItem('token', urlToken);
+                } else {
+                    window.location.href = '/';
+                    return;
+                }
             }
 
             // Get the username to view from URL parameters
@@ -482,7 +530,7 @@
             try {
                 const response = await fetch('/api/verify-token', {
                     headers: {
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
                 
@@ -491,7 +539,7 @@
                 }
 
                 const data = await response.json();
-                const currentUsername = data.user.avatarName;
+                currentUsername = data.user.avatarName;  // Make sure to set currentUsername
                 document.getElementById('avatarName').textContent = viewUsername || currentUsername;
 
                 // If viewing another user's character, disable editing
@@ -506,7 +554,7 @@
                 await loadCharacterData(viewUsername);
 
                 // Initialize socket connection
-                initializeSocket(token);
+                initializeSocket(localStorage.getItem('token'));
             } catch (error) {
                 console.error('Authentication error:', error);
                 window.location.href = '/';
@@ -621,16 +669,36 @@
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'chat-message';
                 
-                if (msg.type === 'system') {
+                const isSystemMessage = msg.type === 'system';
+                const isOwnMessage = msg.username === currentUsername;
+                
+                if (isSystemMessage) {
                     messageDiv.classList.add('system-message');
-                    messageDiv.textContent = msg.message;
-                } else {
                     messageDiv.innerHTML = `
-                        <span class="chat-username">${msg.username}:</span>
+                        <span class="chat-text">${msg.message}</span>
+                        <span class="chat-timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+                    `;
+                } else {
+                    let usernameColor = 'var(--neon-pink)'; // Default color
+                    if (isOwnMessage) {
+                        usernameColor = 'var(--neon-blue)';
+                    }
+                    
+                    const usernameSpan = `<span class="chat-username" style="color: ${usernameColor}; cursor: pointer" onclick="viewCharacter('${msg.username}')">${msg.username}:</span>`;
+                    
+                    messageDiv.innerHTML = `
+                        ${usernameSpan}
                         <span class="chat-message-text">${msg.message}</span>
                         <span class="chat-timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</span>
                     `;
                 }
+                
+                messageDiv.addEventListener('click', (e) => {
+                    // Only toggle timestamp if not clicking username
+                    if (!e.target.classList.contains('chat-username')) {
+                        messageDiv.classList.toggle('show-timestamp');
+                    }
+                });
                 
                 chatMessages.appendChild(messageDiv);
                 chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -673,6 +741,24 @@
                 sendMessage();
             }
         });
+
+        // Update the return button handler
+        document.querySelector('.return-button').onclick = (e) => {
+            e.preventDefault();
+            const returnPage = localStorage.getItem('returnPage') || '/game.html';
+            window.location.href = returnPage;
+        };
+
+        // Add this function near the top of the script section
+        function viewCharacter(username) {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+            localStorage.setItem('returnPage', window.location.pathname);
+            window.location.href = `/character.html?view=${encodeURIComponent(username)}&token=${encodeURIComponent(token)}`;
+        }
     </script>
 </body>
 </html> 
