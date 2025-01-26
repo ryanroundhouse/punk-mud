@@ -88,6 +88,7 @@
             box-shadow: 0 0 15px var(--neon-blue);
             object-fit: contain;
             display: block;
+            cursor: pointer;
         }
 
         .node-description-container {
@@ -370,6 +371,27 @@
             background-color: var(--terminal-green);
             border-radius: 4px;
         }
+
+        .image-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            cursor: pointer;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-image {
+            max-width: 90%;
+            max-height: 90vh;
+            object-fit: contain;
+            border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 30px var(--neon-blue);
+        }
     </style>
 </head>
 <body>
@@ -582,6 +604,38 @@
                 // Initialize chat and load current location
                 initializeChat();
                 loadNode();
+
+                // Initialize modal functionality
+                const imageModal = document.getElementById('imageModal');
+                const modalImage = document.getElementById('modalImage');
+                const nodeImage = document.getElementById('nodeImage');
+
+                nodeImage.addEventListener('click', function(e) {
+                    console.log('Image clicked', nodeImage.src);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (nodeImage.src && nodeImage.src !== window.location.href) {
+                        modalImage.src = nodeImage.src;
+                        imageModal.style.display = 'flex';
+                        document.body.style.overflow = 'hidden';
+                    }
+                });
+
+                imageModal.addEventListener('click', function() {
+                    imageModal.style.display = 'none';
+                    document.body.style.overflow = 'auto';
+                });
+
+                document.addEventListener('keydown', function(e) {
+                    if (imageModal.style.display === 'flex') {
+                        imageModal.style.display = 'none';
+                        document.body.style.overflow = 'auto';
+                    }
+                });
+
+                // Focus terminal input
+                terminalInput.focus();
+
             } catch (error) {
                 console.error('Authentication error:', error);
                 window.location.href = '/';
@@ -737,5 +791,9 @@
             terminalInput.focus();
         });
     </script>
+
+    <div id="imageModal" class="image-modal" style="display: none;">
+        <img id="modalImage" class="modal-image">
+    </div>
 </body>
 </html> 
