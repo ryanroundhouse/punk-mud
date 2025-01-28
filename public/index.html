@@ -153,6 +153,9 @@
         <div id="message" class="message" style="margin-top: 1rem; color: var(--neon-pink);"></div>
     </div>
 
+    <!-- Add audio element -->
+    <audio id="welcomeAudio" src="/assets/audio/welcome-to-punk-mud.mp3" preload="auto"></audio>
+
     <script>
         const loginForm = document.getElementById('loginForm');
         const emailStep = document.getElementById('emailStep');
@@ -215,6 +218,12 @@
                 messageDiv.textContent = 'Please enter a valid email address';
                 return;
             }
+
+            // Play welcome audio
+            const welcomeAudio = document.getElementById('welcomeAudio');
+            welcomeAudio.play().catch(error => {
+                console.log('Audio playback failed:', error);
+            });
 
             currentEmail = emailInput.value;
             try {

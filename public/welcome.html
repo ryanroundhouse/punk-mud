@@ -201,6 +201,9 @@
         </div>
     </div>
 
+    <!-- Add audio element -->
+    <audio id="neuralInterfaceAudio" src="/assets/audio/initializing-neural-dive-sequence.mp3" preload="auto"></audio>
+
     <script>
         let isReturningUser = false;
         let userAvatarName = '';
@@ -509,6 +512,12 @@
                     await terminal.writeMessage(`> ${input}`, { immediate: true });
                     
                     if (input === 'dive') {
+                        // Play neural interface audio
+                        const neuralInterfaceAudio = document.getElementById('neuralInterfaceAudio');
+                        neuralInterfaceAudio.play().catch(error => {
+                            console.log('Audio playback failed:', error);
+                        });
+
                         await terminal.writeLines([
                             "SYSTEM: Initiating neural dive sequence...",
                             "SYSTEM: Synchronizing neural patterns...", 
