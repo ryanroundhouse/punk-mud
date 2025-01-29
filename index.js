@@ -354,12 +354,16 @@ const nodeUsernames = new Map(); // stores username lists per node
 // Add a Set to track which node channels we're subscribed to
 const subscribedNodes = new Set();
 
+// Add this near the top with other Map declarations
+const actorChatStates = new Map(); // tracks last message index per user per actor
+
 // Update the HELP_TEXT constant with proper spacing and HTML entities
 const HELP_TEXT = `
 Available Commands:
 ------------------
-ls                   List all players in current location
-ls &lt;name&gt;            View details of player in current location
+ls                   List all players and NPCs in current location
+ls &lt;name&gt;            View details of player or NPC in current location
+chat &lt;actor&gt;         Talk to an NPC in current location
 ?                    Display this help message
 
 `.trim();
@@ -478,6 +482,57 @@ io.on('connection', (socket) => {
                     });
                     break;
                     
+                case 'chat':
+                    if (!data.target) {
+                        socket.emit('console response', {
+                            type: 'error',
+                            message: 'Usage: chat <actor name>'
+                        });
+                        break;
+                    }
+
+                    // Get actors in current location
+                    const locationActors = await Actor.find({ location: user.currentNode });
+                    const targetActor = locationActors.find(
+                        actor => actor.name.toLowerCase() === data.target.toLowerCase()
+                    );
+
+                    if (!targetActor) {
+                        socket.emit('console response', {
+                            type: 'error',
+                            message: `${data.target} is not here.`
+                        });
+                        break;
+                    }
+
+                    if (!targetActor.chatMessages || targetActor.chatMessages.length === 0) {
+                        socket.emit('console response', {
+                            type: 'chat',
+                            message: `${targetActor.name} has nothing to say.`
+                        });
+                        break;
+                    }
+
+                    // Get or initialize chat state for this user and actor
+                    const stateKey = `${socket.user.userId}-${targetActor.id}`;
+                    let currentIndex = actorChatStates.get(stateKey) || 0;
+
+                    // Sort messages by order
+                    const sortedMessages = [...targetActor.chatMessages].sort((a, b) => a.order - b.order);
+
+                    // Get next message
+                    const message = sortedMessages[currentIndex];
+
+                    // Update index for next time, wrapping around if needed
+                    currentIndex = (currentIndex + 1) % sortedMessages.length;
+                    actorChatStates.set(stateKey, currentIndex);
+
+                    socket.emit('console response', {
+                        type: 'chat',
+                        message: `${targetActor.name} says: "${message.message}"`
+                    });
+                    break;
+
                 default:
                     socket.emit('console response', {
                         type: 'error',
@@ -499,6 +554,9 @@ io.on('connection', (socket) => {
         try {
             const user = await User.findById(socket.user.userId);
             if (user && user.currentNode) {
+                // Clear all actor chat states for this user
+                clearActorChatStates(socket.user.userId, user.currentNode);
+                
                 // Only need the general message for disconnection
                 await publishSystemMessage(
                     user.currentNode, 
@@ -532,6 +590,9 @@ function removeUserFromNode(userId, nodeAddress) {
     const nodeSet = nodeClients.get(nodeAddress);
     if (nodeSet) {
         nodeSet.delete(userId);
+        // Clear actor chat states when leaving node
+        clearActorChatStates(userId, nodeAddress);
+        
         if (nodeSet.size === 0) {
             nodeClients.delete(nodeAddress);
             nodeUsernames.delete(nodeAddress);
@@ -1209,4 +1270,18 @@ app.delete('/api/actors/:id', verifyBuilderAccess, async (req, res) => {
         console.error('Error deleting actor:', error);
         res.status(500).json({ error: 'Error deleting actor' });
     }
-}); 
+});
+
+// Keep only the helper function for clearing actor chat states
+function clearActorChatStates(userId, nodeAddress) {
+    // Get all actors in the location
+    Actor.find({ location: nodeAddress })
+        .then(actors => {
+            // Clear chat state for each actor
+            actors.forEach(actor => {
+                const stateKey = `${userId}-${actor.id}`;
+                actorChatStates.delete(stateKey);
+            });
+        })
+        .catch(err => logger.error('Error clearing actor chat states:', err));
+} 

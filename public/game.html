@@ -849,27 +849,37 @@
                 // Clear the input
                 terminalInput.value = '';
                 
-                // Parse command and arguments - make only the command lowercase
+                // Parse command and arguments
                 const [cmd, ...args] = fullCommand.split(' ');
                 const targetName = args.join(' ');
                 
                 // Handle commands
-                if (cmd.toLowerCase() === 'ls') {
-                    if (targetName) {
+                switch (cmd.toLowerCase()) {
+                    case 'ls':
                         socket.emit('console command', { 
                             command: 'list',
-                            target: targetName
+                            target: targetName || null
                         });
-                    } else {
-                        socket.emit('console command', { command: 'list' });
-                    }
-                } else if (cmd === '?') {
-                    socket.emit('console command', { command: 'help' });
-                } else {
-                    // Handle other commands or show error
-                    const responseLine = document.createElement('div');
-                    responseLine.textContent = `Unknown command: ${fullCommand}`;
-                    terminalOutput.insertBefore(responseLine, inputLine);
+                        break;
+                    case 'chat':
+                        if (!targetName) {
+                            const responseLine = document.createElement('div');
+                            responseLine.textContent = 'Usage: chat <actor name>';
+                            terminalOutput.insertBefore(responseLine, inputLine);
+                        } else {
+                            socket.emit('console command', {
+                                command: 'chat',
+                                target: targetName
+                            });
+                        }
+                        break;
+                    case '?':
+                        socket.emit('console command', { command: 'help' });
+                        break;
+                    default:
+                        const responseLine = document.createElement('div');
+                        responseLine.textContent = `Unknown command: ${fullCommand}`;
+                        terminalOutput.insertBefore(responseLine, inputLine);
                 }
                 
                 // Scroll to bottom
