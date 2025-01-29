@@ -13,6 +13,7 @@ const { createClient } = require('redis');
 const User = require('./models/User');
 const { sendAuthCode } = require('./services/emailService');
 const Node = require('./models/Node');
+const Actor = require('./models/Actor');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -422,7 +423,12 @@ io.on('connection', (socket) => {
                 case 'list':
                     const nodeUsers = nodeUsernames.get(user.currentNode) || [];
                     
+                    // Get actors in this location
+                    const actors = await Actor.find({ location: user.currentNode });
+                    const actorNames = actors.map(actor => actor.name);
+                    
                     if (data.target) {
+                        // Check players first
                         const targetUser = nodeUsers.find(
                             username => username === data.target
                         );
@@ -433,16 +439,34 @@ io.on('connection', (socket) => {
                                 redirect: true,
                                 target: targetUser
                             });
-                        } else {
-                            socket.emit('console response', {
-                                type: 'error',
-                                message: `Player "${data.target}" not found in this location.`
-                            });
+                            return;
                         }
+                        
+                        // Then check actors
+                        const targetActor = actors.find(
+                            actor => actor.name === data.target
+                        );
+                        
+                        if (targetActor) {
+                            socket.emit('console response', {
+                                type: 'list',
+                                redirect: true,
+                                target: targetActor.name,
+                                isActor: true,
+                                description: targetActor.description
+                            });
+                            return;
+                        }
+
+                        socket.emit('console response', {
+                            type: 'error',
+                            message: `Character "${data.target}" not found in this location.`
+                        });
                     } else {
                         socket.emit('console response', {
                             type: 'list',
-                            users: nodeUsers
+                            users: nodeUsers,
+                            actors: actorNames
                         });
                     }
                     break;
@@ -1098,5 +1122,91 @@ app.get('/api/user/character/:username', authenticateToken, async (req, res) => 
     } catch (error) {
         logger.error('Error fetching character data:', error);
         res.status(500).json({ error: 'Error fetching character data' });
+    }
+});
+
+// Get all actors
+app.get('/api/actors', verifyBuilderAccess, async (req, res) => {
+    try {
+        const actors = await Actor.find().sort({ name: 1 });
+        res.json(actors);
+    } catch (error) {
+        logger.error('Error fetching actors:', error);
+        res.status(500).json({ error: 'Error fetching actors' });
+    }
+});
+
+// Create or update actor
+app.post('/api/actors', verifyBuilderAccess, asyncHandler(async (req, res) => {
+    const { name, description, image, location, chatMessages } = req.body;
+    
+    // Only check for name and description as required fields
+    if (!name || !description) {
+        throw new Error('Missing required fields: name and description are required');
+    }
+
+    // Check if actor with name already exists (since we're using name as the identifier now)
+    const existingActor = await Actor.findOne({ name });
+    if (existingActor) {
+        logger.info('Updating existing actor', {
+            name,
+            userId: req.user._id
+        });
+
+        // Update existing actor
+        existingActor.description = description;
+        existingActor.image = image;
+        existingActor.location = location;
+        existingActor.chatMessages = chatMessages;
+        existingActor.updatedAt = Date.now();
+        
+        await existingActor.save();
+        
+        logger.info('Actor updated successfully', {
+            actorId: existingActor._id,
+            name
+        });
+        
+        return res.json(existingActor);
+    }
+
+    // Create new actor (id will be auto-generated)
+    const actor = new Actor({
+        name,
+        description,
+        image,
+        location,
+        chatMessages
+    });
+    
+    await actor.save();
+    
+    logger.info('New actor created', {
+        actorId: actor._id,
+        name,
+        userId: req.user._id
+    });
+    
+    res.status(201).json(actor);
+}));
+
+// Delete actor
+app.delete('/api/actors/:id', verifyBuilderAccess, async (req, res) => {
+    try {
+        const actor = await Actor.findOneAndDelete({ id: req.params.id });
+        if (!actor) {
+            return res.status(404).json({ error: 'Actor not found' });
+        }
+        
+        // If actor had an image, delete it
+        if (actor.image) {
+            const imagePath = path.join(__dirname, 'public', actor.image);
+            await fs.unlink(imagePath).catch(console.error);
+        }
+        
+        res.json({ message: 'Actor deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting actor:', error);
+        res.status(500).json({ error: 'Error deleting actor' });
     }
 }); 

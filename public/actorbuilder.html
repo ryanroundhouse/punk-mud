@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUNK MUD - Actor Builder</title>
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+            --terminal-green: #00ff00;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .builder-container {
+            width: 95%;
+            height: 90vh;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-pink),
+                       0 0 40px rgba(255, 46, 136, 0.3);
+            position: relative;
+        }
+
+        .layout-container {
+            display: flex;
+            gap: 2rem;
+            height: 100%;
+        }
+
+        .left-panel {
+            flex: 1;
+            height: 100%;
+            position: relative;
+        }
+
+        .actor-form {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            height: calc(100% - 5rem);
+            box-sizing: border-box;
+            position: relative;
+            margin-top: 5rem;
+            overflow-y: auto;
+        }
+
+        #newActorBtn {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #saveActorBtn {
+            position: absolute;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+            position: relative;
+            width: calc(100% - 350px);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--neon-blue);
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea {
+            width: 90%;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .image-upload-section {
+            position: absolute;
+            right: 2rem;
+            top: 2rem;
+            width: 300px;
+        }
+
+        .image-preview-container {
+            width: 300px;
+            height: 200px;
+            border: 2px solid var(--neon-blue);
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            margin-bottom: 1rem;
+        }
+
+        .image-preview {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+
+        .no-image-text {
+            color: var(--neon-blue);
+            font-style: italic;
+            opacity: 0.7;
+        }
+
+        .right-panel {
+            width: 300px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            display: flex;
+            flex-direction: column;
+            margin-top: 5rem;
+            height: calc(100% - 7rem);
+        }
+
+        .filter-container {
+            margin-bottom: 1rem;
+        }
+
+        .actors-list {
+            flex: 1;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-blue) var(--dark-bg);
+        }
+
+        .actor-entry {
+            padding: 0.8rem;
+            border-bottom: 1px solid var(--neon-blue);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .actor-entry:hover {
+            background: rgba(0, 255, 249, 0.1);
+        }
+
+        .actor-entry-name {
+            color: var(--neon-pink);
+            font-weight: bold;
+            margin-bottom: 0.3rem;
+        }
+
+        .actor-entry-location {
+            color: var(--neon-blue);
+            font-size: 0.9rem;
+        }
+
+        .action-button {
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .action-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .chat-messages-container {
+            margin-top: 1rem;
+            border: 1px solid var(--neon-blue);
+            padding: 1rem;
+            border-radius: 5px;
+            width: calc(100% - 350px);
+        }
+
+        .chat-message-entry {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            background: rgba(0, 255, 249, 0.05);
+            padding: 0.5rem;
+            border-radius: 5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .chat-message-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .message-order {
+            width: 50px;
+            text-align: center;
+        }
+
+        .message-text {
+            flex: 1;
+        }
+
+        .remove-message {
+            color: var(--neon-pink);
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        .location-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .location-select {
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            width: 90%;
+        }
+
+        .location-select option {
+            background: var(--dark-bg);
+        }
+    </style>
+</head>
+<body>
+    <div class="builder-container">
+        <div class="layout-container">
+            <div class="left-panel">
+                <button class="action-button" id="newActorBtn">Add New Actor</button>
+                <div class="actor-form">
+                    <div class="form-group">
+                        <label for="actorName">Actor Name:</label>
+                        <input type="text" id="actorName" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="location">Location:</label>
+                        <div class="location-controls">
+                            <select id="locationTarget" class="location-select">
+                                <option value="">Select Location</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description">Description:</label>
+                        <textarea id="description" required></textarea>
+                    </div>
+
+                    <div class="image-upload-section">
+                        <div class="image-preview-container">
+                            <img id="imagePreview" class="image-preview">
+                            <span class="no-image-text" id="noImageText">No image uploaded</span>
+                        </div>
+                        <div class="image-upload-controls">
+                            <label for="imageUpload">Actor Image:</label>
+                            <input type="file" id="imageUpload" accept="image/*">
+                            <input type="hidden" id="imagePath">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Chat Messages:</label>
+                        <div id="chatMessagesContainer" class="chat-messages-container">
+                            <div class="chat-message-controls">
+                                <input type="number" 
+                                       id="messageOrder" 
+                                       class="message-order" 
+                                       min="1" 
+                                       placeholder="#"
+                                       value="1">
+                                <input type="text" 
+                                       id="messageText" 
+                                       class="message-text" 
+                                       placeholder="Enter message text">
+                                <button class="action-button" id="addMessageBtn">Add Message</button>
+                            </div>
+                            <div id="messagesList">
+                                <!-- Messages will be listed here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button class="action-button" id="saveActorBtn">Save Actor</button>
+            </div>
+
+            <div class="right-panel">
+                <div class="filter-container">
+                    <input type="text" 
+                           id="actorFilter" 
+                           placeholder="Filter actors..."
+                           class="chat-input">
+                </div>
+                <div class="actors-list" id="actorsListPanel">
+                    <!-- Actors will be listed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Add all the JavaScript from nodebuilder.html but modify for actors
+        const newActorBtn = document.getElementById('newActorBtn');
+        const saveActorBtn = document.getElementById('saveActorBtn');
+        const imageUpload = document.getElementById('imageUpload');
+        const imagePreview = document.getElementById('imagePreview');
+        const addMessageBtn = document.getElementById('addMessageBtn');
+        const actorFilter = document.getElementById('actorFilter');
+        let allActors = [];
+        let allNodes = [];
+
+        // Check authentication
+        window.onload = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/verify-token', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                // Load both nodes and actors
+                await Promise.all([loadNodes(), loadActors()]);
+            } catch (error) {
+                console.error('Authentication error:', error);
+                window.location.href = '/';
+            }
+        };
+
+        // Handle image upload
+        imageUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            const noImageText = document.getElementById('noImageText');
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                    noImageText.style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+
+                const formData = new FormData();
+                formData.append('image', file);
+
+                try {
+                    const response = await fetch('/api/upload-image', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+
+                    const data = await response.json();
+                    document.getElementById('imagePath').value = data.path;
+                } catch (error) {
+                    console.error('Error uploading image:', error);
+                }
+            }
+        });
+
+        // Add chat message
+        addMessageBtn.addEventListener('click', () => {
+            const order = document.getElementById('messageOrder').value;
+            const text = document.getElementById('messageText').value;
+
+            if (!order || !text) {
+                alert('Please enter both order and message text');
+                return;
+            }
+
+            const messageEntry = document.createElement('div');
+            messageEntry.className = 'chat-message-entry';
+            messageEntry.innerHTML = `
+                <div class="message-order">${order}</div>
+                <div class="message-text">${text}</div>
+                <input type="hidden" class="message-data" value="${order}|${text}">
+                <span class="remove-exit">×</span>
+            `;
+
+            messageEntry.querySelector('.remove-exit').addEventListener('click', () => {
+                messageEntry.remove();
+            });
+
+            document.getElementById('messagesList').appendChild(messageEntry);
+            
+            // Clear inputs and increment order
+            document.getElementById('messageText').value = '';
+            document.getElementById('messageOrder').value = parseInt(order) + 1;
+        });
+
+        // Save actor
+        saveActorBtn.addEventListener('click', async () => {
+            const messages = Array.from(document.querySelectorAll('.message-data')).map(input => {
+                const [order, message] = input.value.split('|');
+                return {
+                    order: parseInt(order),
+                    message
+                };
+            });
+
+            const actorData = {
+                name: document.getElementById('actorName').value,
+                description: document.getElementById('description').value,
+                image: document.getElementById('imagePath').value,
+                location: document.getElementById('locationTarget').value,
+                chatMessages: messages
+            };
+
+            try {
+                const response = await fetch('/api/actors', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(actorData)
+                });
+
+                if (response.ok) {
+                    alert('Actor saved successfully!');
+                    loadActors();
+                } else {
+                    throw new Error('Failed to save actor');
+                }
+            } catch (error) {
+                console.error('Error saving actor:', error);
+                alert('Error saving actor');
+            }
+        });
+
+        // Load existing actors
+        async function loadActors() {
+            try {
+                const response = await fetch('/api/actors', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                allActors = await response.json();
+                filterAndDisplayActors();
+            } catch (error) {
+                console.error('Error loading actors:', error);
+            }
+        }
+
+        // Filter and display actors
+        function filterAndDisplayActors() {
+            const filterValue = actorFilter.value.toLowerCase();
+            const actorsListPanel = document.getElementById('actorsListPanel');
+            actorsListPanel.innerHTML = '';
+            
+            allActors
+                .filter(actor => 
+                    actor.name.toLowerCase().includes(filterValue)
+                )
+                .forEach(actor => {
+                    const actorEntry = document.createElement('div');
+                    actorEntry.className = 'actor-entry';
+                    actorEntry.innerHTML = `
+                        <div class="actor-entry-name">${actor.name}</div>
+                        <div class="actor-entry-location">${getNodeName(actor.location) || 'No location'}</div>
+                    `;
+                    actorEntry.addEventListener('click', () => loadActorData(actor));
+                    actorsListPanel.appendChild(actorEntry);
+                });
+        }
+
+        // Add filter event listener
+        actorFilter.addEventListener('input', filterAndDisplayActors);
+
+        // Load actor data
+        function loadActorData(actor) {
+            document.getElementById('actorName').value = actor.name;
+            document.getElementById('description').value = actor.description;
+            document.getElementById('locationTarget').value = actor.location || '';
+            document.getElementById('imagePath').value = actor.image || '';
+            
+            const noImageText = document.getElementById('noImageText');
+            
+            if (actor.image) {
+                imagePreview.src = actor.image;
+                imagePreview.style.display = 'block';
+                noImageText.style.display = 'none';
+            } else {
+                imagePreview.style.display = 'none';
+                noImageText.style.display = 'block';
+            }
+
+            // Clear existing messages
+            const messagesList = document.getElementById('messagesList');
+            messagesList.innerHTML = '';
+
+            // Add existing messages
+            actor.chatMessages.sort((a, b) => a.order - b.order).forEach(msg => {
+                const messageEntry = document.createElement('div');
+                messageEntry.className = 'chat-message-entry';
+                messageEntry.innerHTML = `
+                    <div class="message-order">${msg.order}</div>
+                    <div class="message-text">${msg.message}</div>
+                    <input type="hidden" class="message-data" value="${msg.order}|${msg.message}">
+                    <span class="remove-exit">×</span>
+                `;
+
+                messageEntry.querySelector('.remove-exit').addEventListener('click', () => {
+                    messageEntry.remove();
+                });
+
+                messagesList.appendChild(messageEntry);
+            });
+
+            // Set next message order
+            const nextOrder = actor.chatMessages.length > 0 ? 
+                Math.max(...actor.chatMessages.map(m => m.order)) + 1 : 1;
+            document.getElementById('messageOrder').value = nextOrder;
+
+            // Highlight selected actor
+            document.querySelectorAll('.actor-entry').forEach(entry => {
+                entry.style.backgroundColor = '';
+                if (entry.querySelector('.actor-entry-name').textContent === actor.name) {
+                    entry.style.backgroundColor = 'rgba(0, 255, 249, 0.2)';
+                }
+            });
+        }
+
+        // Clear form for new actor
+        newActorBtn.addEventListener('click', () => {
+            document.getElementById('actorName').value = '';
+            document.getElementById('description').value = '';
+            document.getElementById('locationTarget').value = '';
+            document.getElementById('imagePath').value = '';
+            document.getElementById('messageOrder').value = '1';
+            document.getElementById('messageText').value = '';
+            imagePreview.style.display = 'none';
+            document.getElementById('noImageText').style.display = 'block';
+            document.getElementById('messagesList').innerHTML = '';
+        });
+
+        // Add this function to load nodes
+        async function loadNodes() {
+            try {
+                const response = await fetch('/api/nodes', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                allNodes = await response.json();
+                
+                // Populate location dropdown
+                const locationTarget = document.getElementById('locationTarget');
+                locationTarget.innerHTML = '<option value="">Select Location</option>';
+                allNodes.forEach(node => {
+                    const option = document.createElement('option');
+                    option.value = node.address;
+                    option.textContent = `${node.name} (${node.address})`;
+                    locationTarget.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading nodes:', error);
+            }
+        }
+
+        // Add helper function to get node name
+        function getNodeName(address) {
+            const node = allNodes.find(n => n.address === address);
+            return node ? `${node.name} (${node.address})` : address;
+        }
+    </script>
+</body>
+</html> 

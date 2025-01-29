@@ -735,11 +735,37 @@
                 
                 if (data.type === 'list') {
                     if (data.redirect) {
-                        viewCharacter(data.target);
-                        return;
+                        if (data.isActor) {
+                            // Format and display the actor description
+                            const formattedDesc = `${data.target}\n` + 
+                                '='.repeat(data.target.length) + '\n' +
+                                data.description;
+                            
+                            responseLine.innerHTML = formattedDesc
+                                .replace(/\n/g, '<br>')
+                                .replace(/\s{2,}/g, match => '&nbsp;'.repeat(match.length));
+                        } else {
+                            viewCharacter(data.target);
+                            return;
+                        }
+                    } else {
+                        let output = '';
+                        if (data.users && data.users.length > 0) {
+                            output += `Players here:\n` +
+                                data.users.map(user => `- ${user}`).join('\n');
+                        }
+                        if (data.actors && data.actors.length > 0) {
+                            if (output) output += '\n';
+                            output += `NPCs here:\n` +
+                                data.actors.map(actor => `- ${actor}`).join('\n');
+                        }
+                        if (!output) {
+                            output = 'No one is here.';
+                        }
+                        responseLine.innerHTML = output
+                            .replace(/\n/g, '<br>')
+                            .replace(/\s{2,}/g, match => '&nbsp;'.repeat(match.length));
                     }
-                    responseLine.innerHTML = `Players here:<br>` +
-                        data.users.map(user => `- ${user}`).join('<br>');
                 } else {
                     responseLine.innerHTML = data.message
                         .replace(/\n/g, '<br>')
