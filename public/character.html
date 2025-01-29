@@ -745,8 +745,8 @@
         // Update the return button handler
         document.querySelector('.return-button').onclick = (e) => {
             e.preventDefault();
-            const returnPage = localStorage.getItem('returnPage') || '/game.html';
-            window.location.href = returnPage;
+            // Always return to game.html
+            window.location.href = '/game.html';
         };
 
         // Add this function near the top of the script section
@@ -756,7 +756,6 @@
                 window.location.href = '/';
                 return;
             }
-            localStorage.setItem('returnPage', window.location.pathname);
             window.location.href = `/character.html?view=${encodeURIComponent(username)}&token=${encodeURIComponent(token)}`;
         }
     </script>

@@ -868,7 +868,6 @@
                 window.location.href = '/';
                 return;
             }
-            localStorage.setItem('returnPage', window.location.pathname);
             window.location.href = `/character.html?view=${encodeURIComponent(username)}&token=${encodeURIComponent(token)}`;
         }
     </script>
