@@ -40,6 +40,7 @@
             box-shadow: 0 0 20px var(--neon-pink),
                        0 0 40px rgba(255, 46, 136, 0.3);
             position: relative;
+            box-sizing: border-box;
         }
 
         .layout-container {
@@ -52,18 +53,34 @@
             flex: 1;
             height: 100%;
             position: relative;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-blue) var(--dark-bg);
+            min-width: 0;
+        }
+
+        .left-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .left-panel::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        .left-panel::-webkit-scrollbar-thumb {
+            background-color: var(--neon-blue);
+            border-radius: 4px;
         }
 
         .actor-form {
             background: rgba(0, 0, 0, 0.7);
-            padding: 2rem;
+            padding: 1.5rem;
             border-radius: 5px;
             border: 1px solid var(--terminal-green);
-            height: calc(100% - 5rem);
-            box-sizing: border-box;
-            position: relative;
             margin-top: 5rem;
-            overflow-y: auto;
+            margin-bottom: 5rem;
+            box-sizing: border-box;
         }
 
         #newActorBtn {
@@ -74,16 +91,33 @@
         }
 
         #saveActorBtn {
-            position: absolute;
-            bottom: 2rem;
-            right: 2rem;
-            z-index: 1;
+            position: static;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 300px;
+            grid-template-rows: auto 1fr auto;
+            gap: 1.5rem;
+        }
+
+        .form-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .form-full {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
         }
 
         .form-group {
-            margin-bottom: 1.5rem;
+            margin-bottom: 0;
             position: relative;
-            width: calc(100% - 350px);
+            width: 100%;
         }
 
         label {
@@ -94,8 +128,9 @@
 
         input[type="text"],
         input[type="number"],
-        textarea {
-            width: 90%;
+        textarea,
+        .location-select {
+            width: 100%;
             background: rgba(0, 255, 249, 0.1);
             border: 1px solid var(--neon-blue);
             padding: 0.8rem;
@@ -103,6 +138,7 @@
             color: var(--terminal-green);
             font-family: 'Courier New', monospace;
             font-size: 1rem;
+            box-sizing: border-box;
         }
 
         textarea {
@@ -111,14 +147,12 @@
         }
 
         .image-upload-section {
-            position: absolute;
-            right: 2rem;
-            top: 2rem;
-            width: 300px;
+            position: static;
+            width: 100%;
         }
 
         .image-preview-container {
-            width: 300px;
+            width: 100%;
             height: 200px;
             border: 2px solid var(--neon-blue);
             border-radius: 5px;
@@ -208,21 +242,12 @@
         }
 
         .chat-messages-container {
-            margin-top: 1rem;
+            width: 100%;
+            margin-top: 0;
             border: 1px solid var(--neon-blue);
             padding: 1rem;
             border-radius: 5px;
-            width: calc(100% - 350px);
-        }
-
-        .chat-message-entry {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-            background: rgba(0, 255, 249, 0.05);
-            padding: 0.5rem;
-            border-radius: 5px;
-            margin-bottom: 0.5rem;
+            box-sizing: border-box;
         }
 
         .chat-message-controls {
@@ -230,15 +255,26 @@
             gap: 1rem;
             align-items: center;
             margin-bottom: 1rem;
+            width: 100%;
         }
 
-        .message-order {
-            width: 50px;
+        input.message-order {
+            width: 4rem;
+            min-width: 4rem;
+            max-width: 4rem;
+            flex: 0 0 4rem;
             text-align: center;
+            padding: 0.8rem 0.4rem;
         }
 
-        .message-text {
+        input.message-text {
             flex: 1;
+            min-width: 0;
+        }
+
+        #addMessageBtn {
+            flex: 0 0 auto;
+            white-space: nowrap;
         }
 
         .remove-message {
@@ -253,19 +289,70 @@
             align-items: center;
         }
 
-        .location-select {
-            background: rgba(0, 255, 249, 0.1);
-            border: 1px solid var(--neon-blue);
-            padding: 0.8rem;
-            border-radius: 5px;
-            color: var(--terminal-green);
-            font-family: 'Courier New', monospace;
-            font-size: 1rem;
-            width: 90%;
-        }
-
         .location-select option {
             background: var(--dark-bg);
+        }
+
+        .messages-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .chat-message-entry {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            background: rgba(0, 255, 249, 0.05);
+            padding: 0.8rem;
+            border-radius: 5px;
+            cursor: move;
+            user-select: none;
+            border: 1px solid transparent;
+        }
+
+        .chat-message-entry:hover {
+            border-color: var(--neon-blue);
+        }
+
+        .chat-message-entry.dragging {
+            opacity: 0.5;
+            border-color: var(--neon-pink);
+        }
+
+        .chat-message-entry.drag-over {
+            border-top: 2px solid var(--neon-pink);
+        }
+
+        .message-text {
+            flex: 1;
+            min-width: 0;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: break-word;
+            hyphens: auto;
+        }
+
+        .message-handle {
+            color: var(--neon-blue);
+            cursor: move;
+            padding: 0.5rem;
+            margin: -0.5rem;
+        }
+
+        .remove-message {
+            color: var(--neon-pink);
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            margin: -0.5rem;
+        }
+
+        .form-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: flex-end;
+            padding-top: 2rem;
         }
     </style>
 </head>
@@ -275,60 +362,63 @@
             <div class="left-panel">
                 <button class="action-button" id="newActorBtn">Add New Actor</button>
                 <div class="actor-form">
-                    <div class="form-group">
-                        <label for="actorName">Actor Name:</label>
-                        <input type="text" id="actorName" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="location">Location:</label>
-                        <div class="location-controls">
-                            <select id="locationTarget" class="location-select">
-                                <option value="">Select Location</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="description">Description:</label>
-                        <textarea id="description" required></textarea>
-                    </div>
-
-                    <div class="image-upload-section">
-                        <div class="image-preview-container">
-                            <img id="imagePreview" class="image-preview">
-                            <span class="no-image-text" id="noImageText">No image uploaded</span>
-                        </div>
-                        <div class="image-upload-controls">
-                            <label for="imageUpload">Actor Image:</label>
-                            <input type="file" id="imageUpload" accept="image/*">
-                            <input type="hidden" id="imagePath">
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Chat Messages:</label>
-                        <div id="chatMessagesContainer" class="chat-messages-container">
-                            <div class="chat-message-controls">
-                                <input type="number" 
-                                       id="messageOrder" 
-                                       class="message-order" 
-                                       min="1" 
-                                       placeholder="#"
-                                       value="1">
-                                <input type="text" 
-                                       id="messageText" 
-                                       class="message-text" 
-                                       placeholder="Enter message text">
-                                <button class="action-button" id="addMessageBtn">Add Message</button>
+                    <div class="form-grid">
+                        <div class="form-col">
+                            <div class="form-group">
+                                <label for="actorName">Actor Name:</label>
+                                <input type="text" id="actorName" required>
                             </div>
-                            <div id="messagesList">
-                                <!-- Messages will be listed here -->
+
+                            <div class="form-group">
+                                <label for="location">Location:</label>
+                                <div class="location-controls">
+                                    <select id="locationTarget" class="location-select">
+                                        <option value="">Select Location</option>
+                                    </select>
+                                </div>
                             </div>
+                        </div>
+
+                        <div class="image-upload-section">
+                            <div class="image-preview-container">
+                                <img id="imagePreview" class="image-preview">
+                                <span class="no-image-text" id="noImageText">No image uploaded</span>
+                            </div>
+                            <div class="image-upload-controls">
+                                <label for="imageUpload">Actor Image:</label>
+                                <input type="file" id="imageUpload" accept="image/*">
+                                <input type="hidden" id="imagePath">
+                            </div>
+                        </div>
+
+                        <div class="form-full">
+                            <div class="form-group">
+                                <label for="description">Description:</label>
+                                <textarea id="description" required></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Chat Messages:</label>
+                                <div id="chatMessagesContainer" class="chat-messages-container">
+                                    <div class="chat-message-controls">
+                                        <input type="text" 
+                                               id="messageText" 
+                                               class="message-text" 
+                                               placeholder="Enter message text">
+                                        <button class="action-button" id="addMessageBtn">Add Message</button>
+                                    </div>
+                                    <div id="messagesList" class="messages-list">
+                                        <!-- Messages will be listed here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button class="action-button" id="saveActorBtn">Save Actor</button>
                         </div>
                     </div>
                 </div>
-                <button class="action-button" id="saveActorBtn">Save Actor</button>
             </div>
 
             <div class="right-panel">
@@ -420,43 +510,86 @@
 
         // Add chat message
         addMessageBtn.addEventListener('click', () => {
-            const order = document.getElementById('messageOrder').value;
             const text = document.getElementById('messageText').value;
 
-            if (!order || !text) {
-                alert('Please enter both order and message text');
+            if (!text) {
+                alert('Please enter message text');
                 return;
             }
 
             const messageEntry = document.createElement('div');
             messageEntry.className = 'chat-message-entry';
+            messageEntry.draggable = true;
             messageEntry.innerHTML = `
-                <div class="message-order">${order}</div>
+                <span class="message-handle">⋮⋮</span>
                 <div class="message-text">${text}</div>
-                <input type="hidden" class="message-data" value="${order}|${text}">
-                <span class="remove-exit">×</span>
+                <span class="remove-message">×</span>
             `;
 
-            messageEntry.querySelector('.remove-exit').addEventListener('click', () => {
+            // Add drag and drop event listeners
+            messageEntry.addEventListener('dragstart', handleDragStart);
+            messageEntry.addEventListener('dragend', handleDragEnd);
+            messageEntry.addEventListener('dragover', handleDragOver);
+            messageEntry.addEventListener('drop', handleDrop);
+
+            messageEntry.querySelector('.remove-message').addEventListener('click', () => {
                 messageEntry.remove();
             });
 
             document.getElementById('messagesList').appendChild(messageEntry);
-            
-            // Clear inputs and increment order
             document.getElementById('messageText').value = '';
-            document.getElementById('messageOrder').value = parseInt(order) + 1;
         });
+
+        // Drag and drop handlers
+        function handleDragStart(e) {
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', ''); // Required for Firefox
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.chat-message-entry').forEach(entry => {
+                entry.classList.remove('drag-over');
+            });
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            const draggingItem = document.querySelector('.dragging');
+            if (draggingItem === this) return;
+
+            document.querySelectorAll('.chat-message-entry').forEach(entry => {
+                entry.classList.remove('drag-over');
+            });
+            this.classList.add('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const draggingItem = document.querySelector('.dragging');
+            if (draggingItem === this) return;
+
+            const messagesList = document.getElementById('messagesList');
+            const allItems = [...messagesList.querySelectorAll('.chat-message-entry')];
+            const draggedIndex = allItems.indexOf(draggingItem);
+            const droppedIndex = allItems.indexOf(this);
+
+            if (draggedIndex < droppedIndex) {
+                this.parentNode.insertBefore(draggingItem, this.nextSibling);
+            } else {
+                this.parentNode.insertBefore(draggingItem, this);
+            }
+        }
 
         // Save actor
         saveActorBtn.addEventListener('click', async () => {
-            const messages = Array.from(document.querySelectorAll('.message-data')).map(input => {
-                const [order, message] = input.value.split('|');
-                return {
-                    order: parseInt(order),
-                    message
-                };
-            });
+            const messages = Array.from(document.querySelectorAll('.chat-message-entry')).map((entry, index) => ({
+                order: index + 1,
+                message: entry.querySelector('.message-text').textContent
+            }));
 
             const actorData = {
                 name: document.getElementById('actorName').value,
@@ -554,24 +687,25 @@
             actor.chatMessages.sort((a, b) => a.order - b.order).forEach(msg => {
                 const messageEntry = document.createElement('div');
                 messageEntry.className = 'chat-message-entry';
+                messageEntry.draggable = true;
                 messageEntry.innerHTML = `
-                    <div class="message-order">${msg.order}</div>
+                    <span class="message-handle">⋮⋮</span>
                     <div class="message-text">${msg.message}</div>
-                    <input type="hidden" class="message-data" value="${msg.order}|${msg.message}">
-                    <span class="remove-exit">×</span>
+                    <span class="remove-message">×</span>
                 `;
 
-                messageEntry.querySelector('.remove-exit').addEventListener('click', () => {
+                // Add drag and drop event listeners
+                messageEntry.addEventListener('dragstart', handleDragStart);
+                messageEntry.addEventListener('dragend', handleDragEnd);
+                messageEntry.addEventListener('dragover', handleDragOver);
+                messageEntry.addEventListener('drop', handleDrop);
+
+                messageEntry.querySelector('.remove-message').addEventListener('click', () => {
                     messageEntry.remove();
                 });
 
                 messagesList.appendChild(messageEntry);
             });
-
-            // Set next message order
-            const nextOrder = actor.chatMessages.length > 0 ? 
-                Math.max(...actor.chatMessages.map(m => m.order)) + 1 : 1;
-            document.getElementById('messageOrder').value = nextOrder;
 
             // Highlight selected actor
             document.querySelectorAll('.actor-entry').forEach(entry => {
@@ -588,11 +722,9 @@
             document.getElementById('description').value = '';
             document.getElementById('locationTarget').value = '';
             document.getElementById('imagePath').value = '';
-            document.getElementById('messageOrder').value = '1';
-            document.getElementById('messageText').value = '';
+            document.getElementById('messagesList').innerHTML = '';
             imagePreview.style.display = 'none';
             document.getElementById('noImageText').style.display = 'block';
-            document.getElementById('messagesList').innerHTML = '';
         });
 
         // Add this function to load nodes
