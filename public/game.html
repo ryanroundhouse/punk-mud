@@ -111,6 +111,13 @@
             overflow-y: auto;
             scrollbar-width: thin;
             scrollbar-color: var(--terminal-green) var(--dark-bg);
+            outline: none;
+        }
+
+        .node-description:focus {
+            background: rgba(0, 255, 0, 0.1);
+            box-shadow: 0 0 10px var(--terminal-green);
+            border-color: var(--terminal-green);
         }
 
         .node-description::-webkit-scrollbar {
@@ -241,10 +248,17 @@
             cursor: pointer;
             padding: 0.5rem;
             transition: all 0.3s ease;
+            outline: none;
         }
 
         .exit-item:hover {
             background: rgba(0, 255, 249, 0.1);
+            text-shadow: 0 0 5px var(--neon-blue);
+        }
+
+        .exit-item:focus {
+            background: rgba(0, 255, 249, 0.2);
+            box-shadow: 0 0 10px var(--neon-blue);
             text-shadow: 0 0 5px var(--neon-blue);
         }
 
@@ -474,6 +488,11 @@
         const CHAT_STORAGE_KEY = 'chatMessages';
         const MAX_STORED_MESSAGES = 50;
         const terminalInput = document.getElementById('terminalInput');
+        const COMMAND_HISTORY_KEY = 'commandHistory';
+        const MAX_COMMAND_HISTORY = 50;
+        let commandHistory = [];
+        let currentHistoryIndex = -1;
+        let tempInput = '';
 
         // Add function to get user's current location
         async function getCurrentLocation() {
@@ -547,29 +566,33 @@
                 
                 const allNodes = await nodesResponse.json();
 
-                node.exits.forEach(exit => {
+                node.exits.forEach((exit, index) => {
                     const targetNode = allNodes.find(n => n.address === exit.target);
                     const targetName = targetNode ? targetNode.name : 'Unknown';
                     
                     const exitElement = document.createElement('div');
                     exitElement.className = 'exit-item';
+                    exitElement.setAttribute('tabindex', '0');
+                    exitElement.setAttribute('role', 'button');
+                    exitElement.setAttribute('aria-label', `Go ${exit.direction} to ${targetName}`);
                     exitElement.textContent = `[${exit.direction}] → [${targetName}]`;
-                    exitElement.addEventListener('click', () => {
-                        loadNode(exit.target).catch(error => {
-                            // Display error message in the terminal
-                            const errorMsg = document.createElement('div');
-                            errorMsg.style.color = 'var(--neon-pink)';
-                            errorMsg.textContent = `ERROR: ${error.message}`;
-                            document.getElementById('terminalOutput').appendChild(errorMsg);
-                            // Auto-remove error message after 3 seconds
-                            setTimeout(() => errorMsg.remove(), 3000);
-                        });
+                    
+                    exitElement.addEventListener('click', () => handleExit(exit.target));
+                    exitElement.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleExit(exit.target);
+                        }
                     });
+                    
                     exitsContainer.appendChild(exitElement);
                 });
 
                 // After setting node description
                 const descriptionElement = document.getElementById('nodeDescription');
+                descriptionElement.setAttribute('tabindex', '0');
+                descriptionElement.setAttribute('role', 'region');
+                descriptionElement.setAttribute('aria-label', 'Location Description');
                 
                 // Reset description state
                 descriptionElement.classList.remove('expanded');
@@ -648,6 +671,9 @@
                         document.body.style.overflow = 'auto';
                     }
                 });
+
+                // Add this line before the terminal input focus
+                loadCommandHistory();
 
                 // Focus terminal input
                 terminalInput.focus();
@@ -840,6 +866,20 @@
             if (e.key === 'Enter' && terminalInput.value.trim()) {
                 const fullCommand = terminalInput.value.trim();
                 
+                // Add command to history
+                if (commandHistory.length === 0 || commandHistory[commandHistory.length - 1] !== fullCommand) {
+                    commandHistory.push(fullCommand);
+                    // Keep only the last MAX_COMMAND_HISTORY commands
+                    if (commandHistory.length > MAX_COMMAND_HISTORY) {
+                        commandHistory = commandHistory.slice(-MAX_COMMAND_HISTORY);
+                    }
+                    saveCommandHistory();
+                }
+                
+                // Reset history navigation
+                currentHistoryIndex = -1;
+                tempInput = '';
+
                 // Create new output line for the command
                 const commandLine = document.createElement('div');
                 commandLine.style.color = 'var(--terminal-green)';
@@ -908,6 +948,61 @@
                 return;
             }
             window.location.href = `/character.html?view=${encodeURIComponent(username)}&token=${encodeURIComponent(token)}`;
+        }
+
+        function loadCommandHistory() {
+            commandHistory = JSON.parse(localStorage.getItem(COMMAND_HISTORY_KEY) || '[]');
+        }
+
+        function saveCommandHistory() {
+            localStorage.setItem(COMMAND_HISTORY_KEY, JSON.stringify(commandHistory));
+        }
+
+        // Update the terminal input keypress handler and add keydown handler
+        terminalInput.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                
+                // If we're not currently in history and user pressed up,
+                // save current input
+                if (currentHistoryIndex === -1 && e.key === 'ArrowUp') {
+                    tempInput = terminalInput.value;
+                }
+
+                if (e.key === 'ArrowUp') {
+                    // Move backwards through history
+                    if (currentHistoryIndex < commandHistory.length - 1) {
+                        currentHistoryIndex++;
+                        terminalInput.value = commandHistory[commandHistory.length - 1 - currentHistoryIndex];
+                    }
+                } else if (e.key === 'ArrowDown') {
+                    // Move forwards through history
+                    if (currentHistoryIndex > -1) {
+                        currentHistoryIndex--;
+                        if (currentHistoryIndex === -1) {
+                            terminalInput.value = tempInput;
+                        } else {
+                            terminalInput.value = commandHistory[commandHistory.length - 1 - currentHistoryIndex];
+                        }
+                    }
+                }
+                
+                // Move cursor to end of input
+                setTimeout(() => {
+                    terminalInput.selectionStart = terminalInput.selectionEnd = terminalInput.value.length;
+                }, 0);
+            }
+        });
+
+        // Add this helper function to handle exit navigation
+        function handleExit(target) {
+            loadNode(target).catch(error => {
+                const errorMsg = document.createElement('div');
+                errorMsg.style.color = 'var(--neon-pink)';
+                errorMsg.textContent = `ERROR: ${error.message}`;
+                document.getElementById('terminalOutput').appendChild(errorMsg);
+                setTimeout(() => errorMsg.remove(), 3000);
+            });
         }
     </script>
 
