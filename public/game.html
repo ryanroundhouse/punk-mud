@@ -422,6 +422,60 @@
             border: 2px solid var(--neon-blue);
             box-shadow: 0 0 30px var(--neon-blue);
         }
+
+        .actor-image {
+            max-width: 100%;
+            max-height: 200px;
+            width: auto;
+            height: auto;
+            margin: 1rem auto;
+            border: 2px solid var(--neon-blue);
+            border-radius: 5px;
+            box-shadow: 0 0 15px var(--neon-blue);
+            object-fit: contain;
+            display: block;
+        }
+
+        .actor-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 50vh;
+            background-color: rgba(10, 10, 15, 0.95);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-bottom: 2px solid var(--neon-blue);
+            box-shadow: 0 0 30px var(--neon-blue);
+        }
+
+        .actor-modal-content {
+            display: flex;
+            gap: 2rem;
+            padding: 2rem;
+            max-width: 90%;
+            height: 90%;
+        }
+
+        .actor-modal-image {
+            max-height: 100%;
+            max-width: 40%;
+            object-fit: contain;
+            border: 2px solid var(--neon-blue);
+            border-radius: 5px;
+            box-shadow: 0 0 15px var(--neon-blue);
+        }
+
+        .actor-modal-text {
+            flex: 1;
+            overflow-y: auto;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            padding-right: 1rem;
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body>
@@ -772,12 +826,8 @@
                 if (data.type === 'list') {
                     if (data.redirect) {
                         if (data.isActor) {
-                            // Format and display the actor description
-                            const formattedDesc = `${data.target}\n` + 
-                                '='.repeat(data.target.length) + '\n' +
-                                data.description;
-                            
-                            responseLine.textContent = formattedDesc;
+                            showActorModal(data);
+                            return;
                         } else {
                             viewCharacter(data.target);
                             return;
@@ -1003,6 +1053,54 @@
                 document.getElementById('terminalOutput').appendChild(errorMsg);
                 setTimeout(() => errorMsg.remove(), 3000);
             });
+        }
+
+        // Add this new function to handle the actor modal
+        function showActorModal(data) {
+            // Create modal container
+            const modal = document.createElement('div');
+            modal.className = 'actor-modal';
+
+            // Create content container
+            const content = document.createElement('div');
+            content.className = 'actor-modal-content';
+
+            // Add image if available
+            if (data.image) {
+                const img = document.createElement('img');
+                img.src = data.image;
+                img.className = 'actor-modal-image';
+                img.addEventListener('click', function() {
+                    const modalImage = document.getElementById('modalImage');
+                    const imageModal = document.getElementById('imageModal');
+                    modalImage.src = data.image;
+                    imageModal.style.display = 'flex';
+                    document.body.style.overflow = 'hidden';
+                });
+                content.appendChild(img);
+            }
+
+            // Add text content
+            const text = document.createElement('div');
+            text.className = 'actor-modal-text';
+            const formattedDesc = `${data.target}\n` + 
+                '='.repeat(data.target.length) + '\n\n' +
+                data.description;
+            text.textContent = formattedDesc;
+            content.appendChild(text);
+
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+
+            // Close modal on any input
+            function closeModal() {
+                modal.remove();
+                document.removeEventListener('keydown', closeModal);
+                document.removeEventListener('click', closeModal);
+            }
+
+            document.addEventListener('keydown', closeModal);
+            document.addEventListener('click', closeModal);
         }
     </script>
 

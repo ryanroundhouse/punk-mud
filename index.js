@@ -357,15 +357,14 @@ const subscribedNodes = new Set();
 // Add this near the top with other Map declarations
 const actorChatStates = new Map(); // tracks last message index per user per actor
 
-// Update the HELP_TEXT constant with proper spacing and HTML entities
+// Update the HELP_TEXT constant to use regular angle brackets
 const HELP_TEXT = `
 Available Commands:
 ------------------
-ls                   List all players and NPCs in current location
-ls &lt;name&gt;            View details of player or NPC in current location
-chat &lt;actor&gt;         Talk to an NPC in current location
-?                    Display this help message
-
+ls................List all players and NPCs in current location
+ls <name>.........View details of player or NPC in current location
+chat <actor>......Talk to an NPC in current location
+?.................Display this help message
 `.trim();
 
 // Update the socket.io connection handling
@@ -457,7 +456,8 @@ io.on('connection', (socket) => {
                                 redirect: true,
                                 target: targetActor.name,
                                 isActor: true,
-                                description: targetActor.description
+                                description: targetActor.description,
+                                image: targetActor.image
                             });
                             return;
                         }
