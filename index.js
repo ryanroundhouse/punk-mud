@@ -1199,22 +1199,28 @@ app.get('/api/actors', verifyBuilderAccess, async (req, res) => {
 
 // Create or update actor
 app.post('/api/actors', verifyBuilderAccess, asyncHandler(async (req, res) => {
-    const { name, description, image, location, chatMessages } = req.body;
+    const { id, name, description, image, location, chatMessages } = req.body;
     
     // Only check for name and description as required fields
     if (!name || !description) {
         throw new Error('Missing required fields: name and description are required');
     }
 
-    // Check if actor with name already exists (since we're using name as the identifier now)
-    const existingActor = await Actor.findOne({ name });
-    if (existingActor) {
+    // If id is provided, update existing actor
+    if (id) {
+        const existingActor = await Actor.findById(id);
+        if (!existingActor) {
+            return res.status(404).json({ error: 'Actor not found' });
+        }
+
         logger.info('Updating existing actor', {
+            id,
             name,
             userId: req.user._id
         });
 
         // Update existing actor
+        existingActor.name = name;
         existingActor.description = description;
         existingActor.image = image;
         existingActor.location = location;
@@ -1254,7 +1260,7 @@ app.post('/api/actors', verifyBuilderAccess, asyncHandler(async (req, res) => {
 // Delete actor
 app.delete('/api/actors/:id', verifyBuilderAccess, async (req, res) => {
     try {
-        const actor = await Actor.findOneAndDelete({ id: req.params.id });
+        const actor = await Actor.findByIdAndDelete(req.params.id);
         if (!actor) {
             return res.status(404).json({ error: 'Actor not found' });
         }
@@ -1262,12 +1268,20 @@ app.delete('/api/actors/:id', verifyBuilderAccess, async (req, res) => {
         // If actor had an image, delete it
         if (actor.image) {
             const imagePath = path.join(__dirname, 'public', actor.image);
-            await fs.unlink(imagePath).catch(console.error);
+            await fs.unlink(imagePath).catch(err => 
+                logger.error('Error deleting actor image:', err)
+            );
         }
+        
+        logger.info('Actor deleted successfully', {
+            actorId: actor._id,
+            name: actor.name,
+            userId: req.user._id
+        });
         
         res.json({ message: 'Actor deleted successfully' });
     } catch (error) {
-        console.error('Error deleting actor:', error);
+        logger.error('Error deleting actor:', error);
         res.status(500).json({ error: 'Error deleting actor' });
     }
 });
@@ -1284,4 +1298,81 @@ function clearActorChatStates(userId, nodeAddress) {
             });
         })
         .catch(err => logger.error('Error clearing actor chat states:', err));
-} 
+}
+
+// Add this near the other upload configurations
+const actorUpload = multer({
+    storage: multer.diskStorage({
+        destination: function (req, file, cb) {
+            const uploadDir = path.join(__dirname, 'public/assets/actors');
+            fs.mkdir(uploadDir, { recursive: true })
+                .then(() => cb(null, uploadDir))
+                .catch(err => cb(err));
+        },
+        filename: function (req, file, cb) {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            const ext = path.extname(file.originalname);
+            cb(null, 'actor-' + uniqueSuffix + ext);
+        }
+    }),
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        
+        if (extname && mimetype) {
+            return cb(null, true);
+        }
+        cb(new Error('Only image files are allowed!'));
+    }
+});
+
+// Add a new endpoint for actor image uploads
+app.post('/api/upload-actor-image', verifyBuilderAccess, asyncHandler(async (req, res) => {
+    actorUpload.single('image')(req, res, async (err) => {
+        if (err) {
+            logger.error('Actor image upload error:', err);
+            if (err instanceof multer.MulterError) {
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(400).json({
+                        error: 'File too large',
+                        details: 'Maximum file size is 5MB'
+                    });
+                }
+            }
+            return res.status(500).json({
+                error: 'Upload failed',
+                details: err.message
+            });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({
+                error: 'No file',
+                details: 'No image file provided'
+            });
+        }
+
+        try {
+            const relativePath = '/assets/actors/' + req.file.filename;
+            
+            // Verify file exists after upload
+            const fullPath = path.join(__dirname, 'public', relativePath);
+            await fs.access(fullPath);
+            
+            logger.info('Actor image upload successful', {
+                relativePath,
+                fullPath,
+                exists: true
+            });
+            
+            res.json({ path: relativePath });
+        } catch (error) {
+            logger.error('Error verifying uploaded actor image:', error);
+            throw error;
+        }
+    });
+})); 

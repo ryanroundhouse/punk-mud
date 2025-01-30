@@ -334,11 +334,21 @@
             box-sizing: border-box;
         }
 
+        .terminal-container > div:not(.terminal-input-line) {
+            white-space: pre-line;
+            word-wrap: break-word;
+            max-width: 100%;
+            line-height: 1.4;
+            margin-bottom: 0.5rem;
+            font-family: 'Courier New', monospace;
+        }
+
         .terminal-input-line {
             display: flex;
             align-items: center;
             gap: 10px;
             margin-top: 10px;
+            white-space: nowrap;
         }
 
         .terminal-input {
@@ -741,9 +751,7 @@
                                 '='.repeat(data.target.length) + '\n' +
                                 data.description;
                             
-                            responseLine.innerHTML = formattedDesc
-                                .replace(/\n/g, '<br>')
-                                .replace(/\s{2,}/g, match => '&nbsp;'.repeat(match.length));
+                            responseLine.textContent = formattedDesc;
                         } else {
                             viewCharacter(data.target);
                             return;
@@ -762,18 +770,13 @@
                         if (!output) {
                             output = 'No one is here.';
                         }
-                        responseLine.innerHTML = output
-                            .replace(/\n/g, '<br>')
-                            .replace(/\s{2,}/g, match => '&nbsp;'.repeat(match.length));
+                        responseLine.textContent = output;
                     }
                 } else {
-                    responseLine.innerHTML = data.message
-                        .replace(/\n/g, '<br>')
-                        .replace(/\s{2,}/g, match => '&nbsp;'.repeat(match.length));
+                    responseLine.textContent = data.message;
                 }
                 
-                // Add monospace styling to preserve formatting
-                responseLine.style.whiteSpace = 'pre';
+                // Add monospace styling
                 responseLine.style.fontFamily = 'monospace';
                 
                 terminalOutput.insertBefore(responseLine, inputLine);

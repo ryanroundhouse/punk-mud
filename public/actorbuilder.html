@@ -351,8 +351,23 @@
         .form-actions {
             grid-column: 1 / -1;
             display: flex;
-            justify-content: flex-end;
+            justify-content: space-between;
             padding-top: 2rem;
+        }
+
+        .delete-button {
+            border-color: var(--neon-pink);
+            color: var(--neon-pink);
+        }
+        
+        .delete-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+        }
+        
+        /* Make delete button invisible when creating new actor */
+        .delete-button.hidden {
+            display: none;
         }
     </style>
 </head>
@@ -361,7 +376,7 @@
         <div class="layout-container">
             <div class="left-panel">
                 <button class="action-button" id="newActorBtn">Add New Actor</button>
-                <div class="actor-form">
+                <div class="actor-form" id="actorForm">
                     <div class="form-grid">
                         <div class="form-col">
                             <div class="form-group">
@@ -415,6 +430,7 @@
                         </div>
 
                         <div class="form-actions">
+                            <button class="action-button delete-button" id="deleteActorBtn">Delete Actor</button>
                             <button class="action-button" id="saveActorBtn">Save Actor</button>
                         </div>
                     </div>
@@ -480,6 +496,7 @@
             const noImageText = document.getElementById('noImageText');
             
             if (file) {
+                // Preview image
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     imagePreview.src = e.target.result;
@@ -488,11 +505,12 @@
                 };
                 reader.readAsDataURL(file);
 
+                // Upload image to server
                 const formData = new FormData();
                 formData.append('image', file);
 
                 try {
-                    const response = await fetch('/api/upload-image', {
+                    const response = await fetch('/api/upload-actor-image', {
                         method: 'POST',
                         body: formData,
                         headers: {
@@ -500,10 +518,20 @@
                         }
                     });
 
+                    if (!response.ok) {
+                        throw new Error('Upload failed');
+                    }
+
                     const data = await response.json();
                     document.getElementById('imagePath').value = data.path;
                 } catch (error) {
                     console.error('Error uploading image:', error);
+                    alert('Error uploading image');
+                    // Reset the image preview on error
+                    imagePreview.style.display = 'none';
+                    noImageText.style.display = 'block';
+                    document.getElementById('imagePath').value = '';
+                    imageUpload.value = ''; // Clear the file input
                 }
             }
         });
@@ -592,6 +620,7 @@
             }));
 
             const actorData = {
+                id: document.getElementById('actorForm').dataset.actorId || null,
                 name: document.getElementById('actorName').value,
                 description: document.getElementById('description').value,
                 image: document.getElementById('imagePath').value,
@@ -663,6 +692,9 @@
 
         // Load actor data
         function loadActorData(actor) {
+            document.getElementById('actorForm').dataset.actorId = actor._id;
+            deleteActorBtn.classList.remove('hidden');
+            
             document.getElementById('actorName').value = actor.name;
             document.getElementById('description').value = actor.description;
             document.getElementById('locationTarget').value = actor.location || '';
@@ -718,6 +750,8 @@
 
         // Clear form for new actor
         newActorBtn.addEventListener('click', () => {
+            document.getElementById('actorForm').dataset.actorId = '';
+            deleteActorBtn.classList.add('hidden');
             document.getElementById('actorName').value = '';
             document.getElementById('description').value = '';
             document.getElementById('locationTarget').value = '';
@@ -756,6 +790,41 @@
             const node = allNodes.find(n => n.address === address);
             return node ? `${node.name} (${node.address})` : address;
         }
+
+        const deleteActorBtn = document.getElementById('deleteActorBtn');
+        
+        // Add delete button handler
+        deleteActorBtn.addEventListener('click', async () => {
+            const actorId = document.getElementById('actorForm').dataset.actorId;
+            if (!actorId) return;
+            
+            const actorName = document.getElementById('actorName').value;
+            const confirmDelete = confirm(`Are you sure you want to delete the actor "${actorName}"? This cannot be undone.`);
+            
+            if (confirmDelete) {
+                try {
+                    const response = await fetch(`/api/actors/${actorId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        alert('Actor deleted successfully');
+                        // Clear the form
+                        newActorBtn.click();
+                        // Reload the actors list
+                        loadActors();
+                    } else {
+                        throw new Error('Failed to delete actor');
+                    }
+                } catch (error) {
+                    console.error('Error deleting actor:', error);
+                    alert('Error deleting actor');
+                }
+            }
+        });
     </script>
 </body>
 </html> 

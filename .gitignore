@@ -4,4 +4,5 @@ node_modules/
 logs/
 public/assets/zones
 public/assets/characters
+public/assets/actors
 .DS_Store
