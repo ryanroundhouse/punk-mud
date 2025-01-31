@@ -14,6 +14,7 @@ const User = require('./models/User');
 const { sendAuthCode } = require('./services/emailService');
 const Node = require('./models/Node');
 const Actor = require('./models/Actor');
+const Quest = require('./models/Quest');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -399,6 +400,36 @@ io.on('connection', (socket) => {
                 timestamp: new Date()
             };
 
+            // If chatting with an actor, check for quest progression
+            if (message.startsWith('/chat ')) {
+                const targetName = message.substring(6);
+                const actor = await Actor.findOne({ name: targetName });
+                
+                if (actor) {
+                    const questResponse = await handleQuestProgression(socket.user.userId, actor.id);
+                    if (questResponse) {
+                        // Send quest-specific message instead of default actor response
+                        socket.emit('chat message', {
+                            username: actor.name,
+                            message: questResponse.message,
+                            timestamp: new Date(),
+                            type: questResponse.type
+                        });
+
+                        // If quest was completed, send additional message
+                        if (questResponse.isComplete) {
+                            socket.emit('chat message', {
+                                username: 'SYSTEM',
+                                message: `Quest completed: ${questResponse.questTitle}`,
+                                timestamp: new Date(),
+                                type: 'system'
+                            });
+                        }
+                        return;
+                    }
+                }
+            }
+
             // Only publish to Redis, don't emit directly
             await redisClient.publish(
                 `node:${user.currentNode}:chat`,
@@ -418,8 +449,8 @@ io.on('connection', (socket) => {
     socket.on('console command', async (data) => {
         try {
             const user = await User.findById(socket.user.userId);
-            if (!user || !user.currentNode) {
-                throw new Error('User not found or missing location data');
+            if (!user || !user.avatarName || !user.currentNode) {
+                throw new Error('User not found or missing required data');
             }
 
             switch (data.command) {
@@ -482,43 +513,47 @@ io.on('connection', (socket) => {
                     });
                     break;
                     
-                case 'chat':
+                case 'chat': {
                     if (!data.target) {
-                        socket.emit('console response', {
-                            type: 'error',
-                            message: 'Usage: chat <actor name>'
+                        socket.emit('console response', { 
+                            message: 'Usage: chat <actor name>' 
                         });
-                        break;
+                        return;
                     }
 
-                    // Get actors in current location
-                    const locationActors = await Actor.find({ location: user.currentNode });
-                    const targetActor = locationActors.find(
-                        actor => actor.name.toLowerCase() === data.target.toLowerCase()
-                    );
-
-                    if (!targetActor) {
-                        socket.emit('console response', {
-                            type: 'error',
-                            message: `${data.target} is not here.`
+                    const actor = await Actor.findOne({ name: data.target });
+                    if (!actor || actor.location !== user.currentNode) {
+                        socket.emit('console response', { 
+                            message: 'Actor not found in current location' 
                         });
-                        break;
+                        return;
                     }
 
-                    if (!targetActor.chatMessages || targetActor.chatMessages.length === 0) {
-                        socket.emit('console response', {
-                            type: 'chat',
-                            message: `${targetActor.name} has nothing to say.`
+                    // Check for quest progression first
+                    const questResponse = await handleQuestProgression(socket.user.userId, actor.id);
+                    if (questResponse) {
+                        // Send quest-specific message
+                        socket.emit('console response', { 
+                            message: questResponse.message 
                         });
-                        break;
+
+                        // If quest was completed, send additional message
+                        if (questResponse.isComplete) {
+                            socket.emit('console response', { 
+                                message: `Quest completed: ${questResponse.questTitle}`,
+                                type: 'system'
+                            });
+                        }
+                        return;
                     }
 
+                    // If no quest interaction, proceed with normal actor chat
                     // Get or initialize chat state for this user and actor
-                    const stateKey = `${socket.user.userId}-${targetActor.id}`;
+                    const stateKey = `${socket.user.userId}-${actor.id}`;
                     let currentIndex = actorChatStates.get(stateKey) || 0;
 
                     // Sort messages by order
-                    const sortedMessages = [...targetActor.chatMessages].sort((a, b) => a.order - b.order);
+                    const sortedMessages = [...actor.chatMessages].sort((a, b) => a.order - b.order);
 
                     // Get next message
                     const message = sortedMessages[currentIndex];
@@ -529,9 +564,10 @@ io.on('connection', (socket) => {
 
                     socket.emit('console response', {
                         type: 'chat',
-                        message: `${targetActor.name} says: "${message.message}"`
+                        message: `${actor.name} says: "${message.message}"`
                     });
                     break;
+                }
 
                 default:
                     socket.emit('console response', {
@@ -541,9 +577,8 @@ io.on('connection', (socket) => {
             }
         } catch (error) {
             logger.error('Error handling console command:', error);
-            socket.emit('console response', {
-                type: 'error',
-                message: 'Error processing command'
+            socket.emit('console response', { 
+                message: 'Error processing command' 
             });
         }
     });
@@ -1375,4 +1410,173 @@ app.post('/api/upload-actor-image', verifyBuilderAccess, asyncHandler(async (req
             throw error;
         }
     });
-})); 
+}));
+
+// Get all quests
+app.get('/api/quests', verifyBuilderAccess, async (req, res) => {
+    try {
+        const quests = await Quest.find().sort({ title: 1 });
+        res.json(quests);
+    } catch (error) {
+        logger.error('Error fetching quests:', error);
+        res.status(500).json({ error: 'Error fetching quests' });
+    }
+});
+
+// Create or update quest
+app.post('/api/quests', verifyBuilderAccess, asyncHandler(async (req, res) => {
+    const { id, title, journalDescription, events } = req.body;
+    
+    if (!title || !journalDescription || !events || !Array.isArray(events)) {
+        throw new Error('Missing required fields');
+    }
+
+    // Validate events
+    events.forEach(event => {
+        if (!event.actorId || !event.message || !event.order) {
+            throw new Error('Invalid event data');
+        }
+    });
+
+    // If id is provided, update existing quest
+    if (id) {
+        const existingQuest = await Quest.findOne({ id });
+        if (!existingQuest) {
+            return res.status(404).json({ error: 'Quest not found' });
+        }
+
+        logger.info('Updating existing quest', {
+            id,
+            title,
+            userId: req.user._id
+        });
+
+        existingQuest.title = title;
+        existingQuest.journalDescription = journalDescription;
+        existingQuest.events = events;
+        existingQuest.updatedAt = Date.now();
+        
+        await existingQuest.save();
+        
+        logger.info('Quest updated successfully', {
+            questId: existingQuest._id,
+            title
+        });
+        
+        return res.json(existingQuest);
+    }
+
+    // Create new quest
+    const quest = new Quest({
+        title,
+        journalDescription,
+        events
+    });
+    
+    await quest.save();
+    
+    logger.info('New quest created', {
+        questId: quest._id,
+        title,
+        userId: req.user._id
+    });
+    
+    res.status(201).json(quest);
+}));
+
+// Delete quest
+app.delete('/api/quests/:id', verifyBuilderAccess, async (req, res) => {
+    try {
+        const quest = await Quest.findOneAndDelete({ id: req.params.id });
+        if (!quest) {
+            return res.status(404).json({ error: 'Quest not found' });
+        }
+        
+        logger.info('Quest deleted successfully', {
+            questId: quest._id,
+            title: quest.title,
+            userId: req.user._id
+        });
+        
+        res.json({ message: 'Quest deleted successfully' });
+    } catch (error) {
+        logger.error('Error deleting quest:', error);
+        res.status(500).json({ error: 'Error deleting quest' });
+    }
+});
+
+// Update the handleQuestProgression function
+async function handleQuestProgression(userId, actorId) {
+    try {
+        const user = await User.findById(userId);
+        if (!user) return null;
+
+        // Find quests that haven't been started by the user
+        const allQuests = await Quest.find();
+        const availableQuests = allQuests.filter(quest => {
+            return !user.quests.some(userQuest => userQuest.questId === quest.id);
+        });
+
+        // Check for new quests to start
+        for (const quest of availableQuests) {
+            const firstEvent = quest.events[0];
+            if (firstEvent && firstEvent.actorId === actorId) {
+                // Start new quest
+                user.quests.push({
+                    questId: quest.id,
+                    currentEvent: 0,
+                    startedAt: new Date()
+                });
+                await user.save();
+                
+                // Include hint for next event if available
+                const nextEvent = quest.events[1];
+                return {
+                    type: 'quest_start',
+                    message: firstEvent.message,
+                    questTitle: quest.title,
+                    hint: nextEvent ? nextEvent.hint : null
+                };
+            }
+        }
+
+        // Check for quest progression
+        for (const userQuest of user.quests) {
+            if (userQuest.completed) continue;
+
+            const quest = allQuests.find(q => q.id === userQuest.questId);
+            if (!quest) continue;
+
+            const nextEvent = quest.events[userQuest.currentEvent + 1];
+            if (nextEvent && nextEvent.actorId === actorId) {
+                // Progress quest
+                userQuest.currentEvent++;
+                
+                // Check if quest is completed
+                const isComplete = userQuest.currentEvent === quest.events.length - 1;
+                if (isComplete) {
+                    userQuest.completed = true;
+                    userQuest.completedAt = new Date();
+                }
+                
+                await user.save();
+
+                // Get hint for next event if available
+                const followingEvent = quest.events[userQuest.currentEvent + 1];
+                
+                return {
+                    type: 'quest_progress',
+                    message: nextEvent.message,
+                    questTitle: quest.title,
+                    isComplete,
+                    hint: !isComplete && followingEvent ? followingEvent.hint : null
+                };
+            }
+        }
+
+        return null;
+    } catch (error) {
+        logger.error('Error handling quest progression:', error);
+        return null;
+    }
+} 

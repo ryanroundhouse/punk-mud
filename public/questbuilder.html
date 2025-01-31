@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUNK MUD - Quest Builder</title>
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+            --terminal-green: #00ff00;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .builder-container {
+            width: 95%;
+            height: 90vh;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-pink),
+                       0 0 40px rgba(255, 46, 136, 0.3);
+            position: relative;
+        }
+
+        .layout-container {
+            display: flex;
+            gap: 2rem;
+            height: 100%;
+        }
+
+        .left-panel {
+            flex: 1;
+            height: 100%;
+            position: relative;
+        }
+
+        .quest-form {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            height: calc(100% - 5rem);
+            box-sizing: border-box;
+            position: relative;
+            margin-top: 5rem;
+            overflow-y: auto;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--neon-blue);
+        }
+
+        input[type="text"],
+        textarea {
+            width: 100%;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .event-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+
+        .event-controls select,
+        .event-controls input {
+            flex: 1;
+        }
+
+        .right-panel {
+            width: 300px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            display: flex;
+            flex-direction: column;
+            margin-top: 5rem;
+            height: calc(100% - 7rem);
+        }
+
+        .quests-list {
+            flex: 1;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-blue) var(--dark-bg);
+        }
+
+        .quest-entry {
+            padding: 0.8rem;
+            border-bottom: 1px solid var(--neon-blue);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .quest-entry:hover {
+            background: rgba(0, 255, 249, 0.1);
+        }
+
+        .quest-entry-title {
+            color: var(--neon-pink);
+            font-weight: bold;
+            margin-bottom: 0.3rem;
+        }
+
+        .quest-entry-events {
+            color: var(--neon-blue);
+            font-size: 0.9rem;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+            margin-top: 2rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .delete-button {
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+        }
+
+        .delete-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .quest-event {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            background: rgba(0, 255, 249, 0.05);
+            padding: 0.8rem;
+            border-radius: 5px;
+            cursor: move;
+            user-select: none;
+            border: 1px solid transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .quest-event:hover {
+            border-color: var(--neon-blue);
+        }
+
+        .quest-event.dragging {
+            opacity: 0.5;
+            border-color: var(--neon-pink);
+        }
+
+        .quest-event.drag-over {
+            border-top: 2px solid var(--neon-pink);
+        }
+
+        .event-handle {
+            color: var(--neon-blue);
+            cursor: move;
+            padding: 0.5rem;
+            margin: -0.5rem;
+        }
+
+        .event-content {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .remove-event {
+            color: var(--neon-pink);
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            margin: -0.5rem;
+        }
+
+        .action-button {
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .action-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+            transform: translateY(-2px);
+        }
+
+        .action-button::before {
+            content: "[ ";
+            color: var(--neon-pink);
+        }
+
+        .action-button::after {
+            content: " ]";
+            color: var(--neon-pink);
+        }
+
+        .action-button:hover::before,
+        .action-button:hover::after {
+            color: var(--dark-bg);
+        }
+
+        #newQuestBtn {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #saveQuestBtn {
+            margin-left: auto;
+        }
+
+        #addEventBtn {
+            background: transparent;
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+        }
+
+        #addEventBtn:hover {
+            background: var(--neon-blue);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        #addEventBtn::before {
+            content: "[ ";
+            color: var(--neon-blue);
+        }
+
+        #addEventBtn::after {
+            content: " ]";
+            color: var(--neon-blue);
+        }
+
+        #addEventBtn:hover::before,
+        #addEventBtn:hover::after {
+            color: var(--dark-bg);
+        }
+
+        select, input[type="text"] {
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+        }
+
+        select:focus, input[type="text"]:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        select option {
+            background: var(--dark-bg);
+            color: var(--terminal-green);
+        }
+
+        .event-hint {
+            color: var(--neon-blue);
+            font-style: italic;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="builder-container">
+        <div class="layout-container">
+            <div class="left-panel">
+                <button class="action-button" id="newQuestBtn">Add New Quest</button>
+                <div class="quest-form" id="questForm">
+                    <div class="form-group">
+                        <label for="questTitle">Quest Title:</label>
+                        <input type="text" id="questTitle" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="journalDescription">Journal Description:</label>
+                        <textarea id="journalDescription" required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Quest Events:</label>
+                        <div id="eventsContainer">
+                            <div class="event-controls">
+                                <select id="eventActor">
+                                    <!-- Will be populated with actors -->
+                                </select>
+                                <input type="text"
+                                       id="eventHint"
+                                       placeholder="Enter optional hint">
+                                <input type="text" 
+                                       id="eventMessage" 
+                                       placeholder="Enter event message">
+                                <button class="action-button" id="addEventBtn">Add Event</button>
+                            </div>
+                            <div id="eventsList">
+                                <!-- Events will be listed here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button class="action-button delete-button hidden" id="deleteQuestBtn">Delete Quest</button>
+                        <button class="action-button" id="saveQuestBtn">Save Quest</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="filter-container">
+                    <input type="text" 
+                           id="questFilter" 
+                           placeholder="Filter quests..."
+                           class="chat-input">
+                </div>
+                <div class="quests-list" id="questsListPanel">
+                    <!-- Quests will be listed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const newQuestBtn = document.getElementById('newQuestBtn');
+        const saveQuestBtn = document.getElementById('saveQuestBtn');
+        const deleteQuestBtn = document.getElementById('deleteQuestBtn');
+        const questFilter = document.getElementById('questFilter');
+        const addEventBtn = document.getElementById('addEventBtn');
+        const eventsList = document.getElementById('eventsList');
+        
+        let allQuests = [];
+        let allActors = [];
+
+        // Check authentication
+        window.onload = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/verify-token', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                // Load both quests and actors
+                await Promise.all([loadQuests(), loadActors()]);
+            } catch (error) {
+                console.error('Authentication error:', error);
+                window.location.href = '/';
+            }
+        };
+
+        // Load actors for event source selection
+        async function loadActors() {
+            try {
+                const response = await fetch('/api/actors', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                allActors = await response.json();
+                
+                // Populate actor dropdown
+                const eventActor = document.getElementById('eventActor');
+                eventActor.innerHTML = '<option value="">Select Actor</option>';
+                allActors.forEach(actor => {
+                    const option = document.createElement('option');
+                    option.value = actor.id;
+                    option.textContent = actor.name;
+                    eventActor.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading actors:', error);
+            }
+        }
+
+        // Load existing quests
+        async function loadQuests() {
+            try {
+                const response = await fetch('/api/quests', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                allQuests = await response.json();
+                filterAndDisplayQuests();
+            } catch (error) {
+                console.error('Error loading quests:', error);
+            }
+        }
+
+        // Filter and display quests
+        function filterAndDisplayQuests() {
+            const filterValue = questFilter.value.toLowerCase();
+            const questsListPanel = document.getElementById('questsListPanel');
+            questsListPanel.innerHTML = '';
+            
+            allQuests
+                .filter(quest => 
+                    quest.title.toLowerCase().includes(filterValue)
+                )
+                .forEach(quest => {
+                    const questEntry = document.createElement('div');
+                    questEntry.className = 'quest-entry';
+                    questEntry.innerHTML = `
+                        <div class="quest-entry-title">${quest.title}</div>
+                        <div class="quest-entry-events">${quest.events.length} events</div>
+                    `;
+                    questEntry.addEventListener('click', () => loadQuestData(quest));
+                    questsListPanel.appendChild(questEntry);
+                });
+        }
+
+        // Add filter event listener
+        questFilter.addEventListener('input', filterAndDisplayQuests);
+
+        // Add event to quest
+        addEventBtn.addEventListener('click', () => {
+            const actorId = document.getElementById('eventActor').value;
+            const message = document.getElementById('eventMessage').value;
+            const hint = document.getElementById('eventHint').value;
+
+            if (!actorId || !message) {
+                alert('Please select an actor and enter a message');
+                return;
+            }
+
+            const actor = allActors.find(a => a.id === actorId);
+            const eventEntry = createEventEntry(actorId, actor.name, message, hint);
+            eventsList.appendChild(eventEntry);
+            
+            // Clear inputs
+            document.getElementById('eventMessage').value = '';
+            document.getElementById('eventHint').value = '';
+        });
+
+        function createEventEntry(actorId, actorName, message, hint = '') {
+            const eventEntry = document.createElement('div');
+            eventEntry.className = 'quest-event';
+            eventEntry.draggable = true;
+            eventEntry.innerHTML = `
+                <span class="event-handle">⋮⋮</span>
+                <div class="event-content">
+                    <div>${actorName}</div>
+                    <div class="event-hint">${hint || ''}</div>
+                    <div>${message}</div>
+                </div>
+                <input type="hidden" class="event-actor-id" value="${actorId}">
+                <input type="hidden" class="event-hint" value="${hint || ''}">
+                <input type="hidden" class="event-message" value="${message}">
+                <span class="remove-event">×</span>
+            `;
+
+            // Add drag and drop event listeners
+            eventEntry.addEventListener('dragstart', handleDragStart);
+            eventEntry.addEventListener('dragend', handleDragEnd);
+            eventEntry.addEventListener('dragover', handleDragOver);
+            eventEntry.addEventListener('drop', handleDrop);
+
+            eventEntry.querySelector('.remove-event').addEventListener('click', () => {
+                eventEntry.remove();
+            });
+
+            return eventEntry;
+        }
+
+        // Drag and drop handlers
+        function handleDragStart(e) {
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', '');
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.quest-event').forEach(entry => {
+                entry.classList.remove('drag-over');
+            });
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            const draggingItem = document.querySelector('.dragging');
+            if (draggingItem === this) return;
+
+            document.querySelectorAll('.quest-event').forEach(entry => {
+                entry.classList.remove('drag-over');
+            });
+            this.classList.add('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const draggingItem = document.querySelector('.dragging');
+            if (draggingItem === this) return;
+
+            const allItems = [...eventsList.querySelectorAll('.quest-event')];
+            const draggedIndex = allItems.indexOf(draggingItem);
+            const droppedIndex = allItems.indexOf(this);
+
+            if (draggedIndex < droppedIndex) {
+                this.parentNode.insertBefore(draggingItem, this.nextSibling);
+            } else {
+                this.parentNode.insertBefore(draggingItem, this);
+            }
+        }
+
+        // Load quest data
+        function loadQuestData(quest) {
+            document.getElementById('questForm').dataset.questId = quest.id;
+            deleteQuestBtn.classList.remove('hidden');
+            
+            document.getElementById('questTitle').value = quest.title;
+            document.getElementById('journalDescription').value = quest.journalDescription;
+            
+            // Clear existing events
+            eventsList.innerHTML = '';
+
+            // Add existing events
+            quest.events.sort((a, b) => a.order - b.order).forEach(event => {
+                const actor = allActors.find(a => a.id === event.actorId);
+                const eventEntry = createEventEntry(event.actorId, actor.name, event.message, event.hint);
+                eventsList.appendChild(eventEntry);
+            });
+
+            // Highlight selected quest
+            document.querySelectorAll('.quest-entry').forEach(entry => {
+                entry.style.backgroundColor = '';
+                if (entry.querySelector('.quest-entry-title').textContent === quest.title) {
+                    entry.style.backgroundColor = 'rgba(0, 255, 249, 0.2)';
+                }
+            });
+        }
+
+        // Clear form for new quest
+        newQuestBtn.addEventListener('click', () => {
+            document.getElementById('questForm').dataset.questId = '';
+            deleteQuestBtn.classList.add('hidden');
+            document.getElementById('questTitle').value = '';
+            document.getElementById('journalDescription').value = '';
+            eventsList.innerHTML = '';
+        });
+
+        // Save quest
+        saveQuestBtn.addEventListener('click', async () => {
+            const events = Array.from(eventsList.querySelectorAll('.quest-event')).map((event, index) => ({
+                eventType: 'chat',
+                actorId: event.querySelector('.event-actor-id').value,
+                message: event.querySelector('.event-message').value,
+                hint: event.querySelector('.event-hint').value,
+                order: index + 1
+            }));
+
+            const questData = {
+                id: document.getElementById('questForm').dataset.questId || null,
+                title: document.getElementById('questTitle').value,
+                journalDescription: document.getElementById('journalDescription').value,
+                events: events
+            };
+
+            try {
+                const response = await fetch('/api/quests', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(questData)
+                });
+
+                if (response.ok) {
+                    alert('Quest saved successfully!');
+                    loadQuests();
+                } else {
+                    throw new Error('Failed to save quest');
+                }
+            } catch (error) {
+                console.error('Error saving quest:', error);
+                alert('Error saving quest');
+            }
+        });
+
+        // Delete quest
+        deleteQuestBtn.addEventListener('click', async () => {
+            const questId = document.getElementById('questForm').dataset.questId;
+            if (!questId) return;
+            
+            const questTitle = document.getElementById('questTitle').value;
+            const confirmDelete = confirm(`Are you sure you want to delete the quest "${questTitle}"? This cannot be undone.`);
+            
+            if (confirmDelete) {
+                try {
+                    const response = await fetch(`/api/quests/${questId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        alert('Quest deleted successfully');
+                        newQuestBtn.click();
+                        loadQuests();
+                    } else {
+                        throw new Error('Failed to delete quest');
+                    }
+                } catch (error) {
+                    console.error('Error deleting quest:', error);
+                    alert('Error deleting quest');
+                }
+            }
+        });
+    </script>
+</body>
+</html> 

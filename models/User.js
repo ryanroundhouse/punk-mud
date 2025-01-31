@@ -32,7 +32,26 @@ const userSchema = new mongoose.Schema({
     currentNode: {
         type: String,
         default: '122.124.10.10' // Default starting node
-    }
+    },
+    quests: [{
+        questId: {
+            type: String,
+            required: true
+        },
+        currentEvent: {
+            type: Number,
+            default: 0  // Index of the current event in the quest's events array
+        },
+        completed: {
+            type: Boolean,
+            default: false
+        },
+        startedAt: {
+            type: Date,
+            default: Date.now
+        },
+        completedAt: Date
+    }]
 });
 
 module.exports = mongoose.model('User', userSchema); 
