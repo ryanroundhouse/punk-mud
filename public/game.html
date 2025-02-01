@@ -338,7 +338,7 @@
             background: rgba(0, 0, 0, 0.3);
             border: 1px solid var(--terminal-green);
             border-radius: 5px;
-            padding: 1rem;
+            padding: 1rem 1rem 0 1rem;
             overflow-y: auto;
             scrollbar-width: thin;
             scrollbar-color: var(--terminal-green) var(--dark-bg);
@@ -363,6 +363,7 @@
             gap: 10px;
             margin-top: 10px;
             white-space: nowrap;
+            padding-bottom: 1rem;
         }
 
         .terminal-input {
@@ -834,6 +835,7 @@
                     loadNode();
                 }
                 
+                // Handle different response types
                 if (data.type === 'list') {
                     if (data.redirect) {
                         if (data.isActor) {
@@ -859,15 +861,38 @@
                         }
                         responseLine.textContent = output;
                     }
+                } else if (data.type === 'quests') {
+                    responseLine.style.whiteSpace = 'pre-wrap';
+                    responseLine.style.fontFamily = 'monospace';
+                    responseLine.style.maxWidth = '100%';
+                    
+                    if (data.message === 'You have no active quests.') {
+                        responseLine.textContent = data.message;
+                    } else {
+                        const [header, ...quests] = data.message.split('\n');
+                        const formattedQuests = quests.map(line => {
+                            if (line.startsWith('  Hint:')) {
+                                return '    ' + line.trim();
+                            }
+                            return line;
+                        }).join('\n');
+                        
+                        responseLine.textContent = header + '\n' + formattedQuests;
+                    }
                 } else {
                     responseLine.textContent = data.message;
                 }
                 
-                // Add monospace styling
+                // Add monospace styling for all responses
                 responseLine.style.fontFamily = 'monospace';
                 
                 terminalOutput.insertBefore(responseLine, inputLine);
-                terminalOutput.scrollTop = terminalOutput.scrollHeight;
+                
+                // Ensure input line is visible by scrolling to it
+                inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                
+                // Focus the input
+                terminalInput.focus();
             });
 
             // Add this to the initializeChat function after socket initialization
@@ -987,6 +1012,9 @@
                             });
                         }
                         break;
+                    case 'quests':
+                        socket.emit('console command', { command: 'quests' });
+                        break;
                     case '?':
                         socket.emit('console command', { command: 'help' });
                         break;
@@ -996,8 +1024,9 @@
                         terminalOutput.insertBefore(responseLine, inputLine);
                 }
                 
-                // Scroll to bottom
-                terminalOutput.scrollTop = terminalOutput.scrollHeight;
+                // Replace scrollTop with scrollIntoView
+                inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                terminalInput.focus();
             }
         });
 

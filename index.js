@@ -358,13 +358,14 @@ const subscribedNodes = new Set();
 // Add this near the top with other Map declarations
 const actorChatStates = new Map(); // tracks last message index per user per actor
 
-// Update the HELP_TEXT constant to use regular angle brackets
+// Update the HELP_TEXT constant to include quests command
 const HELP_TEXT = `
 Available Commands:
 ------------------
 ls................List all players and NPCs in current location
 ls <name>.........View details of player or NPC in current location
 chat <actor>......Talk to an NPC in current location
+quests............View your active quests and current hints
 ?.................Display this help message
 `.trim();
 
@@ -626,6 +627,58 @@ io.on('connection', (socket) => {
                     });
                     break;
                 }
+
+                case 'quests':
+                    // Get all quests to look up titles
+                    const allQuests = await Quest.find();
+                    
+                    // Filter active quests and get their details
+                    const activeQuests = user.quests
+                        .filter(userQuest => !userQuest.completed)
+                        .map(userQuest => {
+                            const quest = allQuests.find(q => q.id === userQuest.questId);
+                            if (!quest) return null;
+
+                            // Find current event
+                            const currentEvent = quest.events.find(e => e.id === userQuest.currentEventId);
+                            if (!currentEvent) return null;
+                            
+                            // Get available choices and their hints
+                            const choices = currentEvent.choices.map(choice => {
+                                const nextEvent = quest.events.find(e => e.id === choice.nextEventId);
+                                return nextEvent?.hint || 'No hint available';
+                            }).filter(Boolean);
+
+                            return {
+                                title: quest.title,
+                                hints: choices.length > 0 ? choices : ['No available choices']
+                            };
+                        })
+                        .filter(Boolean); // Remove null entries
+
+                    if (activeQuests.length === 0) {
+                        socket.emit('console response', {
+                            type: 'quests',
+                            message: 'You have no active quests.'
+                        });
+                        return;
+                    }
+
+                    // Format quest list with hints
+                    const questList = activeQuests
+                        .map(quest => {
+                            const hintsText = quest.hints
+                                .map(hint => `  Hint: ${hint}`)
+                                .join('\n');
+                            return `${quest.title}\n${hintsText}`;
+                        })
+                        .join('\n\n');
+
+                    socket.emit('console response', {
+                        type: 'quests',
+                        message: `Active Quests:\n--------------\n${questList}`
+                    });
+                    break;
 
                 default:
                     socket.emit('console response', {
