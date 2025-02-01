@@ -653,7 +653,7 @@
         // Load existing actors
         async function loadActors() {
             try {
-                const response = await fetch('/api/actors', {
+                const response = await fetch('/api/actors/builder', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
@@ -715,29 +715,33 @@
             const messagesList = document.getElementById('messagesList');
             messagesList.innerHTML = '';
 
-            // Add existing messages
-            actor.chatMessages.sort((a, b) => a.order - b.order).forEach(msg => {
-                const messageEntry = document.createElement('div');
-                messageEntry.className = 'chat-message-entry';
-                messageEntry.draggable = true;
-                messageEntry.innerHTML = `
-                    <span class="message-handle">⋮⋮</span>
-                    <div class="message-text">${msg.message}</div>
-                    <span class="remove-message">×</span>
-                `;
+            // Add existing messages if they exist
+            if (actor.chatMessages && Array.isArray(actor.chatMessages)) {
+                actor.chatMessages
+                    .sort((a, b) => a.order - b.order)
+                    .forEach(msg => {
+                        const messageEntry = document.createElement('div');
+                        messageEntry.className = 'chat-message-entry';
+                        messageEntry.draggable = true;
+                        messageEntry.innerHTML = `
+                            <span class="message-handle">⋮⋮</span>
+                            <div class="message-text">${msg.message}</div>
+                            <span class="remove-message">×</span>
+                        `;
 
-                // Add drag and drop event listeners
-                messageEntry.addEventListener('dragstart', handleDragStart);
-                messageEntry.addEventListener('dragend', handleDragEnd);
-                messageEntry.addEventListener('dragover', handleDragOver);
-                messageEntry.addEventListener('drop', handleDrop);
+                        // Add drag and drop event listeners
+                        messageEntry.addEventListener('dragstart', handleDragStart);
+                        messageEntry.addEventListener('dragend', handleDragEnd);
+                        messageEntry.addEventListener('dragover', handleDragOver);
+                        messageEntry.addEventListener('drop', handleDrop);
 
-                messageEntry.querySelector('.remove-message').addEventListener('click', () => {
-                    messageEntry.remove();
-                });
+                        messageEntry.querySelector('.remove-message').addEventListener('click', () => {
+                            messageEntry.remove();
+                        });
 
-                messagesList.appendChild(messageEntry);
-            });
+                        messagesList.appendChild(messageEntry);
+                    });
+            }
 
             // Highlight selected actor
             document.querySelectorAll('.actor-entry').forEach(entry => {

@@ -38,17 +38,20 @@ const userSchema = new mongoose.Schema({
             type: String,
             required: true
         },
-        currentEvent: {
-            type: Number,
-            default: 0  // Index of the current event in the quest's events array
+        currentEventId: {
+            type: String,
+            required: true
+        },
+        completedEventIds: [{
+            type: String
+        }],
+        startedAt: {
+            type: Date,
+            default: Date.now
         },
         completed: {
             type: Boolean,
             default: false
-        },
-        startedAt: {
-            type: Date,
-            default: Date.now
         },
         completedAt: Date
     }]

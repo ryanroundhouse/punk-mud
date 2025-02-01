@@ -1221,10 +1221,21 @@ app.get('/api/user/character/:username', authenticateToken, async (req, res) => 
     }
 });
 
-// Get all actors
-app.get('/api/actors', verifyBuilderAccess, async (req, res) => {
+// Get all actors (builder version with full details)
+app.get('/api/actors/builder', verifyBuilderAccess, async (req, res) => {
     try {
         const actors = await Actor.find().sort({ name: 1 });
+        res.json(actors);
+    } catch (error) {
+        logger.error('Error fetching actors:', error);
+        res.status(500).json({ error: 'Error fetching actors' });
+    }
+});
+
+// Get public actor info (for quest builder and game)
+app.get('/api/actors', authenticateToken, async (req, res) => {
+    try {
+        const actors = await Actor.find({}, 'id name').sort({ name: 1 });
         res.json(actors);
     } catch (error) {
         logger.error('Error fetching actors:', error);
@@ -1427,16 +1438,48 @@ app.get('/api/quests', verifyBuilderAccess, async (req, res) => {
 app.post('/api/quests', verifyBuilderAccess, asyncHandler(async (req, res) => {
     const { id, title, journalDescription, events } = req.body;
     
+    // Validate basic fields
     if (!title || !journalDescription || !events || !Array.isArray(events)) {
-        throw new Error('Missing required fields');
+        return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Validate events
-    events.forEach(event => {
-        if (!event.actorId || !event.message || !event.order) {
-            throw new Error('Invalid event data');
+    // Validate each event
+    for (const event of events) {
+        if (!event.id || !event.actorId || !event.message) {
+            return res.status(400).json({ 
+                error: 'Invalid event data',
+                details: 'Each event must have an id, actorId, and message'
+            });
         }
-    });
+
+        // Validate choices if they exist
+        if (event.choices) {
+            if (!Array.isArray(event.choices)) {
+                return res.status(400).json({ 
+                    error: 'Invalid choices format',
+                    details: 'Choices must be an array'
+                });
+            }
+
+            for (const choice of event.choices) {
+                if (!choice.nextEventId) {
+                    return res.status(400).json({ 
+                        error: 'Invalid choice data',
+                        details: 'Each choice must have a nextEventId'
+                    });
+                }
+            }
+        }
+    }
+
+    // Validate that there is exactly one start event
+    const startEvents = events.filter(event => event.isStart);
+    if (startEvents.length !== 1) {
+        return res.status(400).json({ 
+            error: 'Invalid start event',
+            details: 'Quest must have exactly one start event'
+        });
+    }
 
     // If id is provided, update existing quest
     if (id) {
@@ -1519,23 +1562,23 @@ async function handleQuestProgression(userId, actorId) {
 
         // Check for new quests to start
         for (const quest of availableQuests) {
-            const firstEvent = quest.events[0];
-            if (firstEvent && firstEvent.actorId === actorId) {
+            const startEvent = quest.events.find(event => event.isStart);
+            if (startEvent && startEvent.actorId === actorId) {
                 // Start new quest
                 user.quests.push({
                     questId: quest.id,
-                    currentEvent: 0,
+                    currentEventId: startEvent.id,
+                    completedEventIds: [],
                     startedAt: new Date()
                 });
                 await user.save();
                 
-                // Include hint for next event if available
-                const nextEvent = quest.events[1];
                 return {
                     type: 'quest_start',
-                    message: firstEvent.message,
+                    message: startEvent.message,
                     questTitle: quest.title,
-                    hint: nextEvent ? nextEvent.hint : null
+                    choices: startEvent.choices,
+                    hint: startEvent.hint
                 };
             }
         }
@@ -1547,13 +1590,25 @@ async function handleQuestProgression(userId, actorId) {
             const quest = allQuests.find(q => q.id === userQuest.questId);
             if (!quest) continue;
 
-            const nextEvent = quest.events[userQuest.currentEvent + 1];
-            if (nextEvent && nextEvent.actorId === actorId) {
-                // Progress quest
-                userQuest.currentEvent++;
+            const currentEvent = quest.events.find(e => e.id === userQuest.currentEventId);
+            if (!currentEvent) continue;
+
+            // Check if any of the current event's choices lead to an event with this actor
+            const availableChoices = currentEvent.choices.filter(choice => {
+                const nextEvent = quest.events.find(e => e.id === choice.nextEventId);
+                return nextEvent && nextEvent.actorId === actorId;
+            });
+
+            if (availableChoices.length > 0) {
+                // Find the first available next event
+                const nextEvent = quest.events.find(e => e.id === availableChoices[0].nextEventId);
                 
-                // Check if quest is completed
-                const isComplete = userQuest.currentEvent === quest.events.length - 1;
+                // Progress quest
+                userQuest.completedEventIds.push(currentEvent.id);
+                userQuest.currentEventId = nextEvent.id;
+                
+                // Check if this event has no further choices (end of branch)
+                const isComplete = nextEvent.choices.length === 0;
                 if (isComplete) {
                     userQuest.completed = true;
                     userQuest.completedAt = new Date();
@@ -1561,15 +1616,13 @@ async function handleQuestProgression(userId, actorId) {
                 
                 await user.save();
 
-                // Get hint for next event if available
-                const followingEvent = quest.events[userQuest.currentEvent + 1];
-                
                 return {
                     type: 'quest_progress',
                     message: nextEvent.message,
                     questTitle: quest.title,
+                    choices: nextEvent.choices,
                     isComplete,
-                    hint: !isComplete && followingEvent ? followingEvent.hint : null
+                    hint: nextEvent.hint
                 };
             }
         }

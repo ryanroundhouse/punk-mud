@@ -177,15 +177,16 @@
 
         .quest-event {
             display: flex;
-            gap: 1rem;
-            align-items: center;
+            flex-direction: column;
+            gap: 0.8rem;
             background: rgba(0, 255, 249, 0.05);
-            padding: 0.8rem;
+            padding: 1rem;
             border-radius: 5px;
             cursor: move;
             user-select: none;
             border: 1px solid transparent;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.8rem;
+            position: relative;
         }
 
         .quest-event:hover {
@@ -202,6 +203,7 @@
         }
 
         .event-handle {
+            align-self: flex-start;
             color: var(--neon-blue);
             cursor: move;
             padding: 0.5rem;
@@ -209,11 +211,41 @@
         }
 
         .event-content {
-            flex: 1;
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 1rem;
-            align-items: center;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+            width: 100%;
+        }
+
+        .actor-container {
+            width: 100%;
+        }
+
+        .event-actor-select,
+        .event-message-input,
+        .event-hint-input {
+            width: 100%;
+            padding: 0.8rem;
+        }
+
+        .event-message-input {
+            min-height: 4rem;
+            resize: vertical;
+        }
+
+        .event-id {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            font-size: 0.8em;
+            color: var(--neon-pink);
+        }
+
+        .event-choices {
+            margin-left: 0;
+            padding: 0.8rem 0;
+            border-top: 2px solid var(--neon-blue);
+            border-left: none;
         }
 
         .remove-event {
@@ -323,6 +355,118 @@
             font-style: italic;
             font-size: 0.9em;
         }
+
+        .choice-entry {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 1rem;
+            margin: 0.5rem 0;
+            padding: 0.5rem;
+            background: rgba(0, 255, 249, 0.05);
+            border-radius: 5px;
+        }
+
+        .add-choice-btn {
+            margin-left: 2rem;
+            margin-top: 0.5rem;
+        }
+
+        .choice-target-select {
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            color: var(--terminal-green);
+            padding: 0.5rem;
+            border-radius: 5px;
+        }
+
+        .event-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid rgba(0, 255, 249, 0.2);
+        }
+
+        .end-event-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--neon-pink);
+            font-size: 0.9em;
+        }
+
+        .end-event-checkbox {
+            margin: 0;
+        }
+
+        .quest-event[data-is-end="true"] {
+            border: 1px solid var(--neon-pink);
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .input-group label {
+            color: var(--neon-blue);
+            font-size: 0.9em;
+        }
+
+        .event-content {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            width: 100%;
+        }
+
+        .event-choices {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 2px solid var(--neon-blue);
+        }
+
+        .event-choices:not(:empty) {
+            margin-top: 1rem;
+        }
+
+        .event-choices:empty {
+            display: none;
+        }
+
+        .event-message-input,
+        .event-hint-input {
+            width: 100%;
+            min-height: 4rem;
+            resize: vertical;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            line-height: 1.4;
+        }
+
+        .event-message-input {
+            min-height: 6rem;  /* Give message more initial height */
+        }
+
+        .event-hint-input {
+            min-height: 4rem;
+            color: var(--neon-blue);
+            font-style: italic;
+            font-size: 0.9em;
+        }
+
+        .event-message-input:focus,
+        .event-hint-input:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
     </style>
 </head>
 <body>
@@ -348,14 +492,15 @@
                                 <select id="eventActor">
                                     <!-- Will be populated with actors -->
                                 </select>
-                                <input type="text"
-                                       id="eventHint"
-                                       placeholder="Enter optional hint">
-                                <input type="text" 
-                                       id="eventMessage" 
-                                       placeholder="Enter event message">
+                                <textarea 
+                                    id="eventMessage" 
+                                    placeholder="Enter event message"></textarea>
+                                <textarea
+                                    id="eventHint"
+                                    placeholder="Enter optional hint"></textarea>
                                 <button class="action-button" id="addEventBtn">Add Event</button>
                             </div>
+                            <div class="event-hint">First event added will be the starting event</div>
                             <div id="eventsList">
                                 <!-- Events will be listed here -->
                             </div>
@@ -413,8 +558,9 @@
                     throw new Error('Invalid token');
                 }
 
-                // Load both quests and actors
-                await Promise.all([loadQuests(), loadActors()]);
+                // Load actors first, then quests
+                await loadActors();
+                await loadQuests();
             } catch (error) {
                 console.error('Authentication error:', error);
                 window.location.href = '/';
@@ -424,11 +570,14 @@
         // Load actors for event source selection
         async function loadActors() {
             try {
-                const response = await fetch('/api/actors', {
+                const response = await fetch('/api/actors/builder', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
+                if (!response.ok) {
+                    throw new Error('Failed to load actors');
+                }
                 allActors = await response.json();
                 
                 // Populate actor dropdown
@@ -442,21 +591,33 @@
                 });
             } catch (error) {
                 console.error('Error loading actors:', error);
+                alert('Failed to load actors. Please try refreshing the page.');
             }
         }
 
         // Load existing quests
         async function loadQuests() {
             try {
+                // Make sure we have actors loaded first
+                if (allActors.length === 0) {
+                    await loadActors();
+                }
+
                 const response = await fetch('/api/quests', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load quests');
+                }
+                
                 allQuests = await response.json();
                 filterAndDisplayQuests();
             } catch (error) {
                 console.error('Error loading quests:', error);
+                alert('Failed to load quests. Please try refreshing the page.');
             }
         }
 
@@ -497,32 +658,86 @@
             }
 
             const actor = allActors.find(a => a.id === actorId);
-            const eventEntry = createEventEntry(actorId, actor.name, message, hint);
+            const isStart = eventsList.children.length === 0; // First event is the start
+            const eventEntry = createEventEntry(actorId, actor.name, message, hint, null, isStart);
             eventsList.appendChild(eventEntry);
+            updateEventTargets();
             
             // Clear inputs
             document.getElementById('eventMessage').value = '';
             document.getElementById('eventHint').value = '';
         });
 
-        function createEventEntry(actorId, actorName, message, hint = '') {
+        function createEventEntry(actorId, actorName, message, hint = '', eventId = null, isStart = false, isEnd = false) {
             const eventEntry = document.createElement('div');
             eventEntry.className = 'quest-event';
-            eventEntry.draggable = true;
+            eventEntry.dataset.eventId = eventId || Math.random().toString(36).substr(2, 9);
+            eventEntry.dataset.isStart = isStart;
+            eventEntry.dataset.isEnd = isEnd;
+            
+            // Create actor select
+            const actorSelect = document.createElement('select');
+            actorSelect.className = 'event-actor-select';
+            actorSelect.innerHTML = allActors.map(actor => `
+                <option value="${actor.id}" ${actor.id === actorId ? 'selected' : ''}>
+                    ${actor.name}
+                </option>
+            `).join('');
+            
             eventEntry.innerHTML = `
                 <span class="event-handle">⋮⋮</span>
                 <div class="event-content">
-                    <div>${actorName}</div>
-                    <div class="event-hint">${hint || ''}</div>
-                    <div>${message}</div>
+                    <div class="input-group">
+                        <label>Actor:</label>
+                        <div class="actor-container"></div>
+                    </div>
+                    <div class="input-group">
+                        <label>Message:</label>
+                        <textarea class="event-message-input" placeholder="Enter event message">${message}</textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>Hint:</label>
+                        <textarea class="event-hint-input" placeholder="Enter optional hint">${hint || ''}</textarea>
+                    </div>
                 </div>
+                <span class="event-id">ID: ${eventEntry.dataset.eventId}</span>
                 <input type="hidden" class="event-actor-id" value="${actorId}">
-                <input type="hidden" class="event-hint" value="${hint || ''}">
                 <input type="hidden" class="event-message" value="${message}">
+                <input type="hidden" class="event-hint" value="${hint || ''}">
                 <span class="remove-event">×</span>
+                <div class="event-choices"></div>
+                <div class="event-controls">
+                    <label class="end-event-label">
+                        <input type="checkbox" class="end-event-checkbox" ${isEnd ? 'checked' : ''}>
+                        Mark as quest end
+                    </label>
+                    <button class="action-button add-choice-btn">Add Choice</button>
+                </div>
             `;
 
-            // Add drag and drop event listeners
+            // Insert actor select into container
+            eventEntry.querySelector('.actor-container').appendChild(actorSelect);
+
+            // Add input change handlers to update hidden inputs
+            actorSelect.addEventListener('change', (e) => {
+                eventEntry.querySelector('.event-actor-id').value = e.target.value;
+            });
+
+            eventEntry.querySelector('.event-message-input').addEventListener('input', (e) => {
+                eventEntry.querySelector('.event-message').value = e.target.value;
+                updateEventTargets(); // Update choice dropdowns to show new message
+            });
+
+            eventEntry.querySelector('.event-hint-input').addEventListener('input', (e) => {
+                eventEntry.querySelector('.event-hint').value = e.target.value;
+            });
+
+            // Add choice button handler
+            eventEntry.querySelector('.add-choice-btn').addEventListener('click', () => {
+                addChoiceToEvent(eventEntry);
+            });
+
+            // Add existing handlers
             eventEntry.addEventListener('dragstart', handleDragStart);
             eventEntry.addEventListener('dragend', handleDragEnd);
             eventEntry.addEventListener('dragover', handleDragOver);
@@ -530,9 +745,77 @@
 
             eventEntry.querySelector('.remove-event').addEventListener('click', () => {
                 eventEntry.remove();
+                updateEventTargets();
+            });
+
+            // Add end event checkbox handler
+            eventEntry.querySelector('.end-event-checkbox').addEventListener('change', (e) => {
+                eventEntry.dataset.isEnd = e.target.checked;
+                // If it's an end event, remove all choices
+                if (e.target.checked) {
+                    eventEntry.querySelector('.event-choices').innerHTML = '';
+                    eventEntry.querySelector('.add-choice-btn').style.display = 'none';
+                } else {
+                    eventEntry.querySelector('.add-choice-btn').style.display = '';
+                }
             });
 
             return eventEntry;
+        }
+
+        function addChoiceToEvent(eventEntry) {
+            const choicesContainer = eventEntry.querySelector('.event-choices');
+            const choiceEntry = document.createElement('div');
+            choiceEntry.className = 'choice-entry';
+            
+            // Create select element with all event IDs
+            const targetSelect = document.createElement('select');
+            targetSelect.className = 'choice-target-select';
+            targetSelect.style.width = '100%'; // Make the select take full width since it's the only input
+            updateEventTargets(targetSelect);
+
+            choiceEntry.innerHTML = `
+                <span class="remove-choice">×</span>
+            `;
+            
+            // Insert select before the remove button
+            choiceEntry.insertBefore(targetSelect, choiceEntry.querySelector('.remove-choice'));
+
+            choiceEntry.querySelector('.remove-choice').addEventListener('click', () => {
+                choiceEntry.remove();
+            });
+
+            choicesContainer.appendChild(choiceEntry);
+        }
+
+        function updateEventTargets(specificSelect = null) {
+            const events = Array.from(eventsList.querySelectorAll('.quest-event'));
+            const options = events.map(event => {
+                const actorName = event.querySelector('.event-content').children[0].textContent;
+                const eventId = event.dataset.eventId;
+                
+                return `
+                    <option value="${eventId}">
+                        ${actorName} - ${eventId}
+                    </option>
+                `;
+            }).join('');
+
+            if (specificSelect) {
+                specificSelect.innerHTML = `
+                    <option value="">Select target event...</option>
+                    ${options}
+                `;
+            } else {
+                document.querySelectorAll('.choice-target-select').forEach(select => {
+                    const currentValue = select.value;
+                    select.innerHTML = `
+                        <option value="">Select target event...</option>
+                        ${options}
+                    `;
+                    select.value = currentValue;
+                });
+            }
         }
 
         // Drag and drop handlers
@@ -590,11 +873,47 @@
             eventsList.innerHTML = '';
 
             // Add existing events
-            quest.events.sort((a, b) => a.order - b.order).forEach(event => {
+            quest.events.forEach(event => {
                 const actor = allActors.find(a => a.id === event.actorId);
-                const eventEntry = createEventEntry(event.actorId, actor.name, event.message, event.hint);
+                if (!actor) {
+                    console.error(`Actor not found for ID: ${event.actorId}`);
+                    return; // Skip this event
+                }
+
+                const eventEntry = createEventEntry(
+                    event.actorId, 
+                    actor.name, 
+                    event.message, 
+                    event.hint,
+                    event.id,
+                    event.isStart,
+                    event.isEnd
+                );
                 eventsList.appendChild(eventEntry);
+
+                // Only add choices if not an end event
+                if (!event.isEnd && event.choices && event.choices.length > 0) {
+                    event.choices.forEach(choice => {
+                        const choicesContainer = eventEntry.querySelector('.event-choices');
+                        const choiceEntry = document.createElement('div');
+                        choiceEntry.className = 'choice-entry';
+                        choiceEntry.innerHTML = `
+                            <select class="choice-target-select">
+                                <option value="${choice.nextEventId}">Loading...</option>
+                            </select>
+                            <span class="remove-choice">×</span>
+                        `;
+
+                        choiceEntry.querySelector('.remove-choice').addEventListener('click', () => {
+                            choiceEntry.remove();
+                        });
+
+                        choicesContainer.appendChild(choiceEntry);
+                    });
+                }
             });
+
+            updateEventTargets();
 
             // Highlight selected quest
             document.querySelectorAll('.quest-entry').forEach(entry => {
@@ -616,22 +935,54 @@
 
         // Save quest
         saveQuestBtn.addEventListener('click', async () => {
-            const events = Array.from(eventsList.querySelectorAll('.quest-event')).map((event, index) => ({
-                eventType: 'chat',
-                actorId: event.querySelector('.event-actor-id').value,
-                message: event.querySelector('.event-message').value,
-                hint: event.querySelector('.event-hint').value,
-                order: index + 1
-            }));
-
-            const questData = {
-                id: document.getElementById('questForm').dataset.questId || null,
-                title: document.getElementById('questTitle').value,
-                journalDescription: document.getElementById('journalDescription').value,
-                events: events
-            };
-
             try {
+                // Validate form
+                const title = document.getElementById('questTitle').value;
+                const journalDescription = document.getElementById('journalDescription').value;
+                
+                if (!title || !journalDescription) {
+                    alert('Please fill in all required fields');
+                    return;
+                }
+
+                const events = Array.from(eventsList.querySelectorAll('.quest-event')).map(event => {
+                    const choices = Array.from(event.querySelectorAll('.choice-entry'))
+                        .map(choice => {
+                            const nextEventId = choice.querySelector('.choice-target-select').value;
+                            
+                            if (!nextEventId) {
+                                throw new Error('All choices must have a target event');
+                            }
+                            
+                            return {
+                                nextEventId
+                            };
+                        });
+
+                    return {
+                        id: event.dataset.eventId,
+                        eventType: 'chat',
+                        actorId: event.querySelector('.event-actor-id').value,
+                        message: event.querySelector('.event-message').value,
+                        hint: event.querySelector('input.event-hint').value,
+                        choices: choices,
+                        isStart: event.dataset.isStart === 'true',
+                        isEnd: event.dataset.isEnd === 'true'
+                    };
+                });
+
+                if (events.length === 0) {
+                    alert('Quest must have at least one event');
+                    return;
+                }
+
+                const questData = {
+                    id: document.getElementById('questForm').dataset.questId || null,
+                    title,
+                    journalDescription,
+                    events
+                };
+
                 const response = await fetch('/api/quests', {
                     method: 'POST',
                     headers: {
@@ -641,15 +992,16 @@
                     body: JSON.stringify(questData)
                 });
 
-                if (response.ok) {
-                    alert('Quest saved successfully!');
-                    loadQuests();
-                } else {
-                    throw new Error('Failed to save quest');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.details || errorData.error || 'Failed to save quest');
                 }
+
+                alert('Quest saved successfully!');
+                await loadQuests();
             } catch (error) {
                 console.error('Error saving quest:', error);
-                alert('Error saving quest');
+                alert(error.message);
             }
         });
 

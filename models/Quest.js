@@ -18,6 +18,11 @@ const questSchema = new mongoose.Schema({
         required: true
     },
     events: [{
+        id: {
+            type: String,
+            required: true,
+            default: () => Math.random().toString(36).substr(2, 9)
+        },
         eventType: {
             type: String,
             required: true,
@@ -37,9 +42,19 @@ const questSchema = new mongoose.Schema({
             type: String,
             default: ''
         },
-        order: {
-            type: Number,
-            required: true
+        choices: [{
+            nextEventId: {
+                type: String,
+                required: true
+            }
+        }],
+        isStart: {
+            type: Boolean,
+            default: false
+        },
+        isEnd: {
+            type: Boolean,
+            default: false
         }
     }],
     createdAt: {
