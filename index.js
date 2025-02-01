@@ -454,6 +454,64 @@ io.on('connection', (socket) => {
             }
 
             switch (data.command) {
+                case 'move':
+                    // Handle movement command
+                    const currentNode = await Node.findOne({ address: user.currentNode });
+                    if (!currentNode) {
+                        socket.emit('console response', { message: 'Error: Current location not found' });
+                        return;
+                    }
+
+                    // Find exit matching the direction
+                    const exit = currentNode.exits.find(e => e.direction.toLowerCase() === data.direction);
+                    if (!exit) {
+                        socket.emit('console response', { message: `There is no exit to the ${data.direction}` });
+                        return;
+                    }
+
+                    // Update user's location
+                    const targetNode = await Node.findOne({ address: exit.target });
+                    if (!targetNode) {
+                        socket.emit('console response', { message: 'Error: Target location not found' });
+                        return;
+                    }
+
+                    // Move the user
+                    const oldNode = user.currentNode;
+                    user.currentNode = targetNode.address;
+                    await user.save();
+
+                    // Notify rooms of the movement
+                    socket.leave(oldNode);
+                    socket.join(targetNode.address);
+
+                    // Send system message to old room about departure
+                    io.to(oldNode).emit('chat message', {
+                        username: 'SYSTEM',
+                        message: `${user.avatarName} has left.`,
+                        timestamp: new Date()
+                    });
+
+                    // Send entry message to the user
+                    socket.emit('chat message', {
+                        username: 'SYSTEM',
+                        message: `You have entered ${targetNode.name}.`,
+                        timestamp: new Date()
+                    });
+
+                    // Send arrival message to others in the new room
+                    socket.to(targetNode.address).emit('chat message', {
+                        username: 'SYSTEM',
+                        message: `${user.avatarName} has arrived.`,
+                        timestamp: new Date()
+                    });
+
+                    // Send success response
+                    socket.emit('console response', { 
+                        message: `You move ${data.direction} to ${targetNode.name}` 
+                    });
+
+                    break;
                 case 'list':
                     const nodeUsers = nodeUsernames.get(user.currentNode) || [];
                     
@@ -1632,4 +1690,17 @@ async function handleQuestProgression(userId, actorId) {
         logger.error('Error handling quest progression:', error);
         return null;
     }
+}
+
+// Helper function to get opposite direction
+function getOppositeDirection(direction) {
+    const opposites = {
+        'north': 'south',
+        'south': 'north',
+        'east': 'west',
+        'west': 'east',
+        'up': 'down',
+        'down': 'up'
+    };
+    return opposites[direction] || direction;
 } 

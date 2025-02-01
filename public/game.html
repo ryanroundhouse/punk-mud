@@ -656,10 +656,15 @@
                     descriptionElement.style.display = 
                         descriptionElement.scrollHeight > 150 ? 'block' : 'none';
                 }, 0);
+
+                // After all node loading is complete, focus the terminal input
+                document.getElementById('terminalInput').focus();
             } catch (error) {
                 console.error('Error loading node:', error);
                 document.getElementById('terminalOutput').innerHTML = 
                     `<div style="color: var(--neon-pink)">ERROR: ${error.message}</div>`;
+                // Even on error, focus the terminal input
+                document.getElementById('terminalInput').focus();
             }
         }
 
@@ -823,6 +828,12 @@
                 const inputLine = terminalInput.parentElement;
                 const responseLine = document.createElement('div');
                 
+                // Check if this is a movement response
+                if (data.message && data.message.startsWith('You move ')) {
+                    // Refresh the location display
+                    loadNode();
+                }
+                
                 if (data.type === 'list') {
                     if (data.redirect) {
                         if (data.isActor) {
@@ -911,7 +922,7 @@
             window.location.href = '/';
         });
 
-        // Update the terminal input handling
+        // Update the terminal input keypress handler
         terminalInput.addEventListener('keypress', async (e) => {
             if (e.key === 'Enter' && terminalInput.value.trim()) {
                 const fullCommand = terminalInput.value.trim();
@@ -919,7 +930,6 @@
                 // Add command to history
                 if (commandHistory.length === 0 || commandHistory[commandHistory.length - 1] !== fullCommand) {
                     commandHistory.push(fullCommand);
-                    // Keep only the last MAX_COMMAND_HISTORY commands
                     if (commandHistory.length > MAX_COMMAND_HISTORY) {
                         commandHistory = commandHistory.slice(-MAX_COMMAND_HISTORY);
                     }
@@ -948,6 +958,17 @@
                 
                 // Handle commands
                 switch (cmd.toLowerCase()) {
+                    case 'north':
+                    case 'south':
+                    case 'east':
+                    case 'west':
+                    case 'up':
+                    case 'down':
+                        socket.emit('console command', { 
+                            command: 'move',
+                            direction: cmd.toLowerCase()
+                        });
+                        break;
                     case 'ls':
                         socket.emit('console command', { 
                             command: 'list',
@@ -1046,13 +1067,18 @@
 
         // Add this helper function to handle exit navigation
         function handleExit(target) {
-            loadNode(target).catch(error => {
-                const errorMsg = document.createElement('div');
-                errorMsg.style.color = 'var(--neon-pink)';
-                errorMsg.textContent = `ERROR: ${error.message}`;
-                document.getElementById('terminalOutput').appendChild(errorMsg);
-                setTimeout(() => errorMsg.remove(), 3000);
-            });
+            loadNode(target)
+                .catch(error => {
+                    const errorMsg = document.createElement('div');
+                    errorMsg.style.color = 'var(--neon-pink)';
+                    errorMsg.textContent = `ERROR: ${error.message}`;
+                    document.getElementById('terminalOutput').appendChild(errorMsg);
+                    setTimeout(() => errorMsg.remove(), 3000);
+                })
+                .finally(() => {
+                    // Ensure terminal gets focus after navigation attempt, success or fail
+                    document.getElementById('terminalInput').focus();
+                });
         }
 
         // Add this new function to handle the actor modal
@@ -1102,6 +1128,14 @@
             document.addEventListener('keydown', closeModal);
             document.addEventListener('click', closeModal);
         }
+
+        // Add click handler to refocus terminal when clicking anywhere in the game container
+        document.querySelector('.game-container').addEventListener('click', (e) => {
+            // Only focus if we're not clicking an input or interactive element
+            if (!e.target.matches('input, button, a, .exit-item, .node-image, .chat-input')) {
+                document.getElementById('terminalInput').focus();
+            }
+        });
     </script>
 
     <div id="imageModal" class="image-modal" style="display: none;">
