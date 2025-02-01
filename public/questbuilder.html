@@ -561,6 +561,9 @@
                 // Load actors first, then quests
                 await loadActors();
                 await loadQuests();
+                
+                // Start in "new quest" state
+                newQuestBtn.click();
             } catch (error) {
                 console.error('Authentication error:', error);
                 window.location.href = '/';
@@ -744,8 +747,13 @@
             eventEntry.addEventListener('drop', handleDrop);
 
             eventEntry.querySelector('.remove-event').addEventListener('click', () => {
-                eventEntry.remove();
-                updateEventTargets();
+                const message = eventEntry.querySelector('.event-message-input').value;
+                const confirmDelete = confirm(`Are you sure you want to delete this event?\n\nEvent message: "${message}"\n\nThis cannot be undone.`);
+                
+                if (confirmDelete) {
+                    eventEntry.remove();
+                    updateEventTargets();
+                }
             });
 
             // Add end event checkbox handler
@@ -1011,7 +1019,13 @@
             if (!questId) return;
             
             const questTitle = document.getElementById('questTitle').value;
-            const confirmDelete = confirm(`Are you sure you want to delete the quest "${questTitle}"? This cannot be undone.`);
+            const eventCount = eventsList.querySelectorAll('.quest-event').length;
+            
+            const confirmDelete = confirm(
+                `Are you sure you want to delete the quest "${questTitle}"?\n\n` +
+                `This quest has ${eventCount} event${eventCount !== 1 ? 's' : ''}.\n\n` +
+                `This action cannot be undone.`
+            );
             
             if (confirmDelete) {
                 try {
