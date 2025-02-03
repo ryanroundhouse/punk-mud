@@ -359,6 +359,9 @@ const subscribedNodes = new Set();
 // Add this near the top with other Map declarations
 const actorChatStates = new Map(); // tracks last message index per user per actor
 
+// Add a Map to track per–player spawned enemies (key: userId, value: enemy instance)
+const playerEnemies = new Map();
+
 // Update the HELP_TEXT constant to include quests command
 const HELP_TEXT = `
 Available Commands:
@@ -558,10 +561,16 @@ io.on('connection', (socket) => {
                             message: `Character "${data.target}" not found in this location.`
                         });
                     } else {
+                        let enemyNames = [];
+                        const enemyInstance = playerEnemies.get(user._id.toString());
+                        if (enemyInstance) {
+                            enemyNames.push(enemyInstance.name);
+                        }
                         socket.emit('console response', {
                             type: 'list',
                             users: nodeUsers,
-                            actors: actorNames
+                            actors: actorNames,
+                            enemies: enemyNames
                         });
                     }
                     break;
@@ -576,55 +585,71 @@ io.on('connection', (socket) => {
                 case 'chat': {
                     if (!data.target) {
                         socket.emit('console response', { 
-                            message: 'Usage: chat <actor name>' 
+                            message: 'Usage: chat <actor or enemy name>' 
                         });
                         return;
                     }
 
-                    const actor = await Actor.findOne({ name: data.target });
-                    if (!actor || actor.location !== user.currentNode) {
-                        socket.emit('console response', { 
-                            message: 'Actor not found in current location' 
-                        });
-                        return;
-                    }
-
-                    // Check for quest progression first
-                    const questResponse = await handleQuestProgression(socket.user.userId, actor.id);
-                    if (questResponse) {
-                        // Send quest-specific message
-                        socket.emit('console response', { 
-                            message: questResponse.message 
-                        });
-
-                        // If quest was completed, send additional message
-                        if (questResponse.isComplete) {
+                    // First, try to find an actor in the current location with a matching name
+                    let actor = await Actor.findOne({ name: data.target, location: user.currentNode });
+                    if (actor) {
+                        // Check for quest progression first
+                        const questResponse = await handleQuestProgression(socket.user.userId, actor.id);
+                        if (questResponse) {
                             socket.emit('console response', { 
-                                message: `Quest completed: ${questResponse.questTitle}`,
-                                type: 'system'
+                                message: questResponse.message 
                             });
+
+                            if (questResponse.isComplete) {
+                                socket.emit('console response', { 
+                                    message: `Quest completed: ${questResponse.questTitle}`,
+                                    type: 'system'
+                                });
+                            }
+                            return;
                         }
-                        return;
+
+                        // Proceed with actor chat as normal
+                        const stateKey = `${socket.user.userId}-${actor.id}`;
+                        let currentIndex = actorChatStates.get(stateKey) || 0;
+                        const sortedMessages = [...actor.chatMessages].sort((a, b) => a.order - b.order);
+                        const message = sortedMessages[currentIndex];
+                        currentIndex = (currentIndex + 1) % sortedMessages.length;
+                        actorChatStates.set(stateKey, currentIndex);
+
+                        socket.emit('console response', {
+                            type: 'chat',
+                            message: `${actor.name} says: "${message.message}"`
+                        });
+                        break;
                     }
 
-                    // If no quest interaction, proceed with normal actor chat
-                    // Get or initialize chat state for this user and actor
-                    const stateKey = `${socket.user.userId}-${actor.id}`;
-                    let currentIndex = actorChatStates.get(stateKey) || 0;
+                    // No actor found so far, so try to talk to an enemy if present
+                    let enemyInstance = playerEnemies.get(user._id.toString());
+                    if (enemyInstance && enemyInstance.name.toLowerCase() === data.target.toLowerCase()) {
+                        const stateKey = `${socket.user.userId}-${enemyInstance.instanceId}`;
+                        let currentIndex = actorChatStates.get(stateKey) || 0;
+                        const sortedMessages = [...enemyInstance.chatMessages].sort((a, b) => a.order - b.order);
+                        if (!sortedMessages.length) {
+                            socket.emit('console response', {
+                                type: 'chat',
+                                message: `${enemyInstance.name} has nothing to say.`
+                            });
+                            break;
+                        }
+                        const message = sortedMessages[currentIndex];
+                        currentIndex = (currentIndex + 1) % sortedMessages.length;
+                        actorChatStates.set(stateKey, currentIndex);
 
-                    // Sort messages by order
-                    const sortedMessages = [...actor.chatMessages].sort((a, b) => a.order - b.order);
+                        socket.emit('console response', {
+                            type: 'chat',
+                            message: `${enemyInstance.name} says: "${message.message}"`
+                        });
+                        break;
+                    }
 
-                    // Get next message
-                    const message = sortedMessages[currentIndex];
-
-                    // Update index for next time, wrapping around if needed
-                    currentIndex = (currentIndex + 1) % sortedMessages.length;
-                    actorChatStates.set(stateKey, currentIndex);
-
-                    socket.emit('console response', {
-                        type: 'chat',
-                        message: `${actor.name} says: "${message.message}"`
+                    socket.emit('console response', { 
+                        message: `No actor or enemy named "${data.target}" found in current location.` 
                     });
                     break;
                 }
@@ -1049,7 +1074,7 @@ app.get('/api/check-image/:filename', (req, res) => {
 });
 
 // Update the node endpoint to check and update player location
-app.get('/api/nodes/:address', verifyBuilderAccess, async (req, res) => {
+app.get('/api/nodes/:address', authenticateToken, async (req, res) => {
     try {
         const user = await User.findById(req.user.userId);
         if (!user) {
@@ -1105,6 +1130,9 @@ app.get('/api/nodes/:address', verifyBuilderAccess, async (req, res) => {
                 user._id.toString()
             );
 
+            // Clear any existing enemy for this user when they move
+            playerEnemies.delete(user._id.toString());
+
             // Send initial users list to the joining user
             const userSocket = connectedClients.get(user._id.toString());
             if (userSocket) {
@@ -1132,6 +1160,38 @@ app.get('/api/nodes/:address', verifyBuilderAccess, async (req, res) => {
             // Update user's location after successful movement validation
             user.currentNode = targetAddress;
             await user.save();
+        }
+
+        // --- NEW: Check for events in the node and, if present, roll for an enemy event ---
+        if (node.events && node.events.length > 0) {
+            if (!playerEnemies.has(user._id.toString())) {
+                // Roll for eligible events based on chance
+                let eligibleEvents = node.events.filter(event => (Math.random() * 100) < event.chance);
+                if (eligibleEvents.length > 0) {
+                    let selectedEvent = eligibleEvents[Math.floor(Math.random() * eligibleEvents.length)];
+                    // Load enemy information via Mob model using the mobId from the event
+                    let enemy = await Mob.findOne({ id: selectedEvent.mobId });
+                    if (enemy) {
+                        let enemyInstance = {
+                            name: enemy.name,
+                            description: enemy.description,
+                            image: enemy.image,
+                            hitpoints: enemy.hitpoints,
+                            armor: enemy.armor,
+                            body: enemy.body,
+                            reflexes: enemy.reflexes,
+                            agility: enemy.agility,
+                            tech: enemy.tech,
+                            luck: enemy.luck,
+                            instanceId: `${enemy.id}-${Date.now()}`,
+                            chatMessages: enemy.chatMessages
+                        };
+                        playerEnemies.set(user._id.toString(), enemyInstance);
+                        // Attach enemy info to the node response so the client can (optionally) display it
+                        node.enemy = enemyInstance;
+                    }
+                }
+            }
         }
 
         res.json(node);

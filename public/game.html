@@ -835,7 +835,6 @@
                     loadNode();
                 }
                 
-                // Handle different response types
                 if (data.type === 'list') {
                     if (data.redirect) {
                         if (data.isActor) {
@@ -856,15 +855,16 @@
                             output += `NPCs here:\n` +
                                 data.actors.map(actor => `- ${actor}`).join('\n');
                         }
-                        if (!output) {
-                            output = 'No one is here.';
+                        if (data.enemies && data.enemies.length > 0) {
+                            if (output) output += '\n';
+                            output += `Enemies here:\n` +
+                                data.enemies.map(enemy => `- ${enemy}`).join('\n');
                         }
                         responseLine.textContent = output;
                     }
                 } else if (data.type === 'quests') {
                     responseLine.style.whiteSpace = 'pre-wrap';
                     responseLine.style.fontFamily = 'monospace';
-                    responseLine.style.maxWidth = '100%';
                     
                     if (data.message === 'You have no active quests.') {
                         responseLine.textContent = data.message;
@@ -883,15 +883,9 @@
                     responseLine.textContent = data.message;
                 }
                 
-                // Add monospace styling for all responses
                 responseLine.style.fontFamily = 'monospace';
-                
                 terminalOutput.insertBefore(responseLine, inputLine);
-                
-                // Ensure input line is visible by scrolling to it
                 inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                
-                // Focus the input
                 terminalInput.focus();
             });
 
@@ -1002,9 +996,10 @@
                         break;
                     case 'chat':
                         if (!targetName) {
-                            const responseLine = document.createElement('div');
-                            responseLine.textContent = 'Usage: chat <actor name>';
-                            terminalOutput.insertBefore(responseLine, inputLine);
+                            socket.emit('console response', { 
+                                message: 'Usage: chat <actor or enemy name>' 
+                            });
+                            return;
                         } else {
                             socket.emit('console command', {
                                 command: 'chat',
