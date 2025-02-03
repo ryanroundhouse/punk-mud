@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUNK MUD - Mob Builder</title>
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+            --terminal-green: #00ff00;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .builder-container {
+            width: 95%;
+            height: 90vh;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-pink),
+                       0 0 40px rgba(255, 46, 136, 0.3);
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .layout-container {
+            display: flex;
+            gap: 2rem;
+            height: 100%;
+        }
+
+        .left-panel {
+            flex: 1;
+            height: 100%;
+            position: relative;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-blue) var(--dark-bg);
+            min-width: 0;
+        }
+
+        .left-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .left-panel::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        .left-panel::-webkit-scrollbar-thumb {
+            background-color: var(--neon-blue);
+            border-radius: 4px;
+        }
+
+        .actor-form {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1.5rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            margin-top: 5rem;
+            margin-bottom: 5rem;
+            box-sizing: border-box;
+        }
+
+        #newMobBtn {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #saveMobBtn {
+            position: static;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 300px;
+            grid-template-rows: auto auto 1fr auto;
+            gap: 1.5rem;
+        }
+
+        .form-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .form-full {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 0;
+            position: relative;
+            width: 100%;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--neon-blue);
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea {
+            width: 100%;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .stat-group label {
+            margin-bottom: 0;
+            min-width: 100px;
+        }
+
+        .stat-group input {
+            width: 80px;
+        }
+
+        .image-upload-section {
+            position: static;
+            width: 100%;
+        }
+
+        .image-preview-container {
+            width: 100%;
+            height: 200px;
+            border: 2px solid var(--neon-blue);
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            margin-bottom: 1rem;
+        }
+
+        .image-preview {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+
+        .no-image-text {
+            color: var(--neon-blue);
+            font-style: italic;
+            opacity: 0.7;
+        }
+
+        .right-panel {
+            width: 300px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            display: flex;
+            flex-direction: column;
+            margin-top: 5rem;
+            height: calc(100% - 7rem);
+        }
+
+        .filter-container {
+            margin-bottom: 1rem;
+        }
+
+        .actors-list {
+            flex: 1;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-blue) var(--dark-bg);
+        }
+
+        .actor-entry {
+            padding: 0.8rem;
+            border-bottom: 1px solid var(--neon-blue);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .actor-entry:hover {
+            background: rgba(0, 255, 249, 0.1);
+        }
+
+        .actor-entry-name {
+            color: var(--neon-pink);
+            font-weight: bold;
+            margin-bottom: 0.3rem;
+        }
+
+        .action-button {
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .action-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .chat-messages-container {
+            width: 100%;
+            margin-top: 0;
+            border: 1px solid var(--neon-blue);
+            padding: 1rem;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+
+        .chat-message-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1rem;
+            width: 100%;
+        }
+
+        .message-text {
+            flex: 1;
+            min-width: 0;
+        }
+
+        #addMessageBtn {
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
+
+        .remove-message {
+            color: var(--neon-pink);
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        .messages-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .chat-message-entry {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            background: rgba(0, 255, 249, 0.05);
+            padding: 0.8rem;
+            border-radius: 5px;
+            cursor: move;
+            user-select: none;
+            border: 1px solid transparent;
+        }
+
+        .chat-message-entry:hover {
+            border-color: var(--neon-blue);
+        }
+
+        .chat-message-entry.dragging {
+            opacity: 0.5;
+            border-color: var(--neon-pink);
+        }
+
+        .chat-message-entry.drag-over {
+            border-top: 2px solid var(--neon-pink);
+        }
+
+        .message-handle {
+            color: var(--neon-blue);
+            cursor: move;
+            padding: 0.5rem;
+            margin: -0.5rem;
+        }
+
+        .form-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            padding-top: 2rem;
+        }
+
+        .delete-button {
+            border-color: var(--neon-pink);
+            color: var(--neon-pink);
+        }
+        
+        .delete-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+        }
+        
+        .delete-button.hidden {
+            display: none;
+        }
+
+        .moves-container {
+            width: 100%;
+            margin-top: 0;
+            border: 1px solid var(--neon-blue);
+            padding: 1rem;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+
+        .moves-controls {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            grid-template-rows: auto auto auto auto;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            width: 100%;
+        }
+
+        .move-input {
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+        }
+
+        .move-input.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .moves-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .move-entry {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr auto;
+            grid-template-rows: auto auto;
+            gap: 0.5rem;
+            align-items: start;
+            background: rgba(0, 255, 249, 0.05);
+            padding: 0.8rem;
+            border-radius: 5px;
+            border: 1px solid transparent;
+        }
+
+        .move-entry:hover {
+            border-color: var(--neon-blue);
+        }
+
+        .move-entry .move-messages {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .move-message {
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+
+        .move-message.success {
+            border-left: 3px solid var(--terminal-green);
+        }
+
+        .move-message.failure {
+            border-left: 3px solid var(--neon-pink);
+        }
+
+        .remove-move {
+            color: var(--neon-pink);
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        .percentage-label {
+            color: var(--neon-blue);
+            font-size: 0.9rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .validation-error {
+            color: var(--neon-pink);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            grid-column: 1 / -1;
+        }
+
+        .move-input.message-textarea {
+            min-height: 60px;
+            resize: vertical;
+            grid-column: 1 / -1;
+            font-family: 'Courier New', monospace;
+            line-height: 1.4;
+        }
+
+        .move-outcome {
+            grid-column: 1 / -1;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1rem;
+            border-radius: 5px;
+            margin-top: 0.5rem;
+        }
+
+        .move-outcome h4 {
+            color: var(--neon-blue);
+            margin: 0 0 0.5rem 0;
+        }
+
+        .outcome-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .success-outcome {
+            border-left: 3px solid var(--terminal-green);
+        }
+
+        .failure-outcome {
+            border-left: 3px solid var(--neon-pink);
+        }
+
+        .move-entry .outcome-details {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--neon-blue);
+        }
+
+        .actor-entry-intent {
+            font-size: 0.9rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            display: inline-block;
+            margin-left: 0.5rem;
+        }
+
+        .intent-hostile {
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+        }
+
+        .intent-neutral {
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+        }
+
+        .intent-friendly {
+            color: var(--terminal-green);
+            border: 1px solid var(--terminal-green);
+        }
+    </style>
+</head>
+<body>
+    <div class="builder-container">
+        <div class="layout-container">
+            <div class="left-panel">
+                <button class="action-button" id="newMobBtn">Add New Mob</button>
+                <div class="actor-form" id="mobForm">
+                    <div class="form-grid">
+                        <div class="form-col">
+                            <div class="form-group">
+                                <label for="mobName">Mob Name:</label>
+                                <input type="text" id="mobName" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="mobIntent">Intent:</label>
+                                <select id="mobIntent" class="move-input" required>
+                                    <option value="hostile">Hostile</option>
+                                    <option value="neutral" selected>Neutral</option>
+                                    <option value="friendly">Friendly</option>
+                                </select>
+                            </div>
+
+                            <div class="stats-grid">
+                                <div class="stat-group">
+                                    <label for="hitpoints">Hitpoints:</label>
+                                    <input type="number" id="hitpoints" required min="1">
+                                </div>
+                                <div class="stat-group">
+                                    <label for="armor">Armor:</label>
+                                    <input type="number" id="armor" required min="0">
+                                </div>
+                                <div class="stat-group">
+                                    <label for="body">Body:</label>
+                                    <input type="number" id="body" required min="1">
+                                </div>
+                                <div class="stat-group">
+                                    <label for="reflexes">Reflexes:</label>
+                                    <input type="number" id="reflexes" required min="1">
+                                </div>
+                                <div class="stat-group">
+                                    <label for="agility">Agility:</label>
+                                    <input type="number" id="agility" required min="1">
+                                </div>
+                                <div class="stat-group">
+                                    <label for="tech">Tech:</label>
+                                    <input type="number" id="tech" required min="1">
+                                </div>
+                                <div class="stat-group">
+                                    <label for="luck">Luck:</label>
+                                    <input type="number" id="luck" required min="1">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="image-upload-section">
+                            <div class="image-preview-container">
+                                <img id="imagePreview" class="image-preview">
+                                <span class="no-image-text" id="noImageText">No image uploaded</span>
+                            </div>
+                            <div class="image-upload-controls">
+                                <label for="imageUpload">Mob Image:</label>
+                                <input type="file" id="imageUpload" accept="image/*">
+                                <input type="hidden" id="imagePath">
+                            </div>
+                        </div>
+
+                        <div class="form-full">
+                            <div class="form-group">
+                                <label for="description">Description:</label>
+                                <textarea id="description" required></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Chat Messages:</label>
+                                <div id="chatMessagesContainer" class="chat-messages-container">
+                                    <div class="chat-message-controls">
+                                        <input type="text" 
+                                               id="messageText" 
+                                               class="message-text" 
+                                               placeholder="Enter message text">
+                                        <button class="action-button" id="addMessageBtn">Add Message</button>
+                                    </div>
+                                    <div id="messagesList" class="messages-list">
+                                        <!-- Messages will be listed here -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Moves:</label>
+                                <div id="movesContainer" class="moves-container">
+                                    <div class="moves-controls">
+                                        <input type="text" 
+                                               id="moveName" 
+                                               class="move-input" 
+                                               placeholder="Move name">
+                                        <select id="moveType" class="move-input">
+                                            <option value="none">None</option>
+                                            <option value="attack">Attack</option>
+                                        </select>
+                                        <div>
+                                            <div class="percentage-label">Usage %</div>
+                                            <input type="number" 
+                                                   id="usageChance" 
+                                                   class="move-input" 
+                                                   placeholder="Usage %" 
+                                                   min="0" 
+                                                   max="100" 
+                                                   value="100">
+                                        </div>
+                                        <div>
+                                            <div class="percentage-label">Success %</div>
+                                            <input type="number" 
+                                                   id="successChance" 
+                                                   class="move-input" 
+                                                   placeholder="Success %" 
+                                                   min="0" 
+                                                   max="100" 
+                                                   value="50">
+                                        </div>
+                                        
+                                        <div class="move-outcome success-outcome">
+                                            <h4>On Success:</h4>
+                                            <textarea id="successMessage" 
+                                                      class="move-input message-textarea" 
+                                                      placeholder="Success message"></textarea>
+                                            <div class="outcome-controls">
+                                                <select id="successTarget" class="move-input">
+                                                    <option value="opponent">Opponent</option>
+                                                    <option value="self">Self</option>
+                                                </select>
+                                                <select id="successStat" class="move-input">
+                                                    <option value="hitpoints">Hitpoints</option>
+                                                    <option value="armor">Armor</option>
+                                                    <option value="body">Body</option>
+                                                    <option value="reflexes">Reflexes</option>
+                                                    <option value="agility">Agility</option>
+                                                    <option value="tech">Tech</option>
+                                                    <option value="luck">Luck</option>
+                                                </select>
+                                                <input type="number" 
+                                                       id="successAmount" 
+                                                       class="move-input" 
+                                                       placeholder="Amount" 
+                                                       value="0">
+                                            </div>
+                                        </div>
+
+                                        <div class="move-outcome failure-outcome">
+                                            <h4>On Failure:</h4>
+                                            <textarea id="failureMessage" 
+                                                      class="move-input message-textarea" 
+                                                      placeholder="Failure message"></textarea>
+                                            <div class="outcome-controls">
+                                                <select id="failureTarget" class="move-input">
+                                                    <option value="self">Self</option>
+                                                    <option value="opponent">Opponent</option>
+                                                </select>
+                                                <select id="failureStat" class="move-input">
+                                                    <option value="hitpoints">Hitpoints</option>
+                                                    <option value="armor">Armor</option>
+                                                    <option value="body">Body</option>
+                                                    <option value="reflexes">Reflexes</option>
+                                                    <option value="agility">Agility</option>
+                                                    <option value="tech">Tech</option>
+                                                    <option value="luck">Luck</option>
+                                                </select>
+                                                <input type="number" 
+                                                       id="failureAmount" 
+                                                       class="move-input" 
+                                                       placeholder="Amount" 
+                                                       value="0">
+                                            </div>
+                                        </div>
+
+                                        <button class="action-button" id="addMoveBtn">Add Move</button>
+                                        <div id="validationError" class="validation-error"></div>
+                                    </div>
+                                    <div id="movesList" class="moves-list">
+                                        <!-- Moves will be listed here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button class="action-button delete-button" id="deleteMobBtn">Delete Mob</button>
+                            <button class="action-button" id="saveMobBtn">Save Mob</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="filter-container">
+                    <input type="text" 
+                           id="mobFilter" 
+                           placeholder="Filter mobs..."
+                           class="chat-input">
+                </div>
+                <div class="actors-list" id="mobsListPanel">
+                    <!-- Mobs will be listed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Similar to actorbuilder.js but with modifications for mobs
+        const newMobBtn = document.getElementById('newMobBtn');
+        const saveMobBtn = document.getElementById('saveMobBtn');
+        const imageUpload = document.getElementById('imageUpload');
+        const imagePreview = document.getElementById('imagePreview');
+        const addMessageBtn = document.getElementById('addMessageBtn');
+        const mobFilter = document.getElementById('mobFilter');
+        let allMobs = [];
+
+        // Check authentication
+        window.onload = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                // First verify the token
+                const response = await fetch('/api/verify-token', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                // Then verify builder access
+                const builderResponse = await fetch('/api/mobs/builder', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!builderResponse.ok) {
+                    // If not a builder, redirect to game
+                    window.location.href = '/game.html';
+                    return;
+                }
+
+                // Load mobs only if builder access is verified
+                await loadMobs();
+            } catch (error) {
+                console.error('Authentication error:', error);
+                window.location.href = '/';
+            }
+        };
+
+        // Handle image upload
+        imageUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            const noImageText = document.getElementById('noImageText');
+            
+            if (file) {
+                // Preview image
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                    noImageText.style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+
+                // Upload image to server
+                const formData = new FormData();
+                formData.append('image', file);
+
+                try {
+                    const response = await fetch('/api/upload-mob-image', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Upload failed');
+                    }
+
+                    const data = await response.json();
+                    document.getElementById('imagePath').value = data.path;
+                } catch (error) {
+                    console.error('Error uploading image:', error);
+                    alert('Error uploading image');
+                    imagePreview.style.display = 'none';
+                    noImageText.style.display = 'block';
+                    document.getElementById('imagePath').value = '';
+                    imageUpload.value = '';
+                }
+            }
+        });
+
+        // Add chat message
+        addMessageBtn.addEventListener('click', () => {
+            const text = document.getElementById('messageText').value;
+
+            if (!text) {
+                alert('Please enter message text');
+                return;
+            }
+
+            const messageEntry = document.createElement('div');
+            messageEntry.className = 'chat-message-entry';
+            messageEntry.draggable = true;
+            messageEntry.innerHTML = `
+                <span class="message-handle">⋮⋮</span>
+                <div class="message-text">${text}</div>
+                <span class="remove-message">×</span>
+            `;
+
+            messageEntry.addEventListener('dragstart', handleDragStart);
+            messageEntry.addEventListener('dragend', handleDragEnd);
+            messageEntry.addEventListener('dragover', handleDragOver);
+            messageEntry.addEventListener('drop', handleDrop);
+
+            messageEntry.querySelector('.remove-message').addEventListener('click', () => {
+                messageEntry.remove();
+            });
+
+            document.getElementById('messagesList').appendChild(messageEntry);
+            document.getElementById('messageText').value = '';
+        });
+
+        // Drag and drop handlers
+        function handleDragStart(e) {
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', '');
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.chat-message-entry').forEach(entry => {
+                entry.classList.remove('drag-over');
+            });
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            const draggingItem = document.querySelector('.dragging');
+            if (draggingItem === this) return;
+
+            document.querySelectorAll('.chat-message-entry').forEach(entry => {
+                entry.classList.remove('drag-over');
+            });
+            this.classList.add('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const draggingItem = document.querySelector('.dragging');
+            if (draggingItem === this) return;
+
+            const messagesList = document.getElementById('messagesList');
+            const allItems = [...messagesList.querySelectorAll('.chat-message-entry')];
+            const draggedIndex = allItems.indexOf(draggingItem);
+            const droppedIndex = allItems.indexOf(this);
+
+            if (draggedIndex < droppedIndex) {
+                this.parentNode.insertBefore(draggingItem, this.nextSibling);
+            } else {
+                this.parentNode.insertBefore(draggingItem, this);
+            }
+        }
+
+        // Add move
+        const addMoveBtn = document.getElementById('addMoveBtn');
+        addMoveBtn.addEventListener('click', () => {
+            const name = document.getElementById('moveName').value;
+            const type = document.getElementById('moveType').value;
+            const usageChance = parseInt(document.getElementById('usageChance').value);
+            const successChance = parseInt(document.getElementById('successChance').value);
+            const successMessage = document.getElementById('successMessage').value;
+            const failureMessage = document.getElementById('failureMessage').value;
+            const validationError = document.getElementById('validationError');
+
+            if (!name || !successMessage || !failureMessage) {
+                validationError.textContent = 'Please fill in all move fields';
+                return;
+            }
+
+            // Calculate total usage percentage including new move
+            const currentTotal = Array.from(document.querySelectorAll('.move-entry'))
+                .reduce((sum, entry) => sum + parseInt(entry.querySelector('.move-usage').textContent), 0);
+            
+            if (currentTotal + usageChance > 100) {
+                validationError.textContent = `Total usage percentage cannot exceed 100%. Current total: ${currentTotal}%`;
+                return;
+            }
+
+            validationError.textContent = ''; // Clear any previous error
+
+            const moveEntry = document.createElement('div');
+            moveEntry.className = 'move-entry';
+            moveEntry.innerHTML = `
+                <span class="move-name">${name}</span>
+                <span class="move-type">${type}</span>
+                <span class="move-usage">${usageChance}%</span>
+                <span class="move-chance">${successChance}%</span>
+                <span class="remove-move">×</span>
+                <div class="move-messages">
+                    <div class="move-message success">
+                        <strong>Success:</strong> ${successMessage.replace(/\n/g, '<br>')}
+                        <div class="outcome-details">
+                            <span>Target:</span> <span>${document.getElementById('successTarget').value}</span>
+                            <span>Stat:</span> <span>${document.getElementById('successStat').value}</span>
+                            <span>Amount:</span> <span>${document.getElementById('successAmount').value}</span>
+                        </div>
+                    </div>
+                    <div class="move-message failure">
+                        <strong>Failure:</strong> ${failureMessage.replace(/\n/g, '<br>')}
+                        <div class="outcome-details">
+                            <span>Target:</span> <span>${document.getElementById('failureTarget').value}</span>
+                            <span>Stat:</span> <span>${document.getElementById('failureStat').value}</span>
+                            <span>Amount:</span> <span>${document.getElementById('failureAmount').value}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            moveEntry.querySelector('.remove-move').addEventListener('click', () => {
+                moveEntry.remove();
+                validateTotalUsage();
+            });
+
+            document.getElementById('movesList').appendChild(moveEntry);
+
+            // Clear inputs
+            document.getElementById('moveName').value = '';
+            document.getElementById('moveType').value = 'none';
+            document.getElementById('usageChance').value = '100';
+            document.getElementById('successChance').value = '50';
+            document.getElementById('successMessage').value = '';
+            document.getElementById('failureMessage').value = '';
+
+            validateTotalUsage();
+        });
+
+        // Update the validateTotalUsage function
+        function validateTotalUsage() {
+            const total = Array.from(document.querySelectorAll('.move-entry'))
+                .reduce((sum, entry) => {
+                    const usage = parseInt(entry.querySelector('.move-usage').textContent.replace('%', ''));
+                    return sum + (isNaN(usage) ? 0 : usage);
+                }, 0);
+            
+            const validationError = document.getElementById('validationError');
+            if (total > 100) {
+                validationError.textContent = `Warning: Total usage percentage (${total}%) exceeds 100%`;
+            } else if (total < 100) {
+                validationError.textContent = `Warning: Total usage percentage (${total}%) is less than 100%`;
+            } else {
+                validationError.textContent = '';
+            }
+            
+            return total === 100;
+        }
+
+        // Update the saveMob function to include usage chance
+        saveMobBtn.onclick = async () => {
+            if (!validateTotalUsage()) {
+                if (!confirm('Total move usage percentage is not 100%. Save anyway?')) {
+                    return;
+                }
+            }
+
+            const moves = Array.from(document.querySelectorAll('.move-entry')).map(entry => ({
+                name: entry.querySelector('.move-name').textContent,
+                type: entry.querySelector('.move-type').textContent,
+                usageChance: parseInt(entry.querySelector('.move-usage').textContent.replace('%', '')),
+                successChance: parseInt(entry.querySelector('.move-chance').textContent),
+                success: {
+                    message: entry.querySelector('.move-message.success').innerHTML
+                        .split('<div class="outcome-details">')[0]
+                        .replace('<strong>Success:</strong> ', '')
+                        .replace(/<br>/g, '\n')
+                        .trim(),
+                    target: entry.querySelector('.move-message.success .outcome-details span:nth-child(2)').textContent,
+                    stat: entry.querySelector('.move-message.success .outcome-details span:nth-child(4)').textContent,
+                    amount: parseInt(entry.querySelector('.move-message.success .outcome-details span:nth-child(6)').textContent)
+                },
+                failure: {
+                    message: entry.querySelector('.move-message.failure').innerHTML
+                        .split('<div class="outcome-details">')[0]
+                        .replace('<strong>Failure:</strong> ', '')
+                        .replace(/<br>/g, '\n')
+                        .trim(),
+                    target: entry.querySelector('.move-message.failure .outcome-details span:nth-child(2)').textContent,
+                    stat: entry.querySelector('.move-message.failure .outcome-details span:nth-child(4)').textContent,
+                    amount: parseInt(entry.querySelector('.move-message.failure .outcome-details span:nth-child(6)').textContent)
+                }
+            }));
+
+            const mobData = {
+                id: document.getElementById('mobForm').dataset.mobId || null,
+                name: document.getElementById('mobName').value,
+                intent: document.getElementById('mobIntent').value,
+                description: document.getElementById('description').value,
+                image: document.getElementById('imagePath').value,
+                hitpoints: parseInt(document.getElementById('hitpoints').value),
+                armor: parseInt(document.getElementById('armor').value),
+                body: parseInt(document.getElementById('body').value),
+                reflexes: parseInt(document.getElementById('reflexes').value),
+                agility: parseInt(document.getElementById('agility').value),
+                tech: parseInt(document.getElementById('tech').value),
+                luck: parseInt(document.getElementById('luck').value),
+                chatMessages: Array.from(document.querySelectorAll('.chat-message-entry')).map((entry, index) => ({
+                    order: index + 1,
+                    message: entry.querySelector('.message-text').textContent
+                })),
+                moves: moves
+            };
+
+            try {
+                const response = await fetch('/api/mobs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(mobData)
+                });
+
+                if (response.ok) {
+                    alert('Mob saved successfully!');
+                    loadMobs();
+                } else {
+                    throw new Error('Failed to save mob');
+                }
+            } catch (error) {
+                console.error('Error saving mob:', error);
+                alert('Error saving mob');
+            }
+        };
+
+        // Load existing mobs
+        async function loadMobs() {
+            try {
+                const response = await fetch('/api/mobs/builder', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                allMobs = await response.json();
+                filterAndDisplayMobs();
+            } catch (error) {
+                console.error('Error loading mobs:', error);
+            }
+        }
+
+        // Filter and display mobs
+        function filterAndDisplayMobs() {
+            const filterValue = mobFilter.value.toLowerCase();
+            const mobsListPanel = document.getElementById('mobsListPanel');
+            mobsListPanel.innerHTML = '';
+            
+            allMobs
+                .filter(mob => 
+                    mob.name.toLowerCase().includes(filterValue)
+                )
+                .forEach(mob => {
+                    const mobEntry = document.createElement('div');
+                    mobEntry.className = 'actor-entry';
+                    mobEntry.innerHTML = `
+                        <div class="actor-entry-name">
+                            ${mob.name}
+                            <span class="actor-entry-intent intent-${mob.intent}">${mob.intent}</span>
+                        </div>
+                    `;
+                    mobEntry.addEventListener('click', () => loadMobData(mob));
+                    mobsListPanel.appendChild(mobEntry);
+                });
+        }
+
+        // Add filter event listener
+        mobFilter.addEventListener('input', filterAndDisplayMobs);
+
+        // Load mob data
+        function loadMobData(mob) {
+            document.getElementById('mobForm').dataset.mobId = mob._id;
+            deleteMobBtn.classList.remove('hidden');
+            
+            document.getElementById('mobName').value = mob.name;
+            document.getElementById('mobIntent').value = mob.intent;
+            document.getElementById('description').value = mob.description;
+            document.getElementById('hitpoints').value = mob.hitpoints;
+            document.getElementById('armor').value = mob.armor;
+            document.getElementById('body').value = mob.body;
+            document.getElementById('reflexes').value = mob.reflexes;
+            document.getElementById('agility').value = mob.agility;
+            document.getElementById('tech').value = mob.tech;
+            document.getElementById('luck').value = mob.luck;
+            document.getElementById('imagePath').value = mob.image || '';
+            
+            const noImageText = document.getElementById('noImageText');
+            
+            if (mob.image) {
+                imagePreview.src = mob.image;
+                imagePreview.style.display = 'block';
+                noImageText.style.display = 'none';
+            } else {
+                imagePreview.style.display = 'none';
+                noImageText.style.display = 'block';
+            }
+
+            // Clear existing messages
+            const messagesList = document.getElementById('messagesList');
+            messagesList.innerHTML = '';
+
+            // Add existing messages if they exist
+            if (mob.chatMessages && Array.isArray(mob.chatMessages)) {
+                mob.chatMessages
+                    .sort((a, b) => a.order - b.order)
+                    .forEach(msg => {
+                        const messageEntry = document.createElement('div');
+                        messageEntry.className = 'chat-message-entry';
+                        messageEntry.draggable = true;
+                        messageEntry.innerHTML = `
+                            <span class="message-handle">⋮⋮</span>
+                            <div class="message-text">${msg.message}</div>
+                            <span class="remove-message">×</span>
+                        `;
+
+                        messageEntry.addEventListener('dragstart', handleDragStart);
+                        messageEntry.addEventListener('dragend', handleDragEnd);
+                        messageEntry.addEventListener('dragover', handleDragOver);
+                        messageEntry.addEventListener('drop', handleDrop);
+
+                        messageEntry.querySelector('.remove-message').addEventListener('click', () => {
+                            messageEntry.remove();
+                        });
+
+                        messagesList.appendChild(messageEntry);
+                    });
+            }
+
+            // Clear existing moves
+            const movesList = document.getElementById('movesList');
+            movesList.innerHTML = '';
+
+            // Add existing moves if they exist
+            if (mob.moves && Array.isArray(mob.moves)) {
+                mob.moves.forEach(move => {
+                    const moveEntry = document.createElement('div');
+                    moveEntry.className = 'move-entry';
+                    moveEntry.innerHTML = `
+                        <span class="move-name">${move.name}</span>
+                        <span class="move-type">${move.type}</span>
+                        <span class="move-usage">${move.usageChance}%</span>
+                        <span class="move-chance">${move.successChance}%</span>
+                        <span class="remove-move">×</span>
+                        <div class="move-messages">
+                            <div class="move-message success">
+                                <strong>Success:</strong> ${move.success.message.replace(/\n/g, '<br>')}
+                                <div class="outcome-details">
+                                    <span>Target:</span> <span>${move.success.target}</span>
+                                    <span>Stat:</span> <span>${move.success.stat}</span>
+                                    <span>Amount:</span> <span>${move.success.amount}</span>
+                                </div>
+                            </div>
+                            <div class="move-message failure">
+                                <strong>Failure:</strong> ${move.failure.message.replace(/\n/g, '<br>')}
+                                <div class="outcome-details">
+                                    <span>Target:</span> <span>${move.failure.target}</span>
+                                    <span>Stat:</span> <span>${move.failure.stat}</span>
+                                    <span>Amount:</span> <span>${move.failure.amount}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    moveEntry.querySelector('.remove-move').addEventListener('click', () => {
+                        moveEntry.remove();
+                        validateTotalUsage();
+                    });
+
+                    movesList.appendChild(moveEntry);
+                });
+                validateTotalUsage();
+            }
+        }
+
+        // Clear form for new mob
+        const oldNewMobBtn = newMobBtn.onclick;
+        newMobBtn.onclick = () => {
+            oldNewMobBtn();
+            document.getElementById('movesList').innerHTML = '';
+            document.getElementById('moveName').value = '';
+            document.getElementById('moveType').value = 'none';
+            document.getElementById('successChance').value = '50';
+            document.getElementById('successMessage').value = '';
+            document.getElementById('failureMessage').value = '';
+            document.getElementById('mobIntent').value = 'neutral';
+        };
+
+        // Delete mob
+        const deleteMobBtn = document.getElementById('deleteMobBtn');
+        deleteMobBtn.addEventListener('click', async () => {
+            const mobId = document.getElementById('mobForm').dataset.mobId;
+            if (!mobId) return;
+            
+            const mobName = document.getElementById('mobName').value;
+            const confirmDelete = confirm(`Are you sure you want to delete the mob "${mobName}"? This cannot be undone.`);
+            
+            if (confirmDelete) {
+                try {
+                    const response = await fetch(`/api/mobs/${mobId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        alert('Mob deleted successfully');
+                        newMobBtn.click();
+                        loadMobs();
+                    } else {
+                        throw new Error('Failed to delete mob');
+                    }
+                } catch (error) {
+                    console.error('Error deleting mob:', error);
+                    alert('Error deleting mob');
+                }
+            }
+        });
+    </script>
+</body>
+</html> 

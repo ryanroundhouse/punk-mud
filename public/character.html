@@ -388,6 +388,50 @@
             border-bottom: 1px solid var(--neon-blue);
             margin-bottom: 1rem;
         }
+
+        .stats-section {
+            grid-column: 1;
+            grid-row: 1;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem;
+            border-radius: 5px;
+            border: 1px solid var(--neon-blue);
+            margin-bottom: 1rem;
+        }
+
+        .stats-section h2 {
+            color: var(--neon-blue);
+            margin-top: 0;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            background: rgba(0, 255, 249, 0.1);
+            border-radius: 3px;
+        }
+
+        .stat-item label {
+            color: var(--neon-pink);
+            margin-bottom: 0;
+        }
+
+        .stat-item span {
+            color: var(--terminal-green);
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -397,6 +441,44 @@
             <div class="character-form">
                 <div class="character-header">
                     <span class="character-name" id="avatarName"></span>
+                </div>
+
+                <div class="stats-section">
+                    <h2>Character Stats</h2>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <label>Hit Points:</label>
+                            <span id="statHitPoints">100</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Armor:</label>
+                            <span id="statArmor">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Body:</label>
+                            <span id="statBody">1</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Reflexes:</label>
+                            <span id="statReflexes">1</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Agility:</label>
+                            <span id="statAgility">1</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Charisma:</label>
+                            <span id="statCharisma">1</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Tech:</label>
+                            <span id="statTech">1</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Luck:</label>
+                            <span id="statLuck">1</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -577,6 +659,18 @@
                 
                 const data = await response.json();
                 document.getElementById('description').value = data.description || '';
+                
+                // Update stats
+                if (data.stats) {
+                    document.getElementById('statHitPoints').textContent = data.stats.hitPoints;
+                    document.getElementById('statArmor').textContent = data.stats.armor;
+                    document.getElementById('statBody').textContent = data.stats.body;
+                    document.getElementById('statReflexes').textContent = data.stats.reflexes;
+                    document.getElementById('statAgility').textContent = data.stats.agility;
+                    document.getElementById('statCharisma').textContent = data.stats.charisma;
+                    document.getElementById('statTech').textContent = data.stats.tech;
+                    document.getElementById('statLuck').textContent = data.stats.luck;
+                }
                 
                 if (data.image) {
                     document.getElementById('imagePath').value = data.image;

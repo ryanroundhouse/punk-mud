@@ -54,7 +54,17 @@ const userSchema = new mongoose.Schema({
             default: false
         },
         completedAt: Date
-    }]
+    }],
+    stats: {
+        hitPoints: { type: Number, default: 100 },
+        armor: { type: Number, default: 0 },
+        body: { type: Number, default: 1 },
+        reflexes: { type: Number, default: 1 },
+        agility: { type: Number, default: 1 },
+        charisma: { type: Number, default: 1 },
+        tech: { type: Number, default: 1 },
+        luck: { type: Number, default: 1 }
+    }
 });
 
 module.exports = mongoose.model('User', userSchema); 

@@ -61,8 +61,31 @@
             border: 1px solid var(--terminal-green);
             height: calc(100% - 5rem);
             box-sizing: border-box;
-            position: relative;
             margin-top: 5rem;
+            overflow-y: auto;
+            display: grid;
+            grid-template-rows: auto auto;
+            gap: 1.5rem;
+        }
+
+        .grid-row1 {
+            display: grid;
+            grid-template-columns: 1fr 280px;
+            gap: 1.5rem;
+        }
+        .grid-row2 {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .grid-col1 {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .grid-col2 {
+            /* Optional styling can be added here */
         }
 
         #newNodeBtn {
@@ -73,20 +96,14 @@
         }
 
         #saveNodeBtn {
-            position: absolute;
-            bottom: 2rem;
-            right: 2rem;
+            margin-top: 2rem;
+            align-self: flex-end;
             z-index: 1;
-        }
-
-        .form-group:nth-child(-n+3) {
-            width: calc(100% - 350px);
         }
 
         .form-group {
             margin-bottom: 1.5rem;
             position: relative;
-            width: calc(100% - 350px);
         }
 
         label {
@@ -117,6 +134,8 @@
             display: flex;
             flex-wrap: wrap;
             gap: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
         }
 
         .exit-entry {
@@ -131,14 +150,12 @@
         }
 
         .image-upload-section {
-            position: absolute;
-            right: 2rem;
-            top: 2rem;
-            width: 300px;
+            position: static;
+            width: 100%;
         }
 
         .image-preview-container {
-            width: 300px;
+            width: 280px;
             height: 200px;
             border: 2px solid var(--neon-blue);
             border-radius: 5px;
@@ -167,8 +184,8 @@
         }
 
         #nodeList {
-            margin-top: 1rem;
-            max-height: 200px;
+            margin-top: 2rem;
+            max-height: 150px;
             overflow-y: auto;
         }
 
@@ -264,10 +281,6 @@
             margin-top: 0;
         }
 
-        .form-group:nth-child(3) {
-            width: calc(100% - 350px);
-        }
-
         .form-group:last-child {
             width: 100%;
             margin-top: 2rem;
@@ -304,6 +317,88 @@
             flex: 1;
             color: var(--terminal-green);
         }
+
+        .events-container {
+            width: 100%;
+            border: 1px solid var(--neon-blue);
+            padding: 1rem;
+            border-radius: 5px;
+            box-sizing: border-box;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .events-controls {
+            display: grid;
+            grid-template-columns: 2fr 2fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            width: 100%;
+        }
+
+        .event-input {
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+        }
+
+        .events-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .event-entry {
+            display: grid;
+            grid-template-columns: 2fr 2fr 1fr auto;
+            gap: 1rem;
+            align-items: center;
+            background: rgba(0, 255, 249, 0.05);
+            padding: 0.8rem;
+            border-radius: 5px;
+            border: 1px solid transparent;
+        }
+
+        .event-entry:hover {
+            border-color: var(--neon-blue);
+        }
+
+        .remove-event {
+            color: var(--neon-pink);
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        /* Add scrollbar styling for containers */
+        .node-form::-webkit-scrollbar,
+        .events-container::-webkit-scrollbar,
+        .exits-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .node-form::-webkit-scrollbar-track,
+        .events-container::-webkit-scrollbar-track,
+        .exits-container::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        .node-form::-webkit-scrollbar-thumb,
+        .events-container::-webkit-scrollbar-thumb,
+        .exits-container::-webkit-scrollbar-thumb {
+            background-color: var(--neon-blue);
+            border-radius: 4px;
+        }
+
+        .node-form,
+        .events-container,
+        .exits-container {
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-blue) var(--dark-bg);
+        }
     </style>
 </head>
 <body>
@@ -311,64 +406,97 @@
         <div class="layout-container">
             <div class="left-panel">
                 <button class="action-button" id="newNodeBtn">Add New Node</button>
-                <div class="node-form">
-                    <div class="form-group">
-                        <label for="nodeName">Node Name:</label>
-                        <input type="text" id="nodeName" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="address">IP Address:</label>
-                        <input type="text" 
-                               id="nodeAddress" 
-                               pattern="^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
-                               placeholder="xxx.xxx.xxx.xxx"
-                               title="Please enter a valid IP address"
-                               required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="description">Description:</label>
-                        <textarea id="description" required></textarea>
-                    </div>
-
-                    <div class="image-upload-section">
-                        <div class="image-preview-container">
-                            <img id="imagePreview" class="image-preview">
-                            <span class="no-image-text" id="noImageText">No image uploaded</span>
+                <div class="node-form" id="nodeForm">
+                    <div class="grid-row1">
+                        <div class="grid-col1">
+                            <div class="form-group">
+                                <label for="nodeName">Node Name:</label>
+                                <input type="text" id="nodeName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="address">IP Address:</label>
+                                <input type="text" 
+                                       id="nodeAddress" 
+                                       pattern="^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+                                       placeholder="xxx.xxx.xxx.xxx"
+                                       title="Please enter a valid IP address"
+                                       required>
+                            </div>
                         </div>
-                        <div class="image-upload-controls">
-                            <label for="imageUpload">Zone Image:</label>
-                            <input type="file" id="imageUpload" accept="image/*">
-                            <input type="hidden" id="imagePath">
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Exits:</label>
-                        <div id="exitsContainer" class="exits-container">
-                            <div class="exit-controls">
-                                <select id="exitDirection">
-                                    <option value="north">North</option>
-                                    <option value="south">South</option>
-                                    <option value="east">East</option>
-                                    <option value="west">West</option>
-                                    <option value="up">Up</option>
-                                    <option value="down">Down</option>
-                                </select>
-                                <select id="exitTarget">
-                                    <!-- Will be populated with nodes -->
-                                </select>
-                                <button class="action-button" id="addExitBtn">Add Exit</button>
+                        <div class="grid-col2">
+                            <div class="image-upload-section">
+                                <div class="image-preview-container">
+                                    <img id="imagePreview" class="image-preview">
+                                    <span class="no-image-text" id="noImageText">No image uploaded</span>
+                                </div>
+                                <div class="image-upload-controls">
+                                    <label for="imageUpload">Zone Image:</label>
+                                    <input type="file" id="imageUpload" accept="image/*">
+                                    <input type="hidden" id="imagePath">
+                                </div>
                             </div>
                         </div>
                     </div>
-
-                    <div id="nodeList">
-                        <!-- Existing nodes will be listed here -->
+                    <div class="grid-row2">
+                        <div class="form-group">
+                            <label for="description">Description:</label>
+                            <textarea id="description" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Exits:</label>
+                            <div id="exitsContainer" class="exits-container">
+                                <div class="exit-controls">
+                                    <select id="exitDirection">
+                                        <option value="north">North</option>
+                                        <option value="south">South</option>
+                                        <option value="east">East</option>
+                                        <option value="west">West</option>
+                                        <option value="up">Up</option>
+                                        <option value="down">Down</option>
+                                    </select>
+                                    <select id="exitTarget">
+                                        <!-- Will be populated with nodes -->
+                                    </select>
+                                    <button class="action-button" id="addExitBtn">Add Exit</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Events:</label>
+                            <div id="eventsContainer" class="events-container">
+                                <div class="events-controls">
+                                    <input type="text" 
+                                           id="eventName" 
+                                           class="event-input" 
+                                           placeholder="Event name">
+                                    <select id="eventMob" class="event-input">
+                                        <option value="">Select Enemy</option>
+                                        <!-- Will be populated with mobs -->
+                                    </select>
+                                    <div>
+                                        <div class="percentage-label">Chance %</div>
+                                        <input type="number" 
+                                               id="eventChance" 
+                                               class="event-input" 
+                                               placeholder="Chance %" 
+                                               min="0" 
+                                               max="100" 
+                                               value="100">
+                                    </div>
+                                    <button class="action-button" id="addEventBtn">Add Event</button>
+                                    <div id="eventValidationError" class="validation-error"></div>
+                                </div>
+                                <div id="eventsList" class="events-list">
+                                    <!-- Events will be listed here -->
+                                </div>
+                            </div>
+                        </div>
+                        <div id="nodeList">
+                            <!-- Existing nodes will be listed here -->
+                        </div>
+                        <button class="action-button" id="saveNodeBtn">Save Node</button>
                     </div>
                 </div>
-                <button class="action-button" id="saveNodeBtn">Save Node</button>
             </div>
 
             <div class="right-panel">
@@ -396,6 +524,9 @@
         const nodeFilter = document.getElementById('nodeFilter');
         let allNodes = []; // Store all nodes for filtering
         
+        const addEventBtn = document.getElementById('addEventBtn');
+        let allMobs = []; // Store all mobs for the dropdown
+        
         // Check authentication
         window.onload = async () => {
             const token = localStorage.getItem('token');
@@ -418,6 +549,28 @@
 
                 // Load existing nodes
                 loadNodes();
+
+                // Load mobs for the events dropdown
+                try {
+                    const mobsResponse = await fetch('/api/mobs/builder', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    allMobs = await mobsResponse.json();
+                    
+                    // Populate mobs dropdown
+                    const eventMob = document.getElementById('eventMob');
+                    eventMob.innerHTML = '<option value="">Select Enemy</option>';
+                    allMobs.forEach(mob => {
+                        const option = document.createElement('option');
+                        option.value = mob.id;
+                        option.textContent = mob.name;
+                        eventMob.appendChild(option);
+                    });
+                } catch (error) {
+                    console.error('Error loading mobs:', error);
+                }
             } catch (error) {
                 console.error('Authentication error:', error);
                 window.location.href = '/';
@@ -490,19 +643,103 @@
             exitsContainer.insertBefore(exitEntry, document.querySelector('.exit-controls'));
         });
 
+        // Add event handler
+        addEventBtn.addEventListener('click', () => {
+            const name = document.getElementById('eventName').value;
+            const mobSelect = document.getElementById('eventMob');
+            const mobId = mobSelect.value;
+            const mobName = mobSelect.options[mobSelect.selectedIndex].text;
+            const chance = parseInt(document.getElementById('eventChance').value);
+            const validationError = document.getElementById('eventValidationError');
+
+            if (!name || !mobId || isNaN(chance)) {
+                validationError.textContent = 'Please fill in all event fields';
+                return;
+            }
+
+            // Calculate total chance percentage
+            const currentTotal = Array.from(document.querySelectorAll('.event-entry'))
+                .reduce((sum, entry) => sum + parseInt(entry.querySelector('.event-chance').textContent), 0);
+            
+            if (currentTotal + chance > 100) {
+                validationError.textContent = `Total chance percentage cannot exceed 100%. Current total: ${currentTotal}%`;
+                return;
+            }
+
+            validationError.textContent = ''; // Clear any previous error
+
+            const eventEntry = document.createElement('div');
+            eventEntry.className = 'event-entry';
+            eventEntry.innerHTML = `
+                <span class="event-name">${name}</span>
+                <span class="event-mob" data-mob-id="${mobId}">${mobName}</span>
+                <span class="event-chance">${chance}%</span>
+                <span class="remove-event">×</span>
+            `;
+
+            eventEntry.querySelector('.remove-event').addEventListener('click', () => {
+                eventEntry.remove();
+                validateTotalChance();
+            });
+
+            document.getElementById('eventsList').appendChild(eventEntry);
+
+            // Clear inputs
+            document.getElementById('eventName').value = '';
+            document.getElementById('eventMob').value = '';
+            document.getElementById('eventChance').value = '100';
+
+            validateTotalChance();
+        });
+
+        // Add validation function
+        function validateTotalChance() {
+            const total = Array.from(document.querySelectorAll('.event-entry'))
+                .reduce((sum, entry) => {
+                    const chance = parseInt(entry.querySelector('.event-chance').textContent);
+                    return sum + (isNaN(chance) ? 0 : chance);
+                }, 0);
+            
+            const validationError = document.getElementById('eventValidationError');
+            if (total > 100) {
+                validationError.textContent = `Warning: Total chance percentage (${total}%) exceeds 100%`;
+            } else if (total < 100) {
+                validationError.textContent = `Warning: Total chance percentage (${total}%) is less than 100%`;
+            } else {
+                validationError.textContent = '';
+            }
+            
+            return total === 100;
+        }
+
         // Save node
         saveNodeBtn.addEventListener('click', async () => {
-            const exits = Array.from(document.querySelectorAll('.exit-entry')).map(exit => ({
-                direction: exit.querySelector('.exit-direction').value,
-                target: exit.querySelector('.exit-target').value
+            if (!validateTotalChance()) {
+                if (!confirm('Total event chance percentage is not 100%. Save anyway?')) {
+                    return;
+                }
+            }
+
+            // Get node ID if we're editing an existing node
+            const nodeId = document.getElementById('nodeForm').dataset.nodeId;
+
+            const events = Array.from(document.querySelectorAll('.event-entry')).map(entry => ({
+                name: entry.querySelector('.event-name').textContent,
+                mobId: entry.querySelector('.event-mob').dataset.mobId,
+                chance: parseInt(entry.querySelector('.event-chance').textContent)
             }));
 
             const nodeData = {
+                id: nodeId,
                 name: document.getElementById('nodeName').value,
                 address: document.getElementById('nodeAddress').value,
                 description: document.getElementById('description').value,
                 image: document.getElementById('imagePath').value,
-                exits: exits
+                exits: Array.from(document.querySelectorAll('.exit-entry')).map(exit => ({
+                    direction: exit.querySelector('.exit-direction').value,
+                    target: exit.querySelector('.exit-target').value
+                })),
+                events: events
             };
 
             try {
@@ -580,6 +817,9 @@
 
         // Update the existing loadNodeData function to highlight selected node
         function loadNodeData(node) {
+            // Store node ID for editing
+            document.getElementById('nodeForm').dataset.nodeId = node._id;
+            
             document.getElementById('nodeName').value = node.name;
             document.getElementById('nodeAddress').value = node.address;
             document.getElementById('description').value = node.description;
@@ -623,6 +863,34 @@
                 exitsContainer.insertBefore(exitEntry, document.querySelector('.exit-controls'));
             });
 
+            // Clear existing events
+            const eventsList = document.getElementById('eventsList');
+            eventsList.innerHTML = '';
+
+            // Add existing events
+            if (node.events && Array.isArray(node.events)) {
+                node.events.forEach(event => {
+                    const mobName = allMobs.find(m => m.id === event.mobId)?.name || event.mobId;
+                    
+                    const eventEntry = document.createElement('div');
+                    eventEntry.className = 'event-entry';
+                    eventEntry.innerHTML = `
+                        <span class="event-name">${event.name}</span>
+                        <span class="event-mob" data-mob-id="${event.mobId}">${mobName}</span>
+                        <span class="event-chance">${event.chance}%</span>
+                        <span class="remove-event">×</span>
+                    `;
+
+                    eventEntry.querySelector('.remove-event').addEventListener('click', () => {
+                        eventEntry.remove();
+                        validateTotalChance();
+                    });
+
+                    eventsList.appendChild(eventEntry);
+                });
+                validateTotalChance();
+            }
+
             // Highlight selected node
             document.querySelectorAll('.node-entry').forEach(entry => {
                 entry.style.backgroundColor = '';
@@ -634,6 +902,8 @@
 
         // Clear form for new node
         newNodeBtn.addEventListener('click', () => {
+            // Update newNodeBtn click handler to clear node ID
+            document.getElementById('nodeForm').dataset.nodeId = '';
             document.getElementById('nodeName').value = '';
             document.getElementById('nodeAddress').value = '';
             document.getElementById('description').value = '';
@@ -644,6 +914,11 @@
             
             const exitEntries = document.querySelectorAll('.exit-entry');
             exitEntries.forEach(entry => entry.remove());
+            document.getElementById('eventsList').innerHTML = '';
+            document.getElementById('eventName').value = '';
+            document.getElementById('eventMob').value = '';
+            document.getElementById('eventChance').value = '100';
+            document.getElementById('eventValidationError').textContent = '';
         });
     </script>
 </body>

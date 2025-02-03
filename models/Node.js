@@ -41,6 +41,22 @@ const nodeSchema = new mongoose.Schema({
             }
         }
     }],
+    events: [{
+        name: {
+            type: String,
+            required: true
+        },
+        mobId: {
+            type: String,
+            required: true
+        },
+        chance: {
+            type: Number,
+            required: true,
+            min: 0,
+            max: 100
+        }
+    }],
     createdAt: {
         type: Date,
         default: Date.now

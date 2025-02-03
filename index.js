@@ -15,6 +15,7 @@ const { sendAuthCode } = require('./services/emailService');
 const Node = require('./models/Node');
 const Actor = require('./models/Actor');
 const Quest = require('./models/Quest');
+const Mob = require('./models/Mob');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -851,33 +852,51 @@ const verifyBuilderAccess = async (req, res, next) => {
 };
 
 // Node endpoints
+app.get('/api/nodes', verifyBuilderAccess, async (req, res) => {
+    try {
+        const nodes = await Node.find().sort({ name: 1 });
+        res.json(nodes);
+    } catch (error) {
+        logger.error('Error fetching nodes:', error);
+        res.status(500).json({ error: 'Error fetching nodes' });
+    }
+});
+
 app.post('/api/nodes', verifyBuilderAccess, asyncHandler(async (req, res) => {
-    const { name, address, description, image, exits } = req.body;
+    const { id, name, address, description, image, exits, events } = req.body;
     
+    // Validate basic fields
     if (!name || !address || !description) {
-        throw new Error('Missing required fields');
+        return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Check if node with address already exists
-    const existingNode = await Node.findOne({ address });
-    if (existingNode) {
+    // If id is provided, update existing node
+    if (id) {
+        const existingNode = await Node.findById(id);
+        if (!existingNode) {
+            return res.status(404).json({ error: 'Node not found' });
+        }
+
         logger.info('Updating existing node', {
-            address,
+            id,
+            name,
             userId: req.user._id
         });
 
         // Update existing node
         existingNode.name = name;
+        existingNode.address = address;
         existingNode.description = description;
         existingNode.image = image;
         existingNode.exits = exits;
+        existingNode.events = events;
         existingNode.updatedAt = Date.now();
         
         await existingNode.save();
         
         logger.info('Node updated successfully', {
             nodeId: existingNode._id,
-            address
+            name
         });
         
         return res.json(existingNode);
@@ -889,14 +908,15 @@ app.post('/api/nodes', verifyBuilderAccess, asyncHandler(async (req, res) => {
         address,
         description,
         image,
-        exits
+        exits,
+        events
     });
     
     await node.save();
     
     logger.info('New node created', {
         nodeId: node._id,
-        address,
+        name,
         userId: req.user._id
     });
     
@@ -904,9 +924,9 @@ app.post('/api/nodes', verifyBuilderAccess, asyncHandler(async (req, res) => {
 }));
 
 // Add a new endpoint for getting public node information
-app.get('/api/nodes/public', authenticateToken, async (req, res) => {
+app.get('/api/nodes/public', verifyBuilderAccess, async (req, res) => {
     try {
-        const nodes = await Node.find({}, 'address name'); // Only return address and name fields
+        const nodes = await Node.find({}, 'address name');
         res.json(nodes);
     } catch (error) {
         logger.error('Error fetching public nodes:', error);
@@ -1029,7 +1049,7 @@ app.get('/api/check-image/:filename', (req, res) => {
 });
 
 // Update the node endpoint to check and update player location
-app.get('/api/nodes/:address', authenticateToken, async (req, res) => {
+app.get('/api/nodes/:address', verifyBuilderAccess, async (req, res) => {
     try {
         const user = await User.findById(req.user.userId);
         if (!user) {
@@ -1122,7 +1142,7 @@ app.get('/api/nodes/:address', authenticateToken, async (req, res) => {
 });
 
 // Add endpoint to get user's current location
-app.get('/api/user/location', authenticateToken, async (req, res) => {
+app.get('/api/user/location', verifyBuilderAccess, async (req, res) => {
     try {
         const user = await User.findById(req.user.userId);
         if (!user) {
@@ -1208,8 +1228,8 @@ async function updateNodeUsernames(nodeAddress) {
     }
 }
 
-// Get character data
-app.get('/api/user/character', authenticateToken, async (req, res) => {
+// Update the character data endpoint
+app.get('/api/user/character', verifyBuilderAccess, async (req, res) => {
     try {
         const user = await User.findById(req.user.userId);
         if (!user) {
@@ -1218,7 +1238,29 @@ app.get('/api/user/character', authenticateToken, async (req, res) => {
         res.json({
             avatarName: user.avatarName,
             description: user.description,
-            image: user.image
+            image: user.image,
+            stats: user.stats
+        });
+    } catch (error) {
+        logger.error('Error fetching character data:', error);
+        res.status(500).json({ error: 'Error fetching character data' });
+    }
+});
+
+// Update the character endpoint for viewing other characters
+app.get('/api/user/character/:username', verifyBuilderAccess, async (req, res) => {
+    try {
+        const character = await User.findOne({ avatarName: req.params.username });
+        
+        if (!character) {
+            return res.status(404).json({ error: 'Character not found' });
+        }
+        
+        res.json({
+            avatarName: character.avatarName,
+            description: character.description,
+            image: character.image,
+            stats: character.stats
         });
     } catch (error) {
         logger.error('Error fetching character data:', error);
@@ -1227,7 +1269,7 @@ app.get('/api/user/character', authenticateToken, async (req, res) => {
 });
 
 // Update character data
-app.post('/api/user/character', authenticateToken, async (req, res) => {
+app.post('/api/user/character', verifyBuilderAccess, async (req, res) => {
     try {
         const { description, image } = req.body;
         
@@ -1256,7 +1298,7 @@ app.post('/api/user/character', authenticateToken, async (req, res) => {
 });
 
 // Add character image upload endpoint
-app.post('/api/upload-character-image', authenticateToken, asyncHandler(async (req, res) => {
+app.post('/api/upload-character-image', verifyBuilderAccess, asyncHandler(async (req, res) => {
     const uploadDir = path.join(__dirname, 'public/assets/characters');
     await fs.mkdir(uploadDir, { recursive: true });
 
@@ -1310,28 +1352,6 @@ app.post('/api/upload-character-image', authenticateToken, asyncHandler(async (r
     });
 }));
 
-// Add this endpoint after the other character-related endpoints
-app.get('/api/user/character/:username', authenticateToken, async (req, res) => {
-    try {
-        // Find user by avatar name
-        const character = await User.findOne({ avatarName: req.params.username });
-        
-        if (!character) {
-            return res.status(404).json({ error: 'Character not found' });
-        }
-        
-        // Only return public information
-        res.json({
-            avatarName: character.avatarName,
-            description: character.description,
-            image: character.image
-        });
-    } catch (error) {
-        logger.error('Error fetching character data:', error);
-        res.status(500).json({ error: 'Error fetching character data' });
-    }
-});
-
 // Get all actors (builder version with full details)
 app.get('/api/actors/builder', verifyBuilderAccess, async (req, res) => {
     try {
@@ -1344,7 +1364,7 @@ app.get('/api/actors/builder', verifyBuilderAccess, async (req, res) => {
 });
 
 // Get public actor info (for quest builder and game)
-app.get('/api/actors', authenticateToken, async (req, res) => {
+app.get('/api/actors', verifyBuilderAccess, async (req, res) => {
     try {
         const actors = await Actor.find({}, 'id name').sort({ name: 1 });
         res.json(actors);
@@ -1756,4 +1776,205 @@ function getOppositeDirection(direction) {
         'down': 'up'
     };
     return opposites[direction] || direction;
-} 
+}
+
+// Get all mobs (builder version with full details)
+app.get('/api/mobs/builder', verifyBuilderAccess, async (req, res) => {
+    try {
+        const mobs = await Mob.find().sort({ name: 1 });
+        res.json(mobs);
+    } catch (error) {
+        logger.error('Error fetching mobs:', error);
+        res.status(500).json({ error: 'Error fetching mobs' });
+    }
+});
+
+// Get public mob info
+app.get('/api/mobs', verifyBuilderAccess, async (req, res) => {
+    try {
+        const mobs = await Mob.find({}, 'id name').sort({ name: 1 });
+        res.json(mobs);
+    } catch (error) {
+        logger.error('Error fetching mobs:', error);
+        res.status(500).json({ error: 'Error fetching mobs' });
+    }
+});
+
+// Create or update mob
+app.post('/api/mobs', verifyBuilderAccess, asyncHandler(async (req, res) => {
+    const { 
+        id, name, description, image, hitpoints, armor, 
+        body, reflexes, agility, tech, luck, chatMessages, moves
+    } = req.body;
+    
+    if (!name || !description) {
+        throw new Error('Missing required fields: name and description are required');
+    }
+
+    // If id is provided, update existing mob
+    if (id) {
+        const existingMob = await Mob.findById(id);
+        if (!existingMob) {
+            return res.status(404).json({ error: 'Mob not found' });
+        }
+
+        logger.info('Updating existing mob', {
+            id,
+            name,
+            userId: req.user._id
+        });
+
+        // Update existing mob
+        existingMob.name = name;
+        existingMob.description = description;
+        existingMob.image = image;
+        existingMob.hitpoints = hitpoints;
+        existingMob.armor = armor;
+        existingMob.body = body;
+        existingMob.reflexes = reflexes;
+        existingMob.agility = agility;
+        existingMob.tech = tech;
+        existingMob.luck = luck;
+        existingMob.chatMessages = chatMessages;
+        existingMob.moves = moves;
+        existingMob.updatedAt = Date.now();
+        
+        await existingMob.save();
+        
+        logger.info('Mob updated successfully', {
+            mobId: existingMob._id,
+            name
+        });
+        
+        return res.json(existingMob);
+    }
+
+    // Create new mob
+    const mob = new Mob({
+        name,
+        description,
+        image,
+        hitpoints,
+        armor,
+        body,
+        reflexes,
+        agility,
+        tech,
+        luck,
+        chatMessages,
+        moves
+    });
+    
+    await mob.save();
+    
+    logger.info('New mob created', {
+        mobId: mob._id,
+        name,
+        userId: req.user._id
+    });
+    
+    res.status(201).json(mob);
+}));
+
+// Delete mob
+app.delete('/api/mobs/:id', verifyBuilderAccess, async (req, res) => {
+    try {
+        const mob = await Mob.findByIdAndDelete(req.params.id);
+        if (!mob) {
+            return res.status(404).json({ error: 'Mob not found' });
+        }
+        
+        // If mob had an image, delete it
+        if (mob.image) {
+            const imagePath = path.join(__dirname, 'public', mob.image);
+            await fs.unlink(imagePath).catch(err => 
+                logger.error('Error deleting mob image:', err)
+            );
+        }
+        
+        logger.info('Mob deleted successfully', {
+            mobId: mob._id,
+            name: mob.name,
+            userId: req.user._id
+        });
+        
+        res.json({ message: 'Mob deleted successfully' });
+    } catch (error) {
+        logger.error('Error deleting mob:', error);
+        res.status(500).json({ error: 'Error deleting mob' });
+    }
+});
+
+// Add mob image upload endpoint
+app.post('/api/upload-mob-image', verifyBuilderAccess, asyncHandler(async (req, res) => {
+    const uploadDir = path.join(__dirname, 'public/assets/mobs');
+    await fs.mkdir(uploadDir, { recursive: true });
+
+    const mobUpload = multer({
+        storage: multer.diskStorage({
+            destination: uploadDir,
+            filename: function (req, file, cb) {
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+                const ext = path.extname(file.originalname);
+                cb(null, 'mob-' + uniqueSuffix + ext);
+            }
+        }),
+        limits: {
+            fileSize: 5 * 1024 * 1024 // 5MB limit
+        },
+        fileFilter: (req, file, cb) => {
+            const allowedTypes = /jpeg|jpg|png|gif/;
+            const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+            const mimetype = allowedTypes.test(file.mimetype);
+            
+            if (extname && mimetype) {
+                return cb(null, true);
+            }
+            cb(new Error('Only image files are allowed!'));
+        }
+    }).single('image');
+
+    mobUpload(req, res, async (err) => {
+        if (err) {
+            logger.error('Mob image upload error:', err);
+            if (err instanceof multer.MulterError) {
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(400).json({
+                        error: 'File too large',
+                        details: 'Maximum file size is 5MB'
+                    });
+                }
+            }
+            return res.status(500).json({
+                error: 'Upload failed',
+                details: err.message
+            });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({
+                error: 'No file',
+                details: 'No image file provided'
+            });
+        }
+
+        try {
+            const relativePath = '/assets/mobs/' + req.file.filename;
+            
+            // Verify file exists after upload
+            const fullPath = path.join(__dirname, 'public', relativePath);
+            await fs.access(fullPath);
+            
+            logger.info('Mob image upload successful', {
+                relativePath,
+                fullPath,
+                exists: true
+            });
+            
+            res.json({ path: relativePath });
+        } catch (error) {
+            logger.error('Error verifying uploaded mob image:', error);
+            throw error;
+        }
+    });
+})); 
