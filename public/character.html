@@ -41,12 +41,13 @@
         .main-panel {
             flex: 2;
             background: rgba(10, 10, 15, 0.95);
-            padding: 2rem;
+            padding: 1rem;
             border-radius: 10px;
             box-shadow: 0 0 20px var(--neon-pink),
                        0 0 40px rgba(255, 46, 136, 0.3);
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
 
         .chat-panel {
@@ -66,10 +67,21 @@
             display: grid;
             grid-template-columns: 1fr 300px;
             grid-template-rows: auto 1fr auto;
-            gap: 2rem;
+            gap: 1rem;
             padding: 0;
             background: transparent;
             border: none;
+            max-height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .left-column {
+            grid-column: 1;
+            grid-row: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
         }
 
         .character-header {
@@ -77,12 +89,11 @@
             background: rgba(0, 0, 0, 0.3);
             display: flex;
             align-items: center;
-            grid-column: 1 / -1;  /* span both columns */
             border-radius: 5px;
         }
 
         .form-group {
-            grid-column: 1;
+            grid-column: 1 / -1;
             grid-row: 2;
             width: 100%;
             display: flex;
@@ -92,7 +103,7 @@
 
         .image-upload-section {
             grid-column: 2;
-            grid-row: 2;
+            grid-row: 1;
             width: 100%;
             display: flex;
             flex-direction: column;
@@ -114,7 +125,8 @@
 
         input[type="text"],
         textarea {
-            width: 90%;
+            width: 100%;
+            box-sizing: border-box;
             background: rgba(0, 255, 249, 0.1);
             border: 1px solid var(--neon-blue);
             padding: 0.8rem;
@@ -126,7 +138,8 @@
 
         textarea {
             flex: 1;
-            min-height: 200px;
+            min-height: 100px;
+            max-height: 300px;
             resize: vertical;
             width: 100%;
             box-sizing: border-box;
@@ -390,13 +403,10 @@
         }
 
         .stats-section {
-            grid-column: 1;
-            grid-row: 1;
             background: rgba(0, 0, 0, 0.3);
             padding: 1rem;
             border-radius: 5px;
             border: 1px solid var(--neon-blue);
-            margin-bottom: 1rem;
         }
 
         .stats-section h2 {
@@ -439,44 +449,46 @@
     <div class="game-container">
         <div class="main-panel">
             <div class="character-form">
-                <div class="character-header">
-                    <span class="character-name" id="avatarName"></span>
-                </div>
+                <div class="left-column">
+                    <div class="character-header">
+                        <span class="character-name" id="avatarName"></span>
+                    </div>
 
-                <div class="stats-section">
-                    <h2>Character Stats</h2>
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <label>Hit Points:</label>
-                            <span id="statHitPoints">100</span>
-                        </div>
-                        <div class="stat-item">
-                            <label>Armor:</label>
-                            <span id="statArmor">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <label>Body:</label>
-                            <span id="statBody">1</span>
-                        </div>
-                        <div class="stat-item">
-                            <label>Reflexes:</label>
-                            <span id="statReflexes">1</span>
-                        </div>
-                        <div class="stat-item">
-                            <label>Agility:</label>
-                            <span id="statAgility">1</span>
-                        </div>
-                        <div class="stat-item">
-                            <label>Charisma:</label>
-                            <span id="statCharisma">1</span>
-                        </div>
-                        <div class="stat-item">
-                            <label>Tech:</label>
-                            <span id="statTech">1</span>
-                        </div>
-                        <div class="stat-item">
-                            <label>Luck:</label>
-                            <span id="statLuck">1</span>
+                    <div class="stats-section">
+                        <h2>Character Stats</h2>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <label>Hit Points:</label>
+                                <span id="statHitPoints">100</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>Armor:</label>
+                                <span id="statArmor">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>Body:</label>
+                                <span id="statBody">1</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>Reflexes:</label>
+                                <span id="statReflexes">1</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>Agility:</label>
+                                <span id="statAgility">1</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>Charisma:</label>
+                                <span id="statCharisma">1</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>Tech:</label>
+                                <span id="statTech">1</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>Luck:</label>
+                                <span id="statLuck">1</span>
+                            </div>
                         </div>
                     </div>
                 </div>
