@@ -83,6 +83,7 @@ async function handleListCommand(socket, user, target) {
     const nodeUsers = stateService.nodeUsernames.get(user.currentNode) || [];
     const actors = await Actor.find({ location: user.currentNode });
     const actorNames = actors.map(actor => actor.name);
+    const mobInstance = stateService.playerMobs.get(user._id.toString());
 
     if (target) {
         // Check players first
@@ -116,13 +117,25 @@ async function handleListCommand(socket, user, target) {
             return;
         }
 
+        // Finally check mobs
+        if (mobInstance && mobInstance.name.toLowerCase() === target.toLowerCase()) {
+            socket.emit('console response', {
+                type: 'list',
+                redirect: true,
+                target: mobInstance.name,
+                isActor: true,
+                description: mobInstance.description,
+                image: mobInstance.image
+            });
+            return;
+        }
+
         socket.emit('console response', {
             type: 'error',
             message: `Character "${target}" not found in this location.`
         });
     } else {
         let mobNames = [];
-        const mobInstance = stateService.playerMobs.get(user._id.toString());
         if (mobInstance) {
             mobNames.push(mobInstance.name);
         }
