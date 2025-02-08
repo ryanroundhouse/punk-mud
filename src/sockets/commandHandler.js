@@ -162,22 +162,10 @@ async function handleChatCommand(socket, user, target) {
         location: user.currentNode 
     });
 
-    logger.error('QUEST DEBUG - Found actor:', actor ? {
-        id: actor.id,
-        name: actor.name,
-        location: actor.location
-    } : 'No actor found');
-
     if (actor) {
-        logger.error('QUEST DEBUG - Attempting quest progression with actor:', {
-            customId: actor.id,
-            mongoId: actor._id.toString()
-        });
         const questResponse = await handleQuestProgression(socket.user.userId, actor.id);
-        logger.error('QUEST DEBUG - Quest progression response:', questResponse);
 
         if (questResponse) {
-            logger.error('QUEST DEBUG - Sending quest response to client');
             socket.emit('console response', { 
                 message: questResponse.message 
             });
@@ -192,7 +180,6 @@ async function handleChatCommand(socket, user, target) {
         }
 
         // Regular actor chat
-        logger.error('QUEST DEBUG - No quest response, proceeding with regular chat');
         const stateKey = `${socket.user.userId}-${actor.id}`;
         let currentIndex = stateService.actorChatStates.get(stateKey) || 0;
         const sortedMessages = [...actor.chatMessages].sort((a, b) => a.order - b.order);

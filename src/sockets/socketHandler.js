@@ -6,6 +6,7 @@ const socketService = require('../services/socketService');
 const { handleCommand } = require('./commandHandler');
 const { handleChat } = require('./chatHandler');
 const User = require('../models/User');
+const { handlePlayerNodeConnection } = require('../services/nodeService');
 
 function socketHandler(io) {
     // Add socket.io authentication
@@ -37,6 +38,9 @@ function socketHandler(io) {
                 stateService.addUserToNode(socket.user.userId, user.currentNode);
                 // Subscribe to node's chat channel
                 await socketService.subscribeToNodeChat(user.currentNode);
+                
+                // Check for mob spawn on connection
+                await handlePlayerNodeConnection(socket.user.userId, user.currentNode);
             }
         } catch (err) {
             logger.error('Error fetching user location:', err);

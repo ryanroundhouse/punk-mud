@@ -113,7 +113,38 @@ async function checkForMobSpawn(userId, node) {
     return mobInstance;
 }
 
+// Add new function to handle player connection to node
+async function handlePlayerNodeConnection(userId, nodeAddress) {
+    const user = await User.findById(userId);
+    if (!user) {
+        throw new Error('User not found');
+    }
+
+    const node = await Node.findOne({ address: nodeAddress });
+    if (!node) {
+        throw new Error('Node not found');
+    }
+
+    // Clear any existing mob
+    stateService.playerMobs.delete(userId);
+
+    // Check for mob spawn
+    const mobSpawn = await checkForMobSpawn(userId, node);
+    
+    if (mobSpawn) {
+        await publishSystemMessage(
+            nodeAddress,
+            `A ${mobSpawn.name} appears!`,
+            `A ${mobSpawn.name} appears!`,
+            userId
+        );
+    }
+
+    return mobSpawn;
+}
+
 module.exports = {
     moveUser,
-    checkForMobSpawn
+    checkForMobSpawn,
+    handlePlayerNodeConnection  // Export the new function
 }; 
