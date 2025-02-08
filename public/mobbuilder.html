@@ -741,7 +741,7 @@
 
             try {
                 // First verify the token
-                const response = await fetch('/api/verify-token', {
+                const response = await fetch('/api/auth/verify-token', {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -753,7 +753,7 @@
                 }
 
                 // Then verify builder access
-                const builderResponse = await fetch('/api/mobs/builder', {
+                const builderResponse = await fetch('/api/mobs', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -793,7 +793,7 @@
                 formData.append('image', file);
 
                 try {
-                    const response = await fetch('/api/upload-mob-image', {
+                    const response = await fetch('/api/upload/mob', {
                         method: 'POST',
                         body: formData,
                         headers: {
@@ -1066,7 +1066,7 @@
         // Load existing mobs
         async function loadMobs() {
             try {
-                const response = await fetch('/api/mobs/builder', {
+                const response = await fetch('/api/mobs', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }

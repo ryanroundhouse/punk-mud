@@ -610,7 +610,7 @@
             const viewUsername = urlParams.get('view');
 
             try {
-                const response = await fetch('/api/verify-token', {
+                const response = await fetch('/api/auth/verify-token', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
@@ -646,8 +646,8 @@
         async function loadCharacterData(viewUsername = null) {
             try {
                 const url = viewUsername ? 
-                    `/api/user/character/${encodeURIComponent(viewUsername)}` : 
-                    '/api/user/character';
+                    `/api/character/${encodeURIComponent(viewUsername)}` : 
+                    '/api/character/data';
                 
                 const response = await fetch(url, {
                     headers: {
@@ -706,7 +706,7 @@
                 formData.append('image', file);
 
                 try {
-                    const response = await fetch('/api/upload-character-image', {
+                    const response = await fetch('/api/upload/character', {
                         method: 'POST',
                         body: formData,
                         headers: {
@@ -732,7 +732,7 @@
             };
 
             try {
-                const response = await fetch('/api/user/character', {
+                const response = await fetch('/api/character/update', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

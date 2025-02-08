@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PUNK MUD - Actor Builder</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <style>
         :root {
             --neon-pink: #ff2e88;
@@ -471,7 +472,7 @@
             }
 
             try {
-                const response = await fetch('/api/verify-token', {
+                const response = await fetch('/api/auth/verify-token', {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -510,7 +511,7 @@
                 formData.append('image', file);
 
                 try {
-                    const response = await fetch('/api/upload-actor-image', {
+                    const response = await fetch('/api/upload/actor', {
                         method: 'POST',
                         body: formData,
                         headers: {
@@ -620,13 +621,18 @@
             }));
 
             const actorData = {
-                id: document.getElementById('actorForm').dataset.actorId || null,
                 name: document.getElementById('actorName').value,
                 description: document.getElementById('description').value,
                 image: document.getElementById('imagePath').value,
                 location: document.getElementById('locationTarget').value,
                 chatMessages: messages
             };
+
+            // Add _id to request if we're updating an existing actor
+            const actorId = document.getElementById('actorForm').dataset.actorId;
+            if (actorId) {
+                actorData._id = actorId;
+            }
 
             try {
                 const response = await fetch('/api/actors', {
@@ -653,15 +659,23 @@
         // Load existing actors
         async function loadActors() {
             try {
-                const response = await fetch('/api/actors/builder', {
+                const response = await fetch('/api/actors', {  // Changed from /api/actors/public to /api/actors
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
-                allActors = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                allActors = Array.isArray(data) ? data : [];
                 filterAndDisplayActors();
             } catch (error) {
                 console.error('Error loading actors:', error);
+                allActors = []; // Ensure allActors is always an array
+                filterAndDisplayActors();
             }
         }
 
@@ -765,15 +779,21 @@
             document.getElementById('noImageText').style.display = 'block';
         });
 
-        // Add this function to load nodes
+        // Update the loadNodes function to use the public endpoint
         async function loadNodes() {
             try {
-                const response = await fetch('/api/nodes', {
+                const response = await fetch('/api/nodes/public', {  // Changed from /api/nodes to /api/nodes/public
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
-                allNodes = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                allNodes = Array.isArray(data) ? data : [];
                 
                 // Populate location dropdown
                 const locationTarget = document.getElementById('locationTarget');
@@ -786,12 +806,14 @@
                 });
             } catch (error) {
                 console.error('Error loading nodes:', error);
+                allNodes = []; // Ensure allNodes is always an array
             }
         }
 
         // Add helper function to get node name
         function getNodeName(address) {
-            const node = allNodes.find(n => n.address === address);
+            if (!Array.isArray(allNodes)) return address;
+            const node = allNodes.find(n => n && n.address === address);
             return node ? `${node.name} (${node.address})` : address;
         }
 

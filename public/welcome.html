@@ -421,7 +421,7 @@
 
         async function fetchUserDetails() {
             try {
-                const response = await fetch('/api/verify-token', {
+                const response = await fetch('/api/auth/verify-token', {
                     headers: getAuthHeader()
                 });
                 
@@ -437,13 +437,17 @@
                 return data.user;
             } catch (error) {
                 console.error('Failed to fetch user details:', error);
+                // Add a small delay before redirecting to prevent rapid redirects
+                await new Promise(resolve => setTimeout(resolve, 500));
+                localStorage.removeItem('token'); // Clear the invalid token
                 window.location.href = '/';
+                throw error; // Re-throw to prevent further execution
             }
         }
 
         async function handleAvatarSubmission(avatarName) {
             try {
-                const response = await fetch('/api/register-avatar', {
+                const response = await fetch('/api/character/register-avatar', {
                     method: 'POST',
                     headers: getAuthHeader(),
                     body: JSON.stringify({ avatarName })
@@ -527,7 +531,17 @@
         // Update the initialization code
         window.onload = async () => {
             try {
+                // Add loading message while verifying
+                await terminal.writeMessage("SYSTEM: Verifying credentials...");
+                
                 const user = await fetchUserDetails();
+                
+                if (!user) {
+                    throw new Error('No user data received');
+                }
+                
+                // Clear the loading message
+                terminalOutput.innerHTML = '';
                 
                 if (user.avatarName) {
                     isReturningUser = true;
@@ -556,11 +570,11 @@
                         }
                     });
                 } else {
-                    setupDivePrompt(); // Replace the existing dive prompt code with this single line
+                    setupDivePrompt();
                 }
             } catch (error) {
                 console.error('Initialization error:', error);
-                window.location.href = '/';
+                // Error is already handled in fetchUserDetails
             }
         };
 

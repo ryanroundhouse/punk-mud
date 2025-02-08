@@ -536,7 +536,7 @@
             }
 
             try {
-                const response = await fetch('/api/verify-token', {
+                const response = await fetch('/api/auth/verify-token', {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -552,19 +552,19 @@
 
                 // Load mobs for the events dropdown
                 try {
-                    const mobsResponse = await fetch('/api/mobs/builder', {
+                    const mobsResponse = await fetch('/api/mobs', {
                         headers: {
                             'Authorization': `Bearer ${token}`
                         }
                     });
                     allMobs = await mobsResponse.json();
                     
-                    // Populate mobs dropdown
+                    // Populate mobs dropdown using MongoDB _id
                     const eventMob = document.getElementById('eventMob');
                     eventMob.innerHTML = '<option value="">Select Enemy</option>';
                     allMobs.forEach(mob => {
                         const option = document.createElement('option');
-                        option.value = mob.id;
+                        option.value = mob._id;  // Use MongoDB _id
                         option.textContent = mob.name;
                         eventMob.appendChild(option);
                     });
@@ -597,7 +597,7 @@
                 formData.append('image', file);
 
                 try {
-                    const response = await fetch('/api/upload-image', {
+                    const response = await fetch('/api/upload/zone', {
                         method: 'POST',
                         body: formData,
                         headers: {
@@ -647,7 +647,7 @@
         addEventBtn.addEventListener('click', () => {
             const name = document.getElementById('eventName').value;
             const mobSelect = document.getElementById('eventMob');
-            const mobId = mobSelect.value;
+            const mobId = mobSelect.value; // This should now be the MongoDB _id
             const mobName = mobSelect.options[mobSelect.selectedIndex].text;
             const chance = parseInt(document.getElementById('eventChance').value);
             const validationError = document.getElementById('eventValidationError');
@@ -817,13 +817,12 @@
 
         // Update the existing loadNodeData function to highlight selected node
         function loadNodeData(node) {
-            // Store node ID for editing
             document.getElementById('nodeForm').dataset.nodeId = node._id;
             
             document.getElementById('nodeName').value = node.name;
             document.getElementById('nodeAddress').value = node.address;
             document.getElementById('description').value = node.description;
-            document.getElementById('imagePath').value = node.image;
+            document.getElementById('imagePath').value = node.image || '';
             
             const noImageText = document.getElementById('noImageText');
             
@@ -867,10 +866,11 @@
             const eventsList = document.getElementById('eventsList');
             eventsList.innerHTML = '';
 
-            // Add existing events
+            // Add existing events - now using MongoDB _id
             if (node.events && Array.isArray(node.events)) {
                 node.events.forEach(event => {
-                    const mobName = allMobs.find(m => m.id === event.mobId)?.name || event.mobId;
+                    const mob = allMobs.find(m => m._id === event.mobId);
+                    const mobName = mob ? mob.name : 'Unknown Mob';
                     
                     const eventEntry = document.createElement('div');
                     eventEntry.className = 'event-entry';

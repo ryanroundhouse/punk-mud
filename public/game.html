@@ -608,7 +608,7 @@
                 const exitsContainer = document.getElementById('nodeExits');
                 exitsContainer.innerHTML = '<h3>Available Exits:</h3>';
                 
-                // Fetch all nodes to get their names - use the public endpoint
+                // Fetch all nodes to get their names
                 const nodesResponse = await fetch('/api/nodes/public', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -621,7 +621,7 @@
                 
                 const allNodes = await nodesResponse.json();
 
-                node.exits.forEach((exit, index) => {
+                node.exits.forEach(exit => {
                     const targetNode = allNodes.find(n => n.address === exit.target);
                     const targetName = targetNode ? targetNode.name : 'Unknown';
                     
@@ -632,11 +632,21 @@
                     exitElement.setAttribute('aria-label', `Go ${exit.direction} to ${targetName}`);
                     exitElement.textContent = `[${exit.direction}] → [${targetName}]`;
                     
-                    exitElement.addEventListener('click', () => handleExit(exit.target));
+                    // Update the click handler
+                    exitElement.addEventListener('click', () => {
+                        socket.emit('console command', {
+                            command: 'move',
+                            direction: exit.direction
+                        });
+                    });
+
                     exitElement.addEventListener('keydown', (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
-                            handleExit(exit.target);
+                            socket.emit('console command', {
+                                command: 'move',
+                                direction: exit.direction
+                            });
                         }
                     });
                     
@@ -678,7 +688,7 @@
             }
 
             try {
-                const response = await fetch('/api/verify-token', {
+                const response = await fetch('/api/auth/verify-token', {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -1089,20 +1099,29 @@
             }
         });
 
-        // Add this helper function to handle exit navigation
+        // Update the handleExit function
         function handleExit(target) {
-            loadNode(target)
-                .catch(error => {
-                    const errorMsg = document.createElement('div');
-                    errorMsg.style.color = 'var(--neon-pink)';
-                    errorMsg.textContent = `ERROR: ${error.message}`;
-                    document.getElementById('terminalOutput').appendChild(errorMsg);
-                    setTimeout(() => errorMsg.remove(), 3000);
-                })
-                .finally(() => {
-                    // Ensure terminal gets focus after navigation attempt, success or fail
-                    document.getElementById('terminalInput').focus();
-                });
+            // Get the direction from the exits list
+            const currentNode = document.getElementById('nodeName').textContent;
+            const exits = Array.from(document.querySelectorAll('.exit-item'));
+            const exitElement = exits.find(exit => {
+                const text = exit.textContent;
+                return text.includes(`→ [${target}]`);
+            });
+
+            if (!exitElement) {
+                console.error('Could not find exit direction');
+                return;
+            }
+
+            // Extract direction from the exit text (e.g., "[north] → [Some Room]")
+            const direction = exitElement.textContent.match(/\[(.*?)\]/)[1];
+
+            // Send the move command through the socket
+            socket.emit('console command', {
+                command: 'move',
+                direction: direction
+            });
         }
 
         // Add this new function to handle the actor modal

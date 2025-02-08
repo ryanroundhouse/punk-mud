@@ -548,7 +548,7 @@
             }
 
             try {
-                const response = await fetch('/api/verify-token', {
+                const response = await fetch('/api/auth/verify-token', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -573,7 +573,7 @@
         // Load actors for event source selection
         async function loadActors() {
             try {
-                const response = await fetch('/api/actors/builder', {
+                const response = await fetch('/api/actors', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
@@ -588,7 +588,7 @@
                 eventActor.innerHTML = '<option value="">Select Actor</option>';
                 allActors.forEach(actor => {
                     const option = document.createElement('option');
-                    option.value = actor.id;
+                    option.value = actor._id;
                     option.textContent = actor.name;
                     eventActor.appendChild(option);
                 });
@@ -637,6 +637,7 @@
                 .forEach(quest => {
                     const questEntry = document.createElement('div');
                     questEntry.className = 'quest-entry';
+                    questEntry.dataset.questId = quest._id;
                     questEntry.innerHTML = `
                         <div class="quest-entry-title">${quest.title}</div>
                         <div class="quest-entry-events">${quest.events.length} events</div>
@@ -660,8 +661,8 @@
                 return;
             }
 
-            const actor = allActors.find(a => a.id === actorId);
-            const isStart = eventsList.children.length === 0; // First event is the start
+            const actor = allActors.find(a => a._id === actorId);
+            const isStart = eventsList.children.length === 0;
             const eventEntry = createEventEntry(actorId, actor.name, message, hint, null, isStart);
             eventsList.appendChild(eventEntry);
             updateEventTargets();
@@ -674,7 +675,7 @@
         function createEventEntry(actorId, actorName, message, hint = '', eventId = null, isStart = false, isEnd = false) {
             const eventEntry = document.createElement('div');
             eventEntry.className = 'quest-event';
-            eventEntry.dataset.eventId = eventId || Math.random().toString(36).substr(2, 9);
+            eventEntry.dataset.eventId = eventId || generateObjectId();
             eventEntry.dataset.isStart = isStart;
             eventEntry.dataset.isEnd = isEnd;
             
@@ -682,7 +683,7 @@
             const actorSelect = document.createElement('select');
             actorSelect.className = 'event-actor-select';
             actorSelect.innerHTML = allActors.map(actor => `
-                <option value="${actor.id}" ${actor.id === actorId ? 'selected' : ''}>
+                <option value="${actor._id}" ${actor._id === actorId ? 'selected' : ''}>
                     ${actor.name}
                 </option>
             `).join('');
@@ -871,7 +872,7 @@
 
         // Load quest data
         function loadQuestData(quest) {
-            document.getElementById('questForm').dataset.questId = quest.id;
+            document.getElementById('questForm').dataset.questId = quest._id;
             deleteQuestBtn.classList.remove('hidden');
             
             document.getElementById('questTitle').value = quest.title;
@@ -882,10 +883,10 @@
 
             // Add existing events
             quest.events.forEach(event => {
-                const actor = allActors.find(a => a.id === event.actorId);
+                const actor = allActors.find(a => a._id === event.actorId);
                 if (!actor) {
                     console.error(`Actor not found for ID: ${event.actorId}`);
-                    return; // Skip this event
+                    return;
                 }
 
                 const eventEntry = createEventEntry(
@@ -893,7 +894,7 @@
                     actor.name, 
                     event.message, 
                     event.hint,
-                    event.id,
+                    event._id,
                     event.isStart,
                     event.isEnd
                 );
@@ -968,7 +969,7 @@
                         });
 
                     return {
-                        id: event.dataset.eventId,
+                        _id: event.dataset.eventId,
                         eventType: 'chat',
                         actorId: event.querySelector('.event-actor-id').value,
                         message: event.querySelector('.event-message').value,
@@ -985,7 +986,7 @@
                 }
 
                 const questData = {
-                    id: document.getElementById('questForm').dataset.questId || null,
+                    _id: document.getElementById('questForm').dataset.questId || undefined,
                     title,
                     journalDescription,
                     events
@@ -1049,6 +1050,13 @@
                 }
             }
         });
+
+        // Add this utility function at the top of your script section
+        function generateObjectId() {
+            const timestamp = Math.floor(new Date().getTime() / 1000).toString(16);
+            const randomPart = Math.random().toString(16).substring(2, 14);
+            return timestamp + randomPart.padEnd(16, '0');
+        }
     </script>
 </body>
 </html> 
