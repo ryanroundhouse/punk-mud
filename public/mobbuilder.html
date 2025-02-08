@@ -986,7 +986,7 @@
             return total === 100;
         }
 
-        // Update the saveMob function to include usage chance
+        // Update the saveMob function
         saveMobBtn.onclick = async () => {
             if (!validateTotalUsage()) {
                 if (!confirm('Total move usage percentage is not 100%. Save anyway?')) {
@@ -1022,18 +1022,20 @@
             }));
 
             const mobData = {
-                id: document.getElementById('mobForm').dataset.mobId || null,
+                _id: document.getElementById('mobForm').dataset.mobId || null,
                 name: document.getElementById('mobName').value,
                 intent: document.getElementById('mobIntent').value,
                 description: document.getElementById('description').value,
                 image: document.getElementById('imagePath').value,
-                hitpoints: parseInt(document.getElementById('hitpoints').value),
-                armor: parseInt(document.getElementById('armor').value),
-                body: parseInt(document.getElementById('body').value),
-                reflexes: parseInt(document.getElementById('reflexes').value),
-                agility: parseInt(document.getElementById('agility').value),
-                tech: parseInt(document.getElementById('tech').value),
-                luck: parseInt(document.getElementById('luck').value),
+                stats: {
+                    hitpoints: parseInt(document.getElementById('hitpoints').value),
+                    armor: parseInt(document.getElementById('armor').value),
+                    body: parseInt(document.getElementById('body').value),
+                    reflexes: parseInt(document.getElementById('reflexes').value),
+                    agility: parseInt(document.getElementById('agility').value),
+                    tech: parseInt(document.getElementById('tech').value),
+                    luck: parseInt(document.getElementById('luck').value)
+                },
                 chatMessages: Array.from(document.querySelectorAll('.chat-message-entry')).map((entry, index) => ({
                     order: index + 1,
                     message: entry.querySelector('.message-text').textContent
@@ -1113,13 +1115,13 @@
             document.getElementById('mobName').value = mob.name;
             document.getElementById('mobIntent').value = mob.intent;
             document.getElementById('description').value = mob.description;
-            document.getElementById('hitpoints').value = mob.hitpoints;
-            document.getElementById('armor').value = mob.armor;
-            document.getElementById('body').value = mob.body;
-            document.getElementById('reflexes').value = mob.reflexes;
-            document.getElementById('agility').value = mob.agility;
-            document.getElementById('tech').value = mob.tech;
-            document.getElementById('luck').value = mob.luck;
+            document.getElementById('hitpoints').value = mob.stats.hitpoints;
+            document.getElementById('armor').value = mob.stats.armor;
+            document.getElementById('body').value = mob.stats.body;
+            document.getElementById('reflexes').value = mob.stats.reflexes;
+            document.getElementById('agility').value = mob.stats.agility;
+            document.getElementById('tech').value = mob.stats.tech;
+            document.getElementById('luck').value = mob.stats.luck;
             document.getElementById('imagePath').value = mob.image || '';
             
             const noImageText = document.getElementById('noImageText');
