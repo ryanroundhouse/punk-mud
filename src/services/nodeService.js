@@ -43,59 +43,77 @@ async function moveUser(userId, direction) {
         userId
     );
 
-    // Clear any existing enemy
-    stateService.playerEnemies.delete(userId);
+    // Clear any existing mob
+    stateService.playerMobs.delete(userId);
 
+    // Check for mob spawn in new location
+    const mobSpawn = await checkForMobSpawn(userId, targetNode);
+    
     return {
         success: true,
         message: `You move ${direction} to ${targetNode.name}`,
-        node: targetNode
+        node: targetNode,
+        mobSpawn  // Include the mob spawn result in the response
     };
 }
 
-async function checkForEnemySpawn(userId, node) {
+async function checkForMobSpawn(userId, node) {
+    logger.debug(`Checking for mob spawn for user ${userId} in node ${node.address}`);
+    
     if (!node.events || node.events.length === 0) {
+        logger.debug('No events found in node, skipping spawn check');
         return null;
     }
 
-    // Don't spawn if user already has an enemy
-    if (stateService.playerEnemies.has(userId)) {
+    // Don't spawn if user already has a mob
+    if (stateService.playerMobs.has(userId)) {
+        logger.debug(`User ${userId} already has an active mob, skipping spawn check`);
         return null;
     }
 
     // Roll for eligible events based on chance
-    const eligibleEvents = node.events.filter(event => (Math.random() * 100) < event.chance);
+    const eligibleEvents = node.events.filter(event => {
+        const roll = Math.random() * 100;
+        logger.debug(`Event ${event.mobId} - Rolled ${roll} against chance ${event.chance}`);
+        return roll < event.chance;
+    });
+    
     if (eligibleEvents.length === 0) {
+        logger.debug('No eligible events passed chance check');
         return null;
     }
 
     const selectedEvent = eligibleEvents[Math.floor(Math.random() * eligibleEvents.length)];
-    const enemy = await Mob.findById(selectedEvent.mobId);
+    logger.debug(`Selected event with mobId: ${selectedEvent.mobId}`);
     
-    if (!enemy) {
+    const mob = await Mob.findById(selectedEvent.mobId);
+    
+    if (!mob) {
+        logger.debug(`Could not find mob with id ${selectedEvent.mobId}`);
         return null;
     }
 
-    const enemyInstance = {
-        name: enemy.name,
-        description: enemy.description,
-        image: enemy.image,
-        hitpoints: enemy.hitpoints,
-        armor: enemy.armor,
-        body: enemy.body,
-        reflexes: enemy.reflexes,
-        agility: enemy.agility,
-        tech: enemy.tech,
-        luck: enemy.luck,
-        instanceId: `${enemy._id}-${Date.now()}`,
-        chatMessages: enemy.chatMessages
+    const mobInstance = {
+        name: mob.name,
+        description: mob.description,
+        image: mob.image,
+        hitpoints: mob.hitpoints,
+        armor: mob.armor,
+        body: mob.body,
+        reflexes: mob.reflexes,
+        agility: mob.agility,
+        tech: mob.tech,
+        luck: mob.luck,
+        instanceId: `${mob._id}-${Date.now()}`,
+        chatMessages: mob.chatMessages
     };
 
-    stateService.playerEnemies.set(userId, enemyInstance);
-    return enemyInstance;
+    logger.debug(`Spawning mob instance ${mobInstance.instanceId} (${mob.name}) for user ${userId}`);
+    stateService.playerMobs.set(userId, mobInstance);
+    return mobInstance;
 }
 
 module.exports = {
     moveUser,
-    checkForEnemySpawn
+    checkForMobSpawn
 }; 

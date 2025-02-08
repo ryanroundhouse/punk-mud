@@ -7,7 +7,7 @@ class StateService {
         this.nodeUsernames = new Map(); // stores username lists per node
         this.subscribedNodes = new Set(); // tracks which node channels we're subscribed to
         this.actorChatStates = new Map(); // tracks last message index per user per actor
-        this.playerEnemies = new Map(); // tracks per-player spawned enemies
+        this.playerMobs = new Map(); // tracks per-player spawned enemies
     }
 
     addClient(userId, socket) {

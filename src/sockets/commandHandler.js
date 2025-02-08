@@ -122,7 +122,7 @@ async function handleListCommand(socket, user, target) {
         });
     } else {
         let mobNames = [];
-        const mobInstance = stateService.playerEnemies.get(user._id.toString());
+        const mobInstance = stateService.playerMobs.get(user._id.toString());
         if (mobInstance) {
             mobNames.push(mobInstance.name);
         }
@@ -195,7 +195,7 @@ async function handleChatCommand(socket, user, target) {
     }
 
     // Check for mob chat
-    const mobInstance = stateService.playerEnemies.get(user._id.toString());
+    const mobInstance = stateService.playerMobs.get(user._id.toString());
     if (mobInstance && mobInstance.name.toLowerCase() === target.toLowerCase()) {
         const stateKey = `${socket.user.userId}-${mobInstance.instanceId}`;
         let currentIndex = stateService.actorChatStates.get(stateKey) || 0;
