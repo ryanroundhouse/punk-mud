@@ -18,6 +18,14 @@ function calculateAttackResult(move, attackerName, defenderName) {
         };
     }
 
+    // Handle mongoose document objects by converting to plain object
+    const plainEffect = effect._doc || effect;
+    
+    const effectWithInitiator = {
+        ...plainEffect,
+        initiator: attackerName
+    };
+
     const targetName = effect.target === 'self' ? attackerName : defenderName;
     const amount = effect.amount || 0;
     
@@ -46,7 +54,7 @@ function calculateAttackResult(move, attackerName, defenderName) {
 
     return {
         success,
-        effect,
+        effect: effectWithInitiator,
         message: message || 'Nothing happens.'
     };
 }
@@ -286,7 +294,26 @@ async function handleFightCommand(socket, user, target) {
 async function applyEffect(effect, user, mobInstance) {
     if (!effect) return;
 
-    const target = effect.target === 'self' ? mobInstance.stats : user.stats;
+    logger.debug('Apply Effect Debug:', {
+        effectInitiator: effect.initiator,
+        userAvatarName: user.avatarName,
+        mobName: mobInstance.name,
+        effectTarget: effect.target,
+        effectAmount: effect.amount,
+        effectStat: effect.stat
+    });
+
+    const isUserEffect = effect.initiator === user.avatarName;
+    const target = effect.target === 'self' 
+        ? (isUserEffect ? user.stats : mobInstance.stats)
+        : (isUserEffect ? mobInstance.stats : user.stats);
+
+    logger.debug('Target Selection:', {
+        isUserEffect,
+        targetIsUserStats: target === user.stats,
+        targetIsMobStats: target === mobInstance.stats
+    });
+
     const stat = effect.stat;
     if (stat && target) {
         if (stat === 'hitpoints') {
