@@ -90,8 +90,17 @@ async function getNode(address) {
     return node;
 }
 
+async function isRestPoint(nodeAddress) {
+    const node = await Node.findOne({ address: nodeAddress });
+    if (!node) {
+        throw new Error('Node not found');
+    }
+    return node.isRestPoint;
+}
+
 module.exports = {
     moveUser,
     handlePlayerNodeConnection,
-    getNode
+    getNode,
+    isRestPoint
 }; 

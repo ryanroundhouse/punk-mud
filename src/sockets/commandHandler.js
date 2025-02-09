@@ -1,16 +1,11 @@
 const logger = require('../config/logger');
 const nodeService = require('../services/nodeService');
-const { handleQuestProgression } = require('../services/questService');
 const stateService = require('../services/stateService');
-const mobService = require('../services/mobService');
-const Actor = require('../models/Actor');
-const User = require('../models/User');
-const Mob = require('../models/Mob');
-const Quest = require('../models/Quest');
 const socketService = require('../services/socketService');
-const { publishSystemMessage } = require('../services/chatService');
 const userService = require('../services/userService');
 const combatService = require('../services/combatService');
+const actorService = require('../services/actorService');
+const questService = require('../services/questService');
 
 const HELP_TEXT = `
 Available Commands:
@@ -20,13 +15,14 @@ ls <name>.........View details of player or NPC in current location
 chat <actor>......Talk to an NPC in current location
 quests............View your active quests and current hints
 fight <mob>.......Engage in combat with a mob
+rest..............Rest to restore health (only at rest points)
 ?.................Display this help message
 `.trim();
 
 async function handleCommand(socket, data) {
     try {
-        const user = await User.findById(socket.user.userId);
-        if (!user || !user.avatarName || !user.currentNode) {
+        const user = await userService.getUser(socket.user.userId);
+        if (!userService.validateUser(user)) {
             throw new Error('User not found or missing required data');
         }
 
@@ -102,6 +98,10 @@ async function handleCommand(socket, data) {
                 await combatService.handleFleeCommand(socket, user);
                 break;
 
+            case 'rest':
+                await handleRestCommand(socket, user);
+                break;
+
             default:
                 // If in combat, handle combat moves
                 if (combatState && data.command !== 'help') {
@@ -124,8 +124,7 @@ async function handleCommand(socket, data) {
 
 async function handleListCommand(socket, user, target) {
     const nodeUsers = stateService.nodeUsernames.get(user.currentNode) || [];
-    const actors = await Actor.find({ location: user.currentNode });
-    const actorNames = actors.map(actor => actor.name);
+    const actorNames = await actorService.getActorsInLocation(user.currentNode);
     const mobInstance = stateService.playerMobs.get(user._id.toString());
 
     if (target) {
@@ -144,9 +143,7 @@ async function handleListCommand(socket, user, target) {
         }
         
         // Then check actors
-        const targetActor = actors.find(
-            actor => actor.name.toLowerCase() === target.toLowerCase()
-        );
+        const targetActor = await actorService.findActorInLocation(target, user.currentNode);
         
         if (targetActor) {
             socket.emit('console response', {
@@ -200,13 +197,10 @@ async function handleChatCommand(socket, user, target) {
     }
 
     // First, try to find an actor in the current location
-    const actor = await Actor.findOne({ 
-        name: new RegExp(`^${target}$`, 'i'), 
-        location: user.currentNode 
-    });
+    const actor = await actorService.findActorInLocation(target, user.currentNode);
 
     if (actor) {
-        const questResponse = await handleQuestProgression(socket.user.userId, actor.id);
+        const questResponse = await questService.handleQuestProgression(socket.user.userId, actor.id);
 
         if (questResponse) {
             socket.emit('console response', { 
@@ -225,14 +219,12 @@ async function handleChatCommand(socket, user, target) {
         // Regular actor chat
         const stateKey = `${socket.user.userId}-${actor.id}`;
         let currentIndex = stateService.actorChatStates.get(stateKey) || 0;
-        const sortedMessages = [...actor.chatMessages].sort((a, b) => a.order - b.order);
-        const message = sortedMessages[currentIndex];
-        currentIndex = (currentIndex + 1) % sortedMessages.length;
-        stateService.actorChatStates.set(stateKey, currentIndex);
+        const chatResult = actorService.getActorChatMessage(actor, stateKey, currentIndex);
+        stateService.actorChatStates.set(stateKey, chatResult.nextIndex);
 
         socket.emit('console response', {
             type: 'chat',
-            message: `${actor.name} says: "${message.message}"`
+            message: `${actor.name} says: "${chatResult.message}"`
         });
         return;
     }
@@ -269,50 +261,61 @@ async function handleChatCommand(socket, user, target) {
 }
 
 async function handleQuestsCommand(socket, user) {
-    const allQuests = await Quest.find();
-    
-    const activeQuests = user.quests
-        .filter(userQuest => !userQuest.completed)
-        .map(userQuest => {
-            const quest = allQuests.find(q => q._id.toString() === userQuest.questId);
-            if (!quest) return null;
+    try {
+        const activeQuests = await questService.getActiveQuests(user._id);
 
-            const currentEvent = quest.events.find(e => e._id.toString() === userQuest.currentEventId);
-            if (!currentEvent) return null;
-            
-            const choices = currentEvent.choices.map(choice => {
-                const nextEvent = quest.events.find(e => e._id.toString() === choice.nextEventId.toString());
-                return nextEvent?.hint || 'No hint available';
-            }).filter(Boolean);
+        if (activeQuests.length === 0) {
+            socket.emit('console response', {
+                type: 'quests',
+                message: 'You have no active quests.'
+            });
+            return;
+        }
 
-            return {
-                title: quest.title,
-                hints: choices.length > 0 ? choices : ['No available choices']
-            };
-        })
-        .filter(Boolean);
+        const questList = activeQuests
+            .map(quest => {
+                const hintsText = quest.hints
+                    .map(hint => `  Hint: ${hint}`)
+                    .join('\n');
+                return `${quest.title}\n${hintsText}`;
+            })
+            .join('\n\n');
 
-    if (activeQuests.length === 0) {
         socket.emit('console response', {
             type: 'quests',
-            message: 'You have no active quests.'
+            message: `Active Quests:\n--------------\n${questList}`
         });
-        return;
+    } catch (error) {
+        socket.emit('console response', {
+            type: 'error',
+            message: 'Error retrieving quests'
+        });
     }
+}
 
-    const questList = activeQuests
-        .map(quest => {
-            const hintsText = quest.hints
-                .map(hint => `  Hint: ${hint}`)
-                .join('\n');
-            return `${quest.title}\n${hintsText}`;
-        })
-        .join('\n\n');
+async function handleRestCommand(socket, user) {
+    try {
+        // Check if user is in a rest point using nodeService
+        const isRest = await nodeService.isRestPoint(user.currentNode);
+        if (!isRest) {
+            socket.emit('console response', {
+                type: 'error',
+                message: 'You can only rest at designated rest points.'
+            });
+            return;
+        }
 
-    socket.emit('console response', {
-        type: 'quests',
-        message: `Active Quests:\n--------------\n${questList}`
-    });
+        const result = await userService.healUser(user._id);
+        socket.emit('console response', {
+            type: 'success',
+            message: `You rest and recover your health. (HP restored to ${result.healed})`
+        });
+    } catch (error) {
+        socket.emit('console response', {
+            type: 'error',
+            message: 'Failed to rest: ' + error.message
+        });
+    }
 }
 
 module.exports = {

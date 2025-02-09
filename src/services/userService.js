@@ -3,6 +3,19 @@ const Move = require('../models/Move');
 const logger = require('../config/logger');
 
 class UserService {
+    async getUser(userId) {
+        try {
+            const user = await User.findById(userId);
+            if (!user) {
+                throw new Error('User not found');
+            }
+            return user;
+        } catch (error) {
+            logger.error('Error getting user:', error);
+            throw error;
+        }
+    }
+
     async getUserMoves(userId) {
         try {
             const user = await User.findById(userId).populate('moves');
@@ -30,6 +43,30 @@ ${movesList}
 flee.............Attempt to escape combat
 ?.................Display this help message
 `.trim();
+    }
+
+    async healUser(userId) {
+        try {
+            const user = await User.findById(userId);
+            if (!user) {
+                throw new Error('User not found');
+            }
+            
+            user.stats.currentHitpoints = user.stats.hitpoints;
+            await user.save();
+            
+            return {
+                success: true,
+                healed: user.stats.hitpoints
+            };
+        } catch (error) {
+            logger.error('Error healing user:', error);
+            throw error;
+        }
+    }
+
+    validateUser(user) {
+        return user && user.avatarName && user.currentNode;
     }
 }
 
