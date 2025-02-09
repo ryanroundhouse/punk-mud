@@ -1,9 +1,12 @@
 const Mob = require('../models/Mob');
+const Move = require('../models/Move');
 const logger = require('../config/logger');
 
 async function getMobs(req, res) {
     try {
-        const mobs = await Mob.find().sort({ name: 1 });
+        const mobs = await Mob.find()
+            .populate('moves.move')
+            .sort({ name: 1 });
         res.json(mobs);
     } catch (error) {
         logger.error('Error fetching mobs:', error);
@@ -13,7 +16,8 @@ async function getMobs(req, res) {
 
 async function getPublicMobs(req, res) {
     try {
-        const mobs = await Mob.find({}, '_id name').sort({ name: 1 });
+        const mobs = await Mob.find({}, '_id name')
+            .sort({ name: 1 });
         res.json(mobs);
     } catch (error) {
         logger.error('Error fetching mobs:', error);
@@ -38,30 +42,38 @@ async function createOrUpdateMob(req, res) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
+        if (moves) {
+            for (const moveRef of moves) {
+                if (!moveRef.move || !moveRef.usageChance) {
+                    return res.status(400).json({ error: 'Invalid move data' });
+                }
+
+                const moveExists = await Move.findById(moveRef.move);
+                if (!moveExists) {
+                    return res.status(400).json({ error: `Move with ID ${moveRef.move} not found` });
+                }
+
+                if (moveRef.usageChance < 0 || moveRef.usageChance > 100) {
+                    return res.status(400).json({ error: 'Usage chance must be between 0 and 100' });
+                }
+            }
+
+            const totalUsage = moves.reduce((sum, move) => sum + move.usageChance, 0);
+            if (totalUsage !== 100) {
+                return res.status(400).json({ 
+                    error: 'Total move usage chance must equal 100%',
+                    details: `Current total: ${totalUsage}%`
+                });
+            }
+        }
+
         const mobData = {
             name,
             description,
             image,
             stats,
             chatMessages,
-            moves: moves.map(move => ({
-                name: move.name,
-                type: move.type,
-                usageChance: Number(move.usageChance),
-                successChance: Number(move.successChance),
-                success: {
-                    message: move.success.message,
-                    target: move.success.target,
-                    stat: move.success.stat,
-                    amount: Number(move.success.amount)
-                },
-                failure: {
-                    message: move.failure.message,
-                    target: move.failure.target,
-                    stat: move.failure.stat,
-                    amount: Number(move.failure.amount)
-                }
-            })),
+            moves,
             intent
         };
 
@@ -73,12 +85,12 @@ async function createOrUpdateMob(req, res) {
 
             Object.assign(existingMob, mobData);
             const savedMob = await existingMob.save();
-            return res.json(savedMob);
+            return res.json(await savedMob.populate('moves.move'));
         }
 
         const mob = new Mob(mobData);
         const savedMob = await mob.save();
-        res.status(201).json(savedMob);
+        res.status(201).json(await savedMob.populate('moves.move'));
 
     } catch (error) {
         logger.error('Error saving mob:', error);

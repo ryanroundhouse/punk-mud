@@ -61,7 +61,19 @@ const mobSchema = new mongoose.Schema({
         message: String,
         order: Number
     }],
-    moves: [moveSchema]
+    moves: [{
+        move: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Move',
+            required: true
+        },
+        usageChance: {
+            type: Number,
+            min: 0,
+            max: 100,
+            required: true
+        }
+    }]
 }, {
     timestamps: true
 });

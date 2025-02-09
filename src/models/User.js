@@ -1,5 +1,38 @@
 const mongoose = require('mongoose');
 
+const moveSuccessFailureSchema = new mongoose.Schema({
+    message: String,
+    target: {
+        type: String,
+        enum: ['self', 'opponent']
+    },
+    stat: {
+        type: String,
+        enum: ['hitpoints', 'armor', 'body', 'reflexes', 'agility', 'tech', 'luck']
+    },
+    amount: Number
+}, { _id: false });
+
+const moveSchema = new mongoose.Schema({
+    name: String,
+    type: {
+        type: String,
+        enum: ['none', 'attack']
+    },
+    usageChance: {
+        type: Number,
+        min: 0,
+        max: 100
+    },
+    successChance: {
+        type: Number,
+        min: 0,
+        max: 100
+    },
+    success: moveSuccessFailureSchema,
+    failure: moveSuccessFailureSchema
+}, { _id: false });
+
 const userSchema = new mongoose.Schema({
     email: {
         type: String,
@@ -41,7 +74,12 @@ const userSchema = new mongoose.Schema({
         agility: { type: Number, default: 10 },
         tech: { type: Number, default: 10 },
         luck: { type: Number, default: 10 }
-    }
+    },
+    moves: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Move',
+        default: ['67a80524ad10e0715a1bf5f4']
+    }]
 }, {
     timestamps: true
 });

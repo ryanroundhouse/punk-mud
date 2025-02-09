@@ -571,6 +571,167 @@
         .menu-content a + a {
             margin-top: 0.2rem;
         }
+
+        .move-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .select-wrapper {
+            position: relative;
+            flex: 2;
+        }
+
+        .input-wrapper {
+            position: relative;
+            flex: 1;
+        }
+
+        .move-select {
+            width: 100%;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            appearance: none;
+            cursor: pointer;
+        }
+
+        .select-arrow {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 6px solid var(--neon-blue);
+            pointer-events: none;
+        }
+
+        .move-select:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .input-wrapper input {
+            width: 100%;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+        }
+
+        .input-line {
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--neon-blue);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+            transform-origin: left;
+        }
+
+        .input-wrapper input:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .input-wrapper input:focus + .input-line {
+            transform: scaleX(1);
+        }
+
+        .move-entry {
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .move-entry:hover {
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .move-name {
+            color: var(--neon-pink);
+            font-weight: bold;
+            margin-right: 1rem;
+        }
+
+        .move-type {
+            color: var(--neon-blue);
+            margin-right: 1rem;
+        }
+
+        .move-usage {
+            color: var(--terminal-green);
+            margin-right: 1rem;
+        }
+
+        .move-chance {
+            color: var(--terminal-green);
+        }
+
+        .remove-move {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            color: var(--neon-pink);
+            cursor: pointer;
+            font-size: 1.5rem;
+            line-height: 1;
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            transition: all 0.3s ease;
+        }
+
+        .remove-move:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+        }
+
+        .validation-error {
+            color: var(--neon-pink);
+            margin-top: 0.5rem;
+            font-style: italic;
+        }
+
+        .move-messages {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(0, 255, 249, 0.3);
+        }
+
+        .move-message {
+            margin-bottom: 0.5rem;
+        }
+
+        .move-message strong {
+            color: var(--neon-blue);
+        }
+
+        .outcome-details {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            padding-left: 1rem;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
     </style>
 </head>
 <body>
@@ -581,6 +742,7 @@
             <a href="/nodebuilder.html">Node Builder</a>
             <a href="/actorbuilder.html">Actor Builder</a>
             <a href="/mobbuilder.html">Mob Builder</a>
+            <a href="/movebuilder.html">Move Builder</a>
             <a href="/questbuilder.html">Quest Builder</a>
         </div>
     </div>
@@ -673,99 +835,29 @@
                             </div>
 
                             <div class="form-group">
-                                <label>Moves:</label>
-                                <div id="movesContainer" class="moves-container">
-                                    <div class="moves-controls">
-                                        <input type="text" 
-                                               id="moveName" 
-                                               class="move-input" 
-                                               placeholder="Move name">
-                                        <select id="moveType" class="move-input">
-                                            <option value="none">None</option>
-                                            <option value="attack">Attack</option>
+                                <h3>Moves</h3>
+                                <div class="move-controls">
+                                    <div class="select-wrapper">
+                                        <select id="moveSelect" class="move-select">
+                                            <option value="">Select a move...</option>
                                         </select>
-                                        <div>
-                                            <div class="percentage-label">Usage %</div>
-                                            <input type="number" 
-                                                   id="usageChance" 
-                                                   class="move-input" 
-                                                   placeholder="Usage %" 
-                                                   min="0" 
-                                                   max="100" 
-                                                   value="100">
-                                        </div>
-                                        <div>
-                                            <div class="percentage-label">Success %</div>
-                                            <input type="number" 
-                                                   id="successChance" 
-                                                   class="move-input" 
-                                                   placeholder="Success %" 
-                                                   min="0" 
-                                                   max="100" 
-                                                   value="50">
-                                        </div>
-                                        
-                                        <div class="move-outcome success-outcome">
-                                            <h4>On Success:</h4>
-                                            <textarea id="successMessage" 
-                                                      class="move-input message-textarea" 
-                                                      placeholder="Success message"></textarea>
-                                            <div class="outcome-controls">
-                                                <select id="successTarget" class="move-input">
-                                                    <option value="opponent">Opponent</option>
-                                                    <option value="self">Self</option>
-                                                </select>
-                                                <select id="successStat" class="move-input">
-                                                    <option value="hitpoints">Hitpoints</option>
-                                                    <option value="armor">Armor</option>
-                                                    <option value="body">Body</option>
-                                                    <option value="reflexes">Reflexes</option>
-                                                    <option value="agility">Agility</option>
-                                                    <option value="tech">Tech</option>
-                                                    <option value="luck">Luck</option>
-                                                </select>
-                                                <input type="number" 
-                                                       id="successAmount" 
-                                                       class="move-input" 
-                                                       placeholder="Amount" 
-                                                       value="0">
-                                            </div>
-                                        </div>
-
-                                        <div class="move-outcome failure-outcome">
-                                            <h4>On Failure:</h4>
-                                            <textarea id="failureMessage" 
-                                                      class="move-input message-textarea" 
-                                                      placeholder="Failure message"></textarea>
-                                            <div class="outcome-controls">
-                                                <select id="failureTarget" class="move-input">
-                                                    <option value="self">Self</option>
-                                                    <option value="opponent">Opponent</option>
-                                                </select>
-                                                <select id="failureStat" class="move-input">
-                                                    <option value="hitpoints">Hitpoints</option>
-                                                    <option value="armor">Armor</option>
-                                                    <option value="body">Body</option>
-                                                    <option value="reflexes">Reflexes</option>
-                                                    <option value="agility">Agility</option>
-                                                    <option value="tech">Tech</option>
-                                                    <option value="luck">Luck</option>
-                                                </select>
-                                                <input type="number" 
-                                                       id="failureAmount" 
-                                                       class="move-input" 
-                                                       placeholder="Amount" 
-                                                       value="0">
-                                            </div>
-                                        </div>
-
-                                        <button class="action-button" id="addMoveBtn">Add Move</button>
-                                        <div id="validationError" class="validation-error"></div>
+                                        <div class="select-arrow"></div>
                                     </div>
-                                    <div id="movesList" class="moves-list">
-                                        <!-- Moves will be listed here -->
+                                    <div class="input-wrapper">
+                                        <input type="number" 
+                                               id="usageChance" 
+                                               placeholder="Usage chance (%)"
+                                               min="0" 
+                                               max="100" 
+                                               value="100">
+                                        <div class="input-line"></div>
                                     </div>
+                                    <button type="button" class="action-button" id="addMoveBtn">Add Move</button>
                                 </div>
+                                <div id="movesList">
+                                    <!-- Moves will be listed here -->
+                                </div>
+                                <div id="moveValidationError" class="validation-error"></div>
                             </div>
                         </div>
 
@@ -800,6 +892,7 @@
         const addMessageBtn = document.getElementById('addMessageBtn');
         const mobFilter = document.getElementById('mobFilter');
         let allMobs = [];
+        let allMoves = [];
 
         // Check authentication
         window.onload = async () => {
@@ -837,6 +930,7 @@
 
                 // Load mobs only if builder access is verified
                 await loadMobs();
+                await loadAvailableMoves();
             } catch (error) {
                 console.error('Authentication error:', error);
                 window.location.href = '/';
@@ -963,56 +1057,74 @@
             }
         }
 
-        // Add move
-        const addMoveBtn = document.getElementById('addMoveBtn');
-        addMoveBtn.addEventListener('click', () => {
-            const name = document.getElementById('moveName').value;
-            const type = document.getElementById('moveType').value;
+        // Add function to load moves
+        async function loadAvailableMoves() {
+            try {
+                const response = await fetch('/api/moves', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                allMoves = await response.json();
+                
+                // Populate move select dropdown
+                const moveSelect = document.getElementById('moveSelect');
+                moveSelect.innerHTML = '<option value="">Select a move...</option>';
+                
+                allMoves.forEach(move => {
+                    const option = document.createElement('option');
+                    option.value = move._id;
+                    option.textContent = `${move.name} (${move.type})`;
+                    moveSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading moves:', error);
+            }
+        }
+
+        // Add move to mob
+        document.getElementById('addMoveBtn').addEventListener('click', async () => {
+            const moveId = document.getElementById('moveSelect').value;
             const usageChance = parseInt(document.getElementById('usageChance').value);
-            const successChance = parseInt(document.getElementById('successChance').value);
-            const successMessage = document.getElementById('successMessage').value;
-            const failureMessage = document.getElementById('failureMessage').value;
-            const validationError = document.getElementById('validationError');
-
-            if (!name || !successMessage || !failureMessage) {
-                validationError.textContent = 'Please fill in all move fields';
-                return;
-            }
-
-            // Calculate total usage percentage including new move
-            const currentTotal = Array.from(document.querySelectorAll('.move-entry'))
-                .reduce((sum, entry) => sum + parseInt(entry.querySelector('.move-usage').textContent), 0);
             
-            if (currentTotal + usageChance > 100) {
-                validationError.textContent = `Total usage percentage cannot exceed 100%. Current total: ${currentTotal}%`;
+            if (!moveId) {
+                alert('Please select a move');
+                return;
+            }
+            
+            if (isNaN(usageChance) || usageChance < 0 || usageChance > 100) {
+                alert('Please enter a valid usage chance (0-100)');
                 return;
             }
 
-            validationError.textContent = ''; // Clear any previous error
+            const move = allMoves.find(m => m._id === moveId);
+            if (!move) return;
 
             const moveEntry = document.createElement('div');
             moveEntry.className = 'move-entry';
             moveEntry.innerHTML = `
-                <span class="move-name">${name}</span>
-                <span class="move-type">${type}</span>
+                <span class="move-name">${move.name}</span>
+                <span class="move-type">${move.type}</span>
                 <span class="move-usage">${usageChance}%</span>
-                <span class="move-chance">${successChance}%</span>
+                <span class="move-chance">${move.successChance}%</span>
                 <span class="remove-move">×</span>
+                <input type="hidden" class="move-id" value="${move._id}">
+                <input type="hidden" class="move-usage-chance" value="${usageChance}">
                 <div class="move-messages">
                     <div class="move-message success">
-                        <strong>Success:</strong> ${successMessage.replace(/\n/g, '<br>')}
+                        <strong>Success:</strong> ${move.success.message}
                         <div class="outcome-details">
-                            <span>Target:</span> <span>${document.getElementById('successTarget').value}</span>
-                            <span>Stat:</span> <span>${document.getElementById('successStat').value}</span>
-                            <span>Amount:</span> <span>${document.getElementById('successAmount').value}</span>
+                            <span>Target:</span> <span>${move.success.target}</span>
+                            <span>Stat:</span> <span>${move.success.stat}</span>
+                            <span>Amount:</span> <span>${move.success.amount}</span>
                         </div>
                     </div>
                     <div class="move-message failure">
-                        <strong>Failure:</strong> ${failureMessage.replace(/\n/g, '<br>')}
+                        <strong>Failure:</strong> ${move.failure.message}
                         <div class="outcome-details">
-                            <span>Target:</span> <span>${document.getElementById('failureTarget').value}</span>
-                            <span>Stat:</span> <span>${document.getElementById('failureStat').value}</span>
-                            <span>Amount:</span> <span>${document.getElementById('failureAmount').value}</span>
+                            <span>Target:</span> <span>${move.failure.target}</span>
+                            <span>Stat:</span> <span>${move.failure.stat}</span>
+                            <span>Amount:</span> <span>${move.failure.amount}</span>
                         </div>
                     </div>
                 </div>
@@ -1024,16 +1136,11 @@
             });
 
             document.getElementById('movesList').appendChild(moveEntry);
-
-            // Clear inputs
-            document.getElementById('moveName').value = '';
-            document.getElementById('moveType').value = 'none';
-            document.getElementById('usageChance').value = '100';
-            document.getElementById('successChance').value = '50';
-            document.getElementById('successMessage').value = '';
-            document.getElementById('failureMessage').value = '';
-
             validateTotalUsage();
+
+            // Reset inputs
+            document.getElementById('moveSelect').value = '';
+            document.getElementById('usageChance').value = '100';
         });
 
         // Update the validateTotalUsage function
@@ -1044,7 +1151,7 @@
                     return sum + (isNaN(usage) ? 0 : usage);
                 }, 0);
             
-            const validationError = document.getElementById('validationError');
+            const validationError = document.getElementById('moveValidationError');
             if (total > 100) {
                 validationError.textContent = `Warning: Total usage percentage (${total}%) exceeds 100%`;
             } else if (total < 100) {
@@ -1057,60 +1164,51 @@
         }
 
         // Update the saveMob function
-        saveMobBtn.onclick = async () => {
+        saveMobBtn.addEventListener('click', async () => {
+            // Validate required fields
+            const name = document.getElementById('mobName').value.trim();
+            const description = document.getElementById('description').value.trim();
+            
+            if (!name || !description) {
+                alert('Name and description are required');
+                return;
+            }
+
+            // Validate moves total percentage
             if (!validateTotalUsage()) {
                 if (!confirm('Total move usage percentage is not 100%. Save anyway?')) {
                     return;
                 }
             }
 
+            // Validate stats are numbers
+            const stats = {
+                hitpoints: parseInt(document.getElementById('hitpoints').value) || 10,
+                armor: parseInt(document.getElementById('armor').value) || 0,
+                body: parseInt(document.getElementById('body').value) || 10,
+                reflexes: parseInt(document.getElementById('reflexes').value) || 10,
+                agility: parseInt(document.getElementById('agility').value) || 10,
+                tech: parseInt(document.getElementById('tech').value) || 10,
+                luck: parseInt(document.getElementById('luck').value) || 10
+            };
+
             const moves = Array.from(document.querySelectorAll('.move-entry')).map(entry => ({
-                name: entry.querySelector('.move-name').textContent,
-                type: entry.querySelector('.move-type').textContent,
-                usageChance: parseInt(entry.querySelector('.move-usage').textContent.replace('%', '')),
-                successChance: parseInt(entry.querySelector('.move-chance').textContent),
-                success: {
-                    message: entry.querySelector('.move-message.success').innerHTML
-                        .split('<div class="outcome-details">')[0]
-                        .replace('<strong>Success:</strong> ', '')
-                        .replace(/<br>/g, '\n')
-                        .trim(),
-                    target: entry.querySelector('.move-message.success .outcome-details span:nth-child(2)').textContent,
-                    stat: entry.querySelector('.move-message.success .outcome-details span:nth-child(4)').textContent,
-                    amount: parseInt(entry.querySelector('.move-message.success .outcome-details span:nth-child(6)').textContent)
-                },
-                failure: {
-                    message: entry.querySelector('.move-message.failure').innerHTML
-                        .split('<div class="outcome-details">')[0]
-                        .replace('<strong>Failure:</strong> ', '')
-                        .replace(/<br>/g, '\n')
-                        .trim(),
-                    target: entry.querySelector('.move-message.failure .outcome-details span:nth-child(2)').textContent,
-                    stat: entry.querySelector('.move-message.failure .outcome-details span:nth-child(4)').textContent,
-                    amount: parseInt(entry.querySelector('.move-message.failure .outcome-details span:nth-child(6)').textContent)
-                }
+                move: entry.querySelector('.move-id').value,
+                usageChance: parseInt(entry.querySelector('.move-usage-chance').value)
             }));
 
             const mobData = {
-                _id: document.getElementById('mobForm').dataset.mobId || null,
-                name: document.getElementById('mobName').value,
+                _id: document.getElementById('mobForm').dataset.mobId || undefined,
+                name,
                 intent: document.getElementById('mobIntent').value,
-                description: document.getElementById('description').value,
+                description,
                 image: document.getElementById('imagePath').value,
-                stats: {
-                    hitpoints: parseInt(document.getElementById('hitpoints').value),
-                    armor: parseInt(document.getElementById('armor').value),
-                    body: parseInt(document.getElementById('body').value),
-                    reflexes: parseInt(document.getElementById('reflexes').value),
-                    agility: parseInt(document.getElementById('agility').value),
-                    tech: parseInt(document.getElementById('tech').value),
-                    luck: parseInt(document.getElementById('luck').value)
-                },
-                chatMessages: Array.from(document.querySelectorAll('.chat-message-entry')).map((entry, index) => ({
-                    order: index + 1,
-                    message: entry.querySelector('.message-text').textContent
+                stats,
+                chatMessages: Array.from(document.querySelectorAll('.chat-message-entry')).map((msg, index) => ({
+                    message: msg.querySelector('.message-text').textContent,
+                    order: index
                 })),
-                moves: moves
+                moves
             };
 
             try {
@@ -1123,17 +1221,18 @@
                     body: JSON.stringify(mobData)
                 });
 
-                if (response.ok) {
-                    alert('Mob saved successfully!');
-                    loadMobs();
-                } else {
-                    throw new Error('Failed to save mob');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to save mob');
                 }
+
+                alert('Mob saved successfully!');
+                loadMobs();
             } catch (error) {
                 console.error('Error saving mob:', error);
-                alert('Error saving mob');
+                alert(error.message || 'Error saving mob');
             }
-        };
+        });
 
         // Load existing mobs
         async function loadMobs() {
@@ -1240,20 +1339,25 @@
             const movesList = document.getElementById('movesList');
             movesList.innerHTML = '';
 
-            // Add existing moves if they exist
+            // Add existing moves
             if (mob.moves && Array.isArray(mob.moves)) {
-                mob.moves.forEach(move => {
+                mob.moves.forEach(async moveRef => {
+                    const move = allMoves.find(m => m._id === moveRef.move);
+                    if (!move) return;
+
                     const moveEntry = document.createElement('div');
                     moveEntry.className = 'move-entry';
                     moveEntry.innerHTML = `
                         <span class="move-name">${move.name}</span>
                         <span class="move-type">${move.type}</span>
-                        <span class="move-usage">${move.usageChance}%</span>
+                        <span class="move-usage">${moveRef.usageChance}%</span>
                         <span class="move-chance">${move.successChance}%</span>
                         <span class="remove-move">×</span>
+                        <input type="hidden" class="move-id" value="${move._id}">
+                        <input type="hidden" class="move-usage-chance" value="${moveRef.usageChance}">
                         <div class="move-messages">
                             <div class="move-message success">
-                                <strong>Success:</strong> ${move.success.message.replace(/\n/g, '<br>')}
+                                <strong>Success:</strong> ${move.success.message}
                                 <div class="outcome-details">
                                     <span>Target:</span> <span>${move.success.target}</span>
                                     <span>Stat:</span> <span>${move.success.stat}</span>
@@ -1261,7 +1365,7 @@
                                 </div>
                             </div>
                             <div class="move-message failure">
-                                <strong>Failure:</strong> ${move.failure.message.replace(/\n/g, '<br>')}
+                                <strong>Failure:</strong> ${move.failure.message}
                                 <div class="outcome-details">
                                     <span>Target:</span> <span>${move.failure.target}</span>
                                     <span>Stat:</span> <span>${move.failure.stat}</span>
@@ -1287,11 +1391,8 @@
         newMobBtn.onclick = () => {
             oldNewMobBtn();
             document.getElementById('movesList').innerHTML = '';
-            document.getElementById('moveName').value = '';
-            document.getElementById('moveType').value = 'none';
-            document.getElementById('successChance').value = '50';
-            document.getElementById('successMessage').value = '';
-            document.getElementById('failureMessage').value = '';
+            document.getElementById('moveSelect').value = '';
+            document.getElementById('usageChance').value = '100';
             document.getElementById('mobIntent').value = 'neutral';
         };
 
