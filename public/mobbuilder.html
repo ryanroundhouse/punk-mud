@@ -512,9 +512,79 @@
             color: var(--terminal-green);
             border: 1px solid var(--terminal-green);
         }
+
+        /* Add hamburger menu styles */
+        .hamburger-menu {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+        }
+
+        .hamburger-button {
+            background: transparent;
+            border: none;
+            color: var(--neon-pink);
+            font-size: 2rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .hamburger-button:hover {
+            color: var(--neon-blue);
+            transform: scale(1.1);
+        }
+
+        .menu-content {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: rgba(10, 10, 15, 0.95);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 0.5rem;
+            display: none;
+            min-width: 200px;
+            box-shadow: 0 0 20px rgba(0, 255, 249, 0.3);
+        }
+
+        .menu-content.show {
+            display: block;
+        }
+
+        .menu-content a {
+            display: block;
+            color: var(--terminal-green);
+            text-decoration: none;
+            padding: 0.8rem 1rem;
+            transition: all 0.3s ease;
+            border-radius: 3px;
+        }
+
+        .menu-content a:hover {
+            background: rgba(0, 255, 249, 0.1);
+            color: var(--neon-blue);
+            transform: translateX(5px);
+        }
+
+        .menu-content a + a {
+            margin-top: 0.2rem;
+        }
     </style>
 </head>
 <body>
+    <!-- Add hamburger menu HTML -->
+    <div class="hamburger-menu">
+        <button class="hamburger-button">☰</button>
+        <div class="menu-content">
+            <a href="/nodebuilder.html">Node Builder</a>
+            <a href="/actorbuilder.html">Actor Builder</a>
+            <a href="/mobbuilder.html">Mob Builder</a>
+            <a href="/questbuilder.html">Quest Builder</a>
+        </div>
+    </div>
+
     <div class="builder-container">
         <div class="layout-container">
             <div class="left-panel">
@@ -1254,6 +1324,28 @@
                     console.error('Error deleting mob:', error);
                     alert('Error deleting mob');
                 }
+            }
+        });
+
+        // Add hamburger menu functionality at the end
+        const hamburgerButton = document.querySelector('.hamburger-button');
+        const menuContent = document.querySelector('.menu-content');
+
+        hamburgerButton.addEventListener('click', () => {
+            menuContent.classList.toggle('show');
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!hamburgerButton.contains(e.target) && !menuContent.contains(e.target)) {
+                menuContent.classList.remove('show');
+            }
+        });
+
+        // Highlight current page in menu
+        document.querySelectorAll('.menu-content a').forEach(link => {
+            if (link.href === window.location.href) {
+                link.style.color = 'var(--neon-pink)';
             }
         });
     </script>

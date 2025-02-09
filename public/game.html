@@ -755,6 +755,11 @@
         };
 
         function addChatMessage(username, message, timestamp = new Date()) {
+            // Skip system messages about mobs appearing
+            if (username === 'SYSTEM' && message.match(/^A .+ appears!$/)) {
+                return;
+            }
+
             const messageDiv = document.createElement('div');
             messageDiv.className = 'chat-message';
             
