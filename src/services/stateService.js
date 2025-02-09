@@ -8,6 +8,7 @@ class StateService {
         this.subscribedNodes = new Set(); // tracks which node channels we're subscribed to
         this.actorChatStates = new Map(); // tracks last message index per user per actor
         this.playerMobs = new Map(); // tracks per-player spawned enemies
+        this.userCombatStates = new Map(); // tracks combat state for each user
     }
 
     addClient(userId, socket) {
@@ -76,6 +77,23 @@ class StateService {
         } catch (error) {
             logger.error('Error updating node usernames:', error);
         }
+    }
+
+    // Add helper methods for combat state management
+    setUserCombatState(userId, combatState) {
+        this.userCombatStates.set(userId, combatState);
+    }
+
+    getUserCombatState(userId) {
+        return this.userCombatStates.get(userId);
+    }
+
+    clearUserCombatState(userId) {
+        this.userCombatStates.delete(userId);
+    }
+
+    isUserInCombat(userId) {
+        return this.userCombatStates.has(userId);
     }
 
     // ... Add other state management methods as needed

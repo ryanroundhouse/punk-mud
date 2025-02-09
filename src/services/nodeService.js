@@ -1,8 +1,8 @@
 const Node = require('../models/Node');
 const User = require('../models/User');
-const Mob = require('../models/Mob');
 const logger = require('../config/logger');
 const stateService = require('./stateService');
+const mobService = require('./mobService');
 const { publishSystemMessage } = require('./chatService');
 
 async function moveUser(userId, direction) {
@@ -43,77 +43,18 @@ async function moveUser(userId, direction) {
         userId
     );
 
-    // Clear any existing mob
-    stateService.playerMobs.delete(userId);
-
-    // Check for mob spawn in new location
-    const mobSpawn = await checkForMobSpawn(userId, targetNode);
+    // Clear any existing mob and check for new spawn
+    mobService.clearUserMob(userId);
+    const mobSpawn = await mobService.spawnMobForUser(userId, targetNode);
     
     return {
         success: true,
         message: `You move ${direction} to ${targetNode.name}`,
         node: targetNode,
-        mobSpawn  // Include the mob spawn result in the response
+        mobSpawn
     };
 }
 
-async function checkForMobSpawn(userId, node) {
-    logger.debug(`Checking for mob spawn for user ${userId} in node ${node.address}`);
-    
-    if (!node.events || node.events.length === 0) {
-        logger.debug('No events found in node, skipping spawn check');
-        return null;
-    }
-
-    // Don't spawn if user already has a mob
-    if (stateService.playerMobs.has(userId)) {
-        logger.debug(`User ${userId} already has an active mob, skipping spawn check`);
-        return null;
-    }
-
-    // Roll for eligible events based on chance
-    const eligibleEvents = node.events.filter(event => {
-        const roll = Math.random() * 100;
-        logger.debug(`Event ${event.mobId} - Rolled ${roll} against chance ${event.chance}`);
-        return roll < event.chance;
-    });
-    
-    if (eligibleEvents.length === 0) {
-        logger.debug('No eligible events passed chance check');
-        return null;
-    }
-
-    const selectedEvent = eligibleEvents[Math.floor(Math.random() * eligibleEvents.length)];
-    logger.debug(`Selected event with mobId: ${selectedEvent.mobId}`);
-    
-    const mob = await Mob.findById(selectedEvent.mobId);
-    
-    if (!mob) {
-        logger.debug(`Could not find mob with id ${selectedEvent.mobId}`);
-        return null;
-    }
-
-    const mobInstance = {
-        name: mob.name,
-        description: mob.description,
-        image: mob.image,
-        hitpoints: mob.hitpoints,
-        armor: mob.armor,
-        body: mob.body,
-        reflexes: mob.reflexes,
-        agility: mob.agility,
-        tech: mob.tech,
-        luck: mob.luck,
-        instanceId: `${mob._id}-${Date.now()}`,
-        chatMessages: mob.chatMessages
-    };
-
-    logger.debug(`Spawning mob instance ${mobInstance.instanceId} (${mob.name}) for user ${userId}`);
-    stateService.playerMobs.set(userId, mobInstance);
-    return mobInstance;
-}
-
-// Add new function to handle player connection to node
 async function handlePlayerNodeConnection(userId, nodeAddress) {
     const user = await User.findById(userId);
     if (!user) {
@@ -125,11 +66,9 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
         throw new Error('Node not found');
     }
 
-    // Clear any existing mob
-    stateService.playerMobs.delete(userId);
-
-    // Check for mob spawn
-    const mobSpawn = await checkForMobSpawn(userId, node);
+    // Clear any existing mob and check for new spawn
+    mobService.clearUserMob(userId);
+    const mobSpawn = await mobService.spawnMobForUser(userId, node);
     
     if (mobSpawn) {
         await publishSystemMessage(
@@ -145,6 +84,5 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
 
 module.exports = {
     moveUser,
-    checkForMobSpawn,
-    handlePlayerNodeConnection  // Export the new function
+    handlePlayerNodeConnection
 }; 

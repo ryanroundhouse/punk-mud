@@ -27,6 +27,7 @@ async function createOrUpdateMove(req, res) {
             _id,
             name,
             type,
+            helpDescription,
             successChance,
             success,
             failure
@@ -39,6 +40,7 @@ async function createOrUpdateMove(req, res) {
         const moveData = {
             name,
             type: type || 'none',
+            helpDescription: helpDescription || '',
             successChance: successChance || 50,
             success: {
                 message: success.message,

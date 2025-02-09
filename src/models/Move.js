@@ -23,6 +23,10 @@ const moveSchema = new mongoose.Schema({
         enum: ['none', 'attack'],
         default: 'none'
     },
+    helpDescription: {
+        type: String,
+        default: ''
+    },
     successChance: {
         type: Number,
         min: 0,

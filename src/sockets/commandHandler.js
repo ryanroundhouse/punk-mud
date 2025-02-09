@@ -2,12 +2,14 @@ const logger = require('../config/logger');
 const nodeService = require('../services/nodeService');
 const { handleQuestProgression } = require('../services/questService');
 const stateService = require('../services/stateService');
+const mobService = require('../services/mobService');
 const Actor = require('../models/Actor');
 const User = require('../models/User');
 const Mob = require('../models/Mob');
 const Quest = require('../models/Quest');
 const socketService = require('../services/socketService');
 const { publishSystemMessage } = require('../services/chatService');
+const userService = require('../services/userService');
 
 const HELP_TEXT = `
 Available Commands:
@@ -16,6 +18,7 @@ ls................List all players and NPCs in current location
 ls <name>.........View details of player or NPC in current location
 chat <actor>......Talk to an NPC in current location
 quests............View your active quests and current hints
+fight <mob>.......Engage in combat with a mob
 ?.................Display this help message
 `.trim();
 
@@ -24,6 +27,24 @@ async function handleCommand(socket, data) {
         const user = await User.findById(socket.user.userId);
         if (!user || !user.avatarName || !user.currentNode) {
             throw new Error('User not found or missing required data');
+        }
+
+        // Check if user is in combat
+        const combatState = stateService.userCombatStates.get(socket.user.userId);
+        
+        // If in combat, handle combat moves first
+        if (combatState && data.command !== 'help' && data.command !== 'flee') {
+            await handleCombatCommand(socket, user, data.command);
+            return;
+        }
+
+        // Check if user is in combat for restricted commands
+        if (combatState && ['move', 'list', 'chat', 'quests'].includes(data.command)) {
+            socket.emit('console response', {
+                type: 'error',
+                message: 'You cannot use this command while in combat!'
+            });
+            return;
         }
 
         switch (data.command) {
@@ -58,10 +79,22 @@ async function handleCommand(socket, data) {
                 break;
 
             case 'help':
-                socket.emit('console response', {
-                    type: 'info',
-                    message: HELP_TEXT
-                });
+                if (combatState) {
+                    const combatHelp = await userService.formatCombatHelp(socket.user.userId);
+                    socket.emit('console response', {
+                        type: 'info',
+                        message: combatHelp
+                    });
+                } else {
+                    socket.emit('console response', {
+                        type: 'info',
+                        message: HELP_TEXT
+                    });
+                }
+                break;
+
+            case 'fight':
+                await handleFightCommand(socket, user, data.target);
                 break;
 
             default:
@@ -270,6 +303,255 @@ async function handleQuestsCommand(socket, user) {
         type: 'quests',
         message: `Active Quests:\n--------------\n${questList}`
     });
+}
+
+async function handleFightCommand(socket, user, target) {
+    if (!target) {
+        socket.emit('console response', {
+            type: 'error',
+            message: 'Usage: fight <mob name>'
+        });
+        return;
+    }
+
+    // Check if already in combat
+    if (stateService.userCombatStates.get(socket.user.userId)) {
+        socket.emit('console response', {
+            type: 'error',
+            message: 'You are already in combat!'
+        });
+        return;
+    }
+
+    // Get mob from current location
+    const mobInstance = stateService.playerMobs.get(user._id.toString());
+    if (!mobInstance || mobInstance.name.toLowerCase() !== target.toLowerCase()) {
+        socket.emit('console response', {
+            type: 'error',
+            message: `No mob named "${target}" found in current location.`
+        });
+        return;
+    }
+
+    // Initialize combat state
+    stateService.userCombatStates.set(socket.user.userId, {
+        mobInstanceId: mobInstance.instanceId,
+        mobName: mobInstance.name
+    });
+
+    socket.emit('console response', {
+        type: 'combat',
+        message: `You engage in combat with ${mobInstance.name}!`,
+        hint: 'Type ? to see available combat commands.'
+    });
+
+    publishSystemMessage(user.currentNode, `${user.avatarName} engages in combat with ${mobInstance.name}!`);
+}
+
+async function handleCombatCommand(socket, user, moveName) {
+    try {
+        logger.debug(`Starting combat command for user ${user._id} with move: ${moveName}`);
+        
+        // Get user's available moves
+        const userMoves = await userService.getUserMoves(user._id);
+        logger.debug('User moves:', userMoves);
+        
+        const selectedMove = userMoves.find(move => 
+            move.name.toLowerCase() === moveName.toLowerCase()
+        );
+
+        logger.debug('Selected move:', selectedMove);
+
+        if (!selectedMove) {
+            socket.emit('console response', {
+                type: 'error',
+                message: `You don't know the move "${moveName}"`
+            });
+            return;
+        }
+
+        // Get combat state and mob
+        const combatState = stateService.userCombatStates.get(socket.user.userId);
+        logger.debug('Combat state:', combatState);
+        
+        const mobInstance = stateService.playerMobs.get(user._id.toString());
+        logger.debug('Mob instance:', mobInstance);
+
+        if (!mobInstance || mobInstance.instanceId !== combatState.mobInstanceId) {
+            logger.warn('Mob instance not found or mismatch:', {
+                mobInstance: mobInstance?.instanceId,
+                expectedId: combatState?.mobInstanceId
+            });
+            socket.emit('console response', {
+                type: 'error',
+                message: 'Your target is no longer available.'
+            });
+            stateService.userCombatStates.delete(socket.user.userId);
+            return;
+        }
+
+        // Select random mob move based on usageChance
+        const mobMoves = mobInstance.moves;
+        logger.debug('Mob moves:', mobMoves);
+
+        if (!mobMoves || !Array.isArray(mobMoves)) {
+            logger.error('Invalid mob moves:', {
+                mobMoves,
+                mobInstance,
+                mobId: mobInstance.instanceId
+            });
+            throw new Error('Invalid mob moves configuration');
+        }
+
+        const totalChance = mobMoves.reduce((sum, move) => sum + move.usageChance, 0);
+        let random = Math.random() * totalChance;
+        let mobMove;
+
+        for (const move of mobMoves) {
+            random -= move.usageChance;
+            if (random <= 0) {
+                mobMove = move;
+                break;
+            }
+        }
+
+        logger.debug('Selected mob move:', mobMove);
+
+        // Calculate combat results
+        const playerResult = calculateAttackResult(selectedMove, user.avatarName, mobInstance.name);
+        const mobResult = calculateAttackResult(mobMove, mobInstance.name, user.avatarName);
+
+        logger.debug('Combat results:', { playerResult, mobResult });
+
+        // Apply combat effects and check results
+        if (playerResult.effect) {
+            const target = playerResult.effect.target === 'self' ? user.stats : mobInstance.stats;
+            const stat = playerResult.effect.stat;
+            if (stat && target) {
+                if (stat === 'hitpoints') {
+                    target.currentHitpoints += playerResult.effect.amount || 0;
+                    // If this affected the user, save to database
+                    if (target === user.stats) {
+                        await User.findByIdAndUpdate(user._id, {
+                            'stats.currentHitpoints': user.stats.currentHitpoints
+                        });
+                    }
+                } else {
+                    target[stat] += playerResult.effect.amount || 0;
+                }
+            }
+        }
+
+        if (mobResult.effect) {
+            const target = mobResult.effect.target === 'self' ? mobInstance.stats : user.stats;
+            const stat = mobResult.effect.stat;
+            if (stat && target) {
+                if (stat === 'hitpoints') {
+                    target.currentHitpoints += mobResult.effect.amount || 0;
+                    // If this affected the user, save to database
+                    if (target === user.stats) {
+                        await User.findByIdAndUpdate(user._id, {
+                            'stats.currentHitpoints': user.stats.currentHitpoints
+                        });
+                    }
+                } else {
+                    target[stat] += mobResult.effect.amount || 0;
+                }
+            }
+        }
+
+        // Get current HP status after applying effects
+        const userCurrentHP = user.stats.currentHitpoints;
+        const mobCurrentHP = mobInstance.stats.currentHitpoints;
+
+        // Check if mob is defeated
+        if (mobCurrentHP <= 0) {
+            // Clear combat state and remove mob
+            stateService.clearUserCombatState(socket.user.userId);
+            mobService.clearUserMob(user._id.toString());
+
+            socket.emit('console response', {
+                type: 'combat',
+                message: `You use ${selectedMove.name}! ${playerResult.message}\n` +
+                         `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n` +
+                         `\nVictory! You have defeated ${mobInstance.name}!`
+            });
+
+            publishSystemMessage(
+                user.currentNode,
+                `${user.avatarName} has defeated ${mobInstance.name}!`
+            );
+            return;
+        }
+
+        // Normal combat round message if mob wasn't defeated
+        socket.emit('console response', {
+            type: 'combat',
+            message: `You use ${selectedMove.name}! ${playerResult.message}\n` +
+                     `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n` +
+                     `\nStatus:\n` +
+                     `${user.avatarName}: ${userCurrentHP} HP\n` +
+                     `${mobInstance.name}: ${mobCurrentHP} HP`
+        });
+
+    } catch (error) {
+        logger.error('Error handling combat command:', {
+            error,
+            userId: user._id,
+            moveName,
+            stack: error.stack
+        });
+        socket.emit('console response', {
+            type: 'error',
+            message: 'Error processing combat command'
+        });
+    }
+}
+
+function calculateAttackResult(move, attackerName, defenderName) {
+    const success = Math.random() * 100 <= move.successChance;
+    const effect = success ? move.success : move.failure;
+    
+    if (!effect) {
+        return {
+            success,
+            message: success ? 'The attack succeeds!' : 'The attack fails!'
+        };
+    }
+
+    const targetName = effect.target === 'self' ? attackerName : defenderName;
+    const amount = effect.amount || 0;
+    
+    // Start with custom message if it exists
+    let message = '';
+    if (effect.message) {
+        message = effect.message
+            .replace(/\[name\]/g, attackerName)
+            .replace(/\[opponent\]/g, defenderName);
+    }
+
+    // Only add effect message if amount is non-zero
+    if (amount !== 0) {
+        let effectMessage;
+        if (effect.stat === 'hitpoints') {
+            if (amount < 0) {
+                effectMessage = `${targetName} takes ${Math.abs(amount)} damage!`;
+            } else {
+                effectMessage = `${targetName} heals for ${amount} points!`;
+            }
+        } else {
+            const statEffect = amount < 0 ? 'loses' : 'gains';
+            effectMessage = `${targetName} ${statEffect} ${Math.abs(amount)} ${effect.stat}!`;
+        }
+        
+        message = message ? `${message} ${effectMessage}` : effectMessage;
+    }
+
+    return {
+        success,
+        effect,
+        message: message || 'Nothing happens.'
+    };
 }
 
 module.exports = {

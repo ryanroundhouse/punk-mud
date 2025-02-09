@@ -1022,6 +1022,18 @@
                             });
                         }
                         break;
+                    case 'fight':
+                        if (!targetName) {
+                            socket.emit('console response', {
+                                message: 'Usage: fight <mob name>'
+                            });
+                            return;
+                        }
+                        socket.emit('console command', {
+                            command: 'fight',
+                            target: targetName
+                        });
+                        break;
                     case 'quests':
                         socket.emit('console command', { command: 'quests' });
                         break;
@@ -1029,9 +1041,10 @@
                         socket.emit('console command', { command: 'help' });
                         break;
                     default:
-                        const responseLine = document.createElement('div');
-                        responseLine.textContent = `Unknown command: ${fullCommand}`;
-                        terminalOutput.insertBefore(responseLine, inputLine);
+                        // Check if this is a combat move before declaring it unknown
+                        socket.emit('console command', { 
+                            command: fullCommand.toLowerCase()
+                        });
                 }
                 
                 // Replace scrollTop with scrollIntoView

@@ -292,6 +292,13 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="helpDescription">Help Description:</label>
+                        <textarea id="helpDescription" 
+                                  placeholder="Describe what this move does when players use the help command..."
+                                  required></textarea>
+                    </div>
+
+                    <div class="form-group">
                         <label for="successChance">Success Chance (%):</label>
                         <input type="number" 
                                id="successChance" 
@@ -468,6 +475,7 @@
             
             document.getElementById('moveName').value = move.name;
             document.getElementById('moveType').value = move.type;
+            document.getElementById('helpDescription').value = move.helpDescription || '';
             document.getElementById('successChance').value = move.successChance;
             
             document.getElementById('successMessage').value = move.success.message;
@@ -496,6 +504,7 @@
             
             document.getElementById('moveName').value = '';
             document.getElementById('moveType').value = 'none';
+            document.getElementById('helpDescription').value = '';
             document.getElementById('successChance').value = '50';
             
             document.getElementById('successMessage').value = '';
@@ -515,6 +524,7 @@
                 _id: document.getElementById('moveForm').dataset.moveId || undefined,
                 name: document.getElementById('moveName').value,
                 type: document.getElementById('moveType').value,
+                helpDescription: document.getElementById('helpDescription').value,
                 successChance: parseInt(document.getElementById('successChance').value),
                 success: {
                     message: document.getElementById('successMessage').value,

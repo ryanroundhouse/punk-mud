@@ -68,6 +68,7 @@ const userSchema = new mongoose.Schema({
     }],
     stats: {
         hitpoints: { type: Number, default: 100 },
+        currentHitpoints: { type: Number, default: 100 },
         armor: { type: Number, default: 0 },
         body: { type: Number, default: 10 },
         reflexes: { type: Number, default: 10 },

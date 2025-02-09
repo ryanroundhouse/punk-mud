@@ -459,7 +459,7 @@
                         <div class="stats-grid">
                             <div class="stat-item">
                                 <label>Hit Points:</label>
-                                <span id="statHitPoints">100</span>
+                                <span><span id="statCurrentHitPoints">100</span>/<span id="statHitPoints">100</span></span>
                             </div>
                             <div class="stat-item">
                                 <label>Armor:</label>
@@ -674,7 +674,8 @@
                 
                 // Update stats
                 if (data.stats) {
-                    document.getElementById('statHitPoints').textContent = data.stats.hitPoints;
+                    document.getElementById('statHitPoints').textContent = data.stats.hitpoints;
+                    document.getElementById('statCurrentHitPoints').textContent = data.stats.currentHitpoints;
                     document.getElementById('statArmor').textContent = data.stats.armor;
                     document.getElementById('statBody').textContent = data.stats.body;
                     document.getElementById('statReflexes').textContent = data.stats.reflexes;
