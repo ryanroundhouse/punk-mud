@@ -97,6 +97,10 @@ async function handleCommand(socket, data) {
                 await handleFightCommand(socket, user, data.target);
                 break;
 
+            case 'flee':
+                await handleFleeCommand(socket, user);
+                break;
+
             default:
                 socket.emit('console response', {
                     type: 'error',
@@ -552,6 +556,108 @@ function calculateAttackResult(move, attackerName, defenderName) {
         effect,
         message: message || 'Nothing happens.'
     };
+}
+
+async function handleFleeCommand(socket, user) {
+    try {
+        // Check if user is in combat
+        const combatState = stateService.userCombatStates.get(socket.user.userId);
+        if (!combatState) {
+            socket.emit('console response', {
+                type: 'error',
+                message: 'You are not in combat!'
+            });
+            return;
+        }
+
+        // Get the mob instance
+        const mobInstance = stateService.playerMobs.get(user._id.toString());
+        if (!mobInstance || mobInstance.instanceId !== combatState.mobInstanceId) {
+            socket.emit('console response', {
+                type: 'error',
+                message: 'Your target is no longer available.'
+            });
+            stateService.userCombatStates.delete(socket.user.userId);
+            return;
+        }
+
+        // Mob gets a free attack
+        const mobMove = mobInstance.moves[0]; // Use first move as "chase" attack
+        const mobResult = calculateAttackResult(mobMove, mobInstance.name, user.avatarName);
+        
+        // Apply mob attack effect
+        if (mobResult.effect) {
+            const target = mobResult.effect.target === 'self' ? mobInstance.stats : user.stats;
+            const stat = mobResult.effect.stat;
+            if (stat && target) {
+                if (stat === 'hitpoints') {
+                    target.currentHitpoints += mobResult.effect.amount || 0;
+                    if (target === user.stats) {
+                        await User.findByIdAndUpdate(user._id, {
+                            'stats.currentHitpoints': user.stats.currentHitpoints
+                        });
+                    }
+                } else {
+                    target[stat] += mobResult.effect.amount || 0;
+                }
+            }
+        }
+
+        // 50% chance to successfully flee
+        const fleeSuccess = Math.random() < 0.5;
+
+        if (fleeSuccess) {
+            // Get available exits
+            const currentNode = await nodeService.getNode(user.currentNode);
+            const exits = currentNode.exits || [];
+            
+            if (exits.length === 0) {
+                socket.emit('console response', {
+                    type: 'error',
+                    message: 'There is nowhere to flee to!'
+                });
+                return;
+            }
+
+            // Pick random exit
+            const randomExit = exits[Math.floor(Math.random() * exits.length)];
+            
+            // Move user to new node
+            const oldNode = user.currentNode;
+            await nodeService.moveUser(socket.user.userId, randomExit.direction);
+            
+            // Update node subscriptions
+            if (oldNode) {
+                stateService.removeUserFromNode(socket.user.userId, oldNode);
+                await socketService.unsubscribeFromNodeChat(oldNode);
+            }
+            stateService.addUserToNode(socket.user.userId, user.currentNode);
+            await socketService.subscribeToNodeChat(user.currentNode);
+
+            // Clear combat state and remove mob
+            stateService.clearUserCombatState(socket.user.userId);
+            mobService.clearUserMob(user._id.toString());
+
+            socket.emit('console response', {
+                type: 'combat',
+                message: `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n\nYou successfully flee from combat!`
+            });
+
+            publishSystemMessage(oldNode, `${user.avatarName} flees from combat with ${mobInstance.name}!`);
+        } else {
+            socket.emit('console response', {
+                type: 'combat',
+                message: `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n\nYou fail to escape!`
+            });
+        }
+
+    } catch (error) {
+        logger.error('Error handling flee command:', error);
+        socket.emit('console response', {
+            type: 'error',
+            message: 'Error processing flee command'
+        });
+    }
 }
 
 module.exports = {

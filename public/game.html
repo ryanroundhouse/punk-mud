@@ -844,8 +844,9 @@
                 const inputLine = terminalInput.parentElement;
                 const responseLine = document.createElement('div');
                 
-                // Check if this is a movement response
-                if (data.message && data.message.startsWith('You move ')) {
+                // Check if this is a movement response or successful flee
+                if ((data.message && data.message.startsWith('You move ')) || 
+                    (data.message && data.message.includes('You successfully flee from combat!'))) {
                     // Refresh the location display
                     loadNode();
                 }

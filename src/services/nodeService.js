@@ -82,7 +82,16 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
     return mobSpawn;
 }
 
+async function getNode(address) {
+    const node = await Node.findOne({ address });
+    if (!node) {
+        throw new Error('Node not found');
+    }
+    return node;
+}
+
 module.exports = {
     moveUser,
-    handlePlayerNodeConnection
+    handlePlayerNodeConnection,
+    getNode
 }; 
