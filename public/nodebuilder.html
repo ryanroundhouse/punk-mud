@@ -458,6 +458,26 @@
         .menu-content a + a {
             margin-top: 0.2rem;
         }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--neon-pink);
+        }
+
+        .checkbox-description {
+            color: var(--neon-blue);
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
     </style>
 </head>
 <body>
@@ -511,6 +531,13 @@
                         <div class="form-group">
                             <label for="description">Description:</label>
                             <textarea id="description" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="isRestPoint">
+                                Rest Point
+                                <span class="checkbox-description">Players can rest and recover here</span>
+                            </label>
                         </div>
                         <div class="form-group">
                             <label>Exits:</label>
@@ -805,6 +832,7 @@
                 address: document.getElementById('nodeAddress').value,
                 description: document.getElementById('description').value,
                 image: document.getElementById('imagePath').value,
+                isRestPoint: document.getElementById('isRestPoint').checked,
                 exits: Array.from(document.querySelectorAll('.exit-entry')).map(exit => ({
                     direction: exit.querySelector('.exit-direction').value,
                     target: exit.querySelector('.exit-target').value
@@ -893,6 +921,7 @@
             document.getElementById('nodeAddress').value = node.address;
             document.getElementById('description').value = node.description;
             document.getElementById('imagePath').value = node.image || '';
+            document.getElementById('isRestPoint').checked = node.isRestPoint || false;
             
             const noImageText = document.getElementById('noImageText');
             
@@ -989,6 +1018,7 @@
             document.getElementById('eventMob').value = '';
             document.getElementById('eventChance').value = '100';
             document.getElementById('eventValidationError').textContent = '';
+            document.getElementById('isRestPoint').checked = false;
         });
 
         // Hamburger menu functionality

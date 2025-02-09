@@ -15,6 +15,10 @@ const nodeSchema = new mongoose.Schema({
         required: true
     },
     image: String,
+    isRestPoint: {
+        type: Boolean,
+        default: false
+    },
     exits: [{
         direction: String,
         target: String

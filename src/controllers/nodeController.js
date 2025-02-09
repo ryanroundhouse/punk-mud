@@ -27,14 +27,14 @@ async function getPublicNodes(req, res) {
 }
 
 async function createOrUpdateNode(req, res) {
-    const { id, name, address, description, image, exits, events } = req.body;
+    const { id, name, address, description, image, exits, events, isRestPoint } = req.body;
     
     try {
         if (!name || !address || !description) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        // Validate events array - now using MongoDB _id
+        // Validate events array
         if (events) {
             events.forEach(event => {
                 if (!event.name || !event.mobId || typeof event.chance !== 'number') {
@@ -55,6 +55,7 @@ async function createOrUpdateNode(req, res) {
             existingNode.image = image;
             existingNode.exits = exits;
             existingNode.events = events;
+            existingNode.isRestPoint = isRestPoint;
             
             await existingNode.save();
             return res.json(existingNode);
@@ -66,7 +67,8 @@ async function createOrUpdateNode(req, res) {
             description,
             image,
             exits,
-            events
+            events,
+            isRestPoint
         });
         
         await node.save();

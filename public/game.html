@@ -10,6 +10,7 @@
             --neon-blue: #00fff9;
             --dark-bg: #0a0a0f;
             --terminal-green: #00ff00;
+            --neon-red: #ff0000;
         }
 
         body {
@@ -477,6 +478,26 @@
             padding-right: 1rem;
             white-space: pre-wrap;
         }
+
+        .node-details {
+            color: var(--terminal-green);
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--terminal-green);
+        }
+
+        .rest-point-indicator {
+            color: var(--terminal-green);
+            text-shadow: 0 0 5px var(--terminal-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
     </style>
 </head>
 <body>
@@ -593,13 +614,43 @@
 
                 // Update node display
                 document.getElementById('nodeName').textContent = node.name;
-                document.getElementById('nodeDescription').textContent = node.description;
+
+                // Create or update node details section
+                const descriptionContainer = document.getElementById('nodeDescription');
+                descriptionContainer.innerHTML = ''; // Clear existing content
+
+                if (node.isRestPoint) {
+                    const details = document.createElement('div');
+                    details.className = 'node-details';
+                    details.innerHTML = '<span class="rest-point-indicator">*** REST POINT ***</span>';
+                    descriptionContainer.appendChild(details);
+                }
+
+                // Add description text
+                const descriptionText = document.createElement('div');
+                descriptionText.textContent = node.description;
+                descriptionContainer.appendChild(descriptionText);
                 
-                // Handle image
+                // Handle image and update border color based on node status
                 const nodeImage = document.getElementById('nodeImage');
                 if (node.image) {
                     nodeImage.src = node.image;
                     nodeImage.style.display = 'block';
+                    
+                    // Set border color based on node status
+                    let borderColor = 'var(--neon-blue)'; // default
+                    let shadowColor = 'var(--neon-blue)';
+                    
+                    if (node.events && node.events.length > 0) {
+                        borderColor = 'var(--neon-red)';
+                        shadowColor = 'var(--neon-red)';
+                    } else if (node.isRestPoint) {
+                        borderColor = 'var(--terminal-green)';
+                        shadowColor = 'var(--terminal-green)';
+                    }
+                    
+                    nodeImage.style.borderColor = borderColor;
+                    nodeImage.style.boxShadow = `0 0 15px ${shadowColor}`;
                 } else {
                     nodeImage.style.display = 'none';
                 }
