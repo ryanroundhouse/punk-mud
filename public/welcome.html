@@ -531,17 +531,11 @@
         // Update the initialization code
         window.onload = async () => {
             try {
-                // Add loading message while verifying
-                await terminal.writeMessage("SYSTEM: Verifying credentials...");
-                
                 const user = await fetchUserDetails();
                 
                 if (!user) {
                     throw new Error('No user data received');
                 }
-                
-                // Clear the loading message
-                terminalOutput.innerHTML = '';
                 
                 if (user.avatarName) {
                     isReturningUser = true;

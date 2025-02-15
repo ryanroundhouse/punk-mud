@@ -1045,9 +1045,33 @@
                 // Handle commands
                 switch (cmd.toLowerCase()) {
                     case 'north':
-                    case 'south':
+                    case 'n':
+                        socket.emit('console command', { 
+                            command: 'move',
+                            direction: 'north'
+                        });
+                        break;
+                    case 'south': 
+                    case 's':
+                        socket.emit('console command', { 
+                            command: 'move',
+                            direction: 'south'
+                        });
+                        break;
                     case 'east':
+                    case 'e':
+                        socket.emit('console command', { 
+                            command: 'move',
+                            direction: 'east'
+                        });
+                        break;
                     case 'west':
+                    case 'w':
+                        socket.emit('console command', { 
+                            command: 'move',
+                            direction: 'west'
+                        });
+                        break;
                     case 'up':
                     case 'down':
                         socket.emit('console command', { 
