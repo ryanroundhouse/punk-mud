@@ -166,6 +166,36 @@
             50% { opacity: 1; }
             100% { opacity: 0.2; }
         }
+
+        .map-search {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1000;
+        }
+
+        .search-input {
+            background: rgba(10, 10, 15, 0.95);
+            color: var(--terminal-green);
+            border: 1px solid var(--neon-blue);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            width: 200px;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        @keyframes arrow-pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
     </style>
 </head>
 <body>
@@ -178,6 +208,9 @@
         <div class="map-canvas-container">
             <div class="map-controls">
                 <button class="control-button" id="resetView">Reset View</button>
+            </div>
+            <div class="map-search">
+                <input type="text" id="nodeSearch" placeholder="Search nodes..." class="search-input">
             </div>
             <canvas id="mapCanvas"></canvas>
             <div class="node-tooltip" id="nodeTooltip"></div>
@@ -210,6 +243,8 @@
         let offsetX = 0, offsetY = 0;
         let hoveredNode = null;
         let animationFrameId = null;
+        let searchTerm = '';
+        let matchingNodes = [];
 
         const NODE_RADIUS = 20;
         const NODE_SPACING = 150;
@@ -365,6 +400,51 @@
         }
 
         function drawNode(node) {
+            // First draw pulsing arrows for matching nodes
+            if (matchingNodes.includes(node)) {
+                const time = Date.now() / 1000;
+                const pulseScale = 1.5 + Math.sin(time * 4) * 0.2; // Pulse between 1.3x and 1.7x size
+                const numArrows = 4; // Changed from 8 to 4 arrows
+                const arrowSize = NODE_RADIUS * 0.6; // Made arrows slightly larger
+                
+                ctx.save();
+                ctx.translate(node.x, node.y);
+                
+                // Draw arrows in a circle
+                for (let i = 0; i < numArrows; i++) {
+                    const angle = (i * 2 * Math.PI) / numArrows + (Math.PI / 4); // Added offset to position arrows at diagonals
+                    const distance = NODE_RADIUS * pulseScale;
+                    
+                    ctx.save();
+                    ctx.translate(
+                        Math.cos(angle) * distance,
+                        Math.sin(angle) * distance
+                    );
+                    ctx.rotate(angle + Math.PI); // Rotate to point at node
+                    
+                    // Draw arrow
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(-arrowSize, -arrowSize/2);
+                    ctx.lineTo(-arrowSize, arrowSize/2);
+                    ctx.closePath();
+                    
+                    ctx.fillStyle = getComputedStyle(document.documentElement)
+                        .getPropertyValue('--neon-blue').trim();
+                    ctx.strokeStyle = ctx.fillStyle;
+                    ctx.lineWidth = 2;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = ctx.fillStyle;
+                    
+                    ctx.fill();
+                    ctx.stroke();
+                    
+                    ctx.restore();
+                }
+                ctx.restore();
+            }
+
+            // Draw the main node circle
             ctx.beginPath();
             ctx.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI * 2);
             
@@ -388,9 +468,9 @@
 
             // Draw pulsing ring for current node
             if (currentNode && node.address === currentNode.address) {
-                const time = Date.now() / 1000;  // Time in seconds
-                const alpha = (Math.sin(time * 3) + 1) / 2;  // Oscillate between 0 and 1
-                const ringRadius = NODE_RADIUS * 1.5; // Ring size relative to node
+                const time = Date.now() / 1000;
+                const alpha = (Math.sin(time * 3) + 1) / 2;
+                const ringRadius = NODE_RADIUS * 1.5;
                 
                 ctx.beginPath();
                 ctx.arc(node.x, node.y, ringRadius, 0, Math.PI * 2);
@@ -428,6 +508,11 @@
                 offsetX = 0;
                 offsetY = 0;
                 drawMap();
+            });
+
+            document.getElementById('nodeSearch').addEventListener('input', (e) => {
+                searchTerm = e.target.value.toLowerCase();
+                updateMatchingNodes();
             });
         }
 
@@ -494,6 +579,16 @@
 
         function handleTouchEnd(e) {
             isDragging = false;
+        }
+
+        function updateMatchingNodes() {
+            if (!searchTerm) {
+                matchingNodes = [];
+            } else {
+                matchingNodes = nodes.filter(node => 
+                    node.name.toLowerCase().includes(searchTerm)
+                );
+            }
         }
 
         // Add cleanup when leaving the page
