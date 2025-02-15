@@ -386,8 +386,9 @@
                     throw new Error('Invalid token');
                 }
 
-                // Load actors, mobs, and quests first, then quests
-                await Promise.all([loadActors(), loadMobs()]);
+                // Load everything sequentially to avoid race conditions
+                await loadActors();
+                await loadMobs();
                 await loadQuests();
                 
                 // Start in "new quest" state
@@ -401,15 +402,23 @@
         // Load actors for event source selection
         async function loadActors() {
             try {
+                console.log('Attempting to fetch actors from /api/actors...');
                 const response = await fetch('/api/actors', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
+                console.log('Fetch response status:', response.status);
+                console.log('Fetch response:', response);
+
                 if (!response.ok) {
-                    throw new Error('Failed to load actors');
+                    throw new Error(`Failed to load actors - Status: ${response.status}`);
                 }
-                allActors = await response.json();
+
+                const data = await response.json();
+                console.log('Actors data received:', data);
+                
+                allActors = data;
                 
                 // Populate actor dropdown
                 const eventActor = document.getElementById('eventActor');
@@ -421,7 +430,12 @@
                     eventActor.appendChild(option);
                 });
             } catch (error) {
-                console.error('Error loading actors:', error);
+                console.error('Detailed error loading actors:', {
+                    error: error,
+                    message: error.message,
+                    stack: error.stack,
+                    token: localStorage.getItem('token') ? 'Token exists' : 'No token'
+                });
                 alert('Failed to load actors. Please try refreshing the page.');
             }
         }
@@ -429,20 +443,31 @@
         // Load mobs
         async function loadMobs() {
             try {
+                console.log('Attempting to fetch mobs from /api/mobs...');
                 const response = await fetch('/api/mobs', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
-                if (!response.ok) {
-                    throw new Error('Failed to load mobs');
-                }
-                allMobs = await response.json();
+                console.log('Fetch response status:', response.status);
+                console.log('Fetch response:', response);
                 
-                // Populate mob dropdown
+                if (!response.ok) {
+                    throw new Error(`Failed to load mobs - Status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Mobs data received:', data);
+                
+                allMobs = data;
                 populateMobSelect();
             } catch (error) {
-                console.error('Error loading mobs:', error);
+                console.error('Detailed error loading mobs:', {
+                    error: error,
+                    message: error.message,
+                    stack: error.stack,
+                    token: localStorage.getItem('token') ? 'Token exists' : 'No token'
+                });
                 alert('Failed to load mobs. Please try refreshing the page.');
             }
         }
@@ -450,11 +475,6 @@
         // Load existing quests
         async function loadQuests() {
             try {
-                // Make sure we have actors and mobs loaded first
-                if (allActors.length === 0 || allMobs.length === 0) {
-                    await Promise.all([loadActors(), loadMobs()]);
-                }
-
                 const response = await fetch('/api/quests', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -462,13 +482,18 @@
                 });
                 
                 if (!response.ok) {
-                    throw new Error('Failed to load quests');
+                    throw new Error(`Failed to load quests - Status: ${response.status}`);
                 }
                 
                 allQuests = await response.json();
                 filterAndDisplayQuests();
             } catch (error) {
-                console.error('Error loading quests:', error);
+                console.error('Detailed error loading quests:', {
+                    error: error,
+                    message: error.message,
+                    stack: error.stack,
+                    token: localStorage.getItem('token') ? 'Token exists' : 'No token'
+                });
                 alert('Failed to load quests. Please try refreshing the page.');
             }
         }
