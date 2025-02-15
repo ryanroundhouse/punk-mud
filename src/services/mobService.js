@@ -25,12 +25,13 @@ async function loadMobFromEvent(event) {
     logger.debug('Processed mob moves:', moves);
 
     const mobInstance = {
+        mobId: mob._id,
         name: mob.name,
         description: mob.description,
         image: mob.image,
         stats: {
             hitpoints: mob.stats.hitpoints,
-            currentHitpoints: mob.stats.hitpoints, // Default to hitpoints if not set
+            currentHitpoints: mob.stats.hitpoints,
             armor: mob.stats.armor,
             body: mob.stats.body,
             reflexes: mob.stats.reflexes,
@@ -44,8 +45,10 @@ async function loadMobFromEvent(event) {
     };
 
     logger.debug('Created mob instance:', {
+        mobId: mobInstance.mobId,
         name: mobInstance.name,
-        moves: mobInstance.moves,
+        instanceId: mobInstance.instanceId,
+        moves: mobInstance.moves.length,
         stats: mobInstance.stats
     });
 

@@ -14,18 +14,10 @@ const questSchema = new mongoose.Schema({
         eventType: {
             type: String,
             required: true,
-            enum: ['chat'],  // Can be expanded later
+            enum: ['chat', 'kill'],  // Added 'kill' event type
             default: 'chat'
         },
-        actorId: {
-            type: String,
-            required: true,
-            ref: 'Actor'
-        },
-        message: {
-            type: String,
-            required: true
-        },
+        // Common fields for all event types
         hint: {
             type: String,
             default: ''
@@ -43,6 +35,28 @@ const questSchema = new mongoose.Schema({
         isEnd: {
             type: Boolean,
             default: false
+        },
+        // Chat event specific fields
+        actorId: {
+            type: String,
+            required: function() { return this.eventType === 'chat'; },
+            ref: 'Actor'
+        },
+        message: {
+            type: String,
+            required: function() { return this.eventType === 'chat'; }
+        },
+        // Kill event specific fields
+        mobId: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: function() { return this.eventType === 'kill'; },
+            ref: 'Mob'
+        },
+        quantity: {
+            type: Number,
+            required: function() { return this.eventType === 'kill'; },
+            min: 1,
+            default: 1
         }
     }],
     createdAt: {
@@ -59,5 +73,8 @@ questSchema.pre('save', function(next) {
     this.updatedAt = Date.now();
     next();
 });
+
+// Remove any existing indexes that might be causing issues
+questSchema.index({ _id: 1 }); // Only keep the default MongoDB _id index
 
 module.exports = mongoose.model('Quest', questSchema); 

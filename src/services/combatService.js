@@ -6,6 +6,7 @@ const nodeService = require('./nodeService');
 const socketService = require('./socketService');
 const userService = require('./userService');
 const { publishSystemMessage } = require('./chatService');
+const questService = require('./questService');
 
 function calculateAttackResult(move, attackerName, defenderName) {
     const success = Math.random() * 100 <= move.successChance;
@@ -137,13 +138,34 @@ async function handleCombatCommand(socket, user, moveName) {
 
         if (mobCurrentHP <= 0) {
             stateService.clearUserCombatState(socket.user.userId);
+            
+            // Get the original mob's _id - mobInstance is created from the Mob document
+            const mobId = mobInstance._id || mobInstance.mobId;
+            logger.debug('Mob killed:', {
+                mobId,
+                mobName: mobInstance.name,
+                mobInstanceId: mobInstance.instanceId
+            });
+            
+            const questUpdates = await questService.handleMobKill(user._id, mobId);
             mobService.clearUserMob(user._id.toString());
+
+            let victoryMessage = `You use ${selectedMove.name}! ${playerResult.message}\n` +
+                                `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n` +
+                                `\nVictory! You have defeated ${mobInstance.name}!`;
+
+            if (questUpdates && questUpdates.length > 0) {
+                victoryMessage += '\n\n' + questUpdates.map(update => update.message).join('\n');
+                
+                const progressUpdate = questUpdates.find(u => u.type === 'quest_progress' && u.nextMessage);
+                if (progressUpdate) {
+                    victoryMessage += `\n\n${progressUpdate.nextMessage}`;
+                }
+            }
 
             socket.emit('console response', {
                 type: 'combat',
-                message: `You use ${selectedMove.name}! ${playerResult.message}\n` +
-                         `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n` +
-                         `\nVictory! You have defeated ${mobInstance.name}!`
+                message: victoryMessage
             });
 
             publishSystemMessage(

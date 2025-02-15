@@ -95,291 +95,6 @@
         }
 
         .event-controls {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr auto;
-            gap: 1rem;
-            margin-bottom: 1rem;
-            align-items: center;
-        }
-
-        .event-controls select,
-        .event-controls input {
-            flex: 1;
-        }
-
-        .right-panel {
-            width: 300px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 1rem;
-            border-radius: 5px;
-            border: 1px solid var(--terminal-green);
-            display: flex;
-            flex-direction: column;
-            margin-top: 5rem;
-            height: calc(100% - 7rem);
-        }
-
-        .quests-list {
-            flex: 1;
-            overflow-y: auto;
-            scrollbar-width: thin;
-            scrollbar-color: var(--neon-blue) var(--dark-bg);
-        }
-
-        .quest-entry {
-            padding: 0.8rem;
-            border-bottom: 1px solid var(--neon-blue);
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-        }
-
-        .quest-entry:hover {
-            background: rgba(0, 255, 249, 0.1);
-        }
-
-        .quest-entry-title {
-            color: var(--neon-pink);
-            font-weight: bold;
-            margin-bottom: 0.3rem;
-        }
-
-        .quest-entry-events {
-            color: var(--neon-blue);
-            font-size: 0.9rem;
-        }
-
-        .form-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 1rem;
-            margin-top: 2rem;
-            padding: 1rem;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 5px;
-            border: 1px solid var(--terminal-green);
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        .delete-button {
-            background: transparent;
-            color: var(--neon-pink);
-            border: 1px solid var(--neon-pink);
-        }
-
-        .delete-button:hover {
-            background: var(--neon-pink);
-            color: var(--dark-bg);
-            box-shadow: 0 0 10px var(--neon-pink);
-        }
-
-        .quest-event {
-            display: flex;
-            flex-direction: column;
-            gap: 0.8rem;
-            background: rgba(0, 255, 249, 0.05);
-            padding: 1rem;
-            border-radius: 5px;
-            cursor: move;
-            user-select: none;
-            border: 1px solid transparent;
-            margin-bottom: 0.8rem;
-            position: relative;
-        }
-
-        .quest-event:hover {
-            border-color: var(--neon-blue);
-        }
-
-        .quest-event.dragging {
-            opacity: 0.5;
-            border-color: var(--neon-pink);
-        }
-
-        .quest-event.drag-over {
-            border-top: 2px solid var(--neon-pink);
-        }
-
-        .event-handle {
-            align-self: flex-start;
-            color: var(--neon-blue);
-            cursor: move;
-            padding: 0.5rem;
-            margin: -0.5rem;
-        }
-
-        .event-content {
-            display: flex;
-            flex-direction: column;
-            gap: 0.8rem;
-            width: 100%;
-        }
-
-        .actor-container {
-            width: 100%;
-        }
-
-        .event-actor-select,
-        .event-message-input,
-        .event-hint-input {
-            width: 100%;
-            padding: 0.8rem;
-        }
-
-        .event-message-input {
-            min-height: 4rem;
-            resize: vertical;
-        }
-
-        .event-id {
-            position: absolute;
-            top: 0.5rem;
-            right: 0.5rem;
-            font-size: 0.8em;
-            color: var(--neon-pink);
-        }
-
-        .event-choices {
-            margin-left: 0;
-            padding: 0.8rem 0;
-            border-top: 2px solid var(--neon-blue);
-            border-left: none;
-        }
-
-        .remove-event {
-            color: var(--neon-pink);
-            cursor: pointer;
-            font-size: 1.2rem;
-            padding: 0.5rem;
-            margin: -0.5rem;
-        }
-
-        .action-button {
-            background: transparent;
-            color: var(--neon-pink);
-            border: 1px solid var(--neon-pink);
-            padding: 0.5rem 1rem;
-            border-radius: 5px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: all 0.3s ease;
-        }
-
-        .action-button:hover {
-            background: var(--neon-pink);
-            color: var(--dark-bg);
-            box-shadow: 0 0 10px var(--neon-pink);
-            transform: translateY(-2px);
-        }
-
-        .action-button::before {
-            content: "[ ";
-            color: var(--neon-pink);
-        }
-
-        .action-button::after {
-            content: " ]";
-            color: var(--neon-pink);
-        }
-
-        .action-button:hover::before,
-        .action-button:hover::after {
-            color: var(--dark-bg);
-        }
-
-        #newQuestBtn {
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 1;
-        }
-
-        #saveQuestBtn {
-            margin-left: auto;
-        }
-
-        #addEventBtn {
-            background: transparent;
-            color: var(--neon-blue);
-            border: 1px solid var(--neon-blue);
-        }
-
-        #addEventBtn:hover {
-            background: var(--neon-blue);
-            color: var(--dark-bg);
-            box-shadow: 0 0 10px var(--neon-blue);
-        }
-
-        #addEventBtn::before {
-            content: "[ ";
-            color: var(--neon-blue);
-        }
-
-        #addEventBtn::after {
-            content: " ]";
-            color: var(--neon-blue);
-        }
-
-        #addEventBtn:hover::before,
-        #addEventBtn:hover::after {
-            color: var(--dark-bg);
-        }
-
-        select, input[type="text"] {
-            background: rgba(0, 255, 249, 0.1);
-            border: 1px solid var(--neon-blue);
-            padding: 0.8rem;
-            border-radius: 5px;
-            color: var(--terminal-green);
-            font-family: 'Courier New', monospace;
-            font-size: 1rem;
-        }
-
-        select:focus, input[type="text"]:focus {
-            outline: none;
-            box-shadow: 0 0 10px var(--neon-blue);
-        }
-
-        select option {
-            background: var(--dark-bg);
-            color: var(--terminal-green);
-        }
-
-        .event-hint {
-            color: var(--neon-blue);
-            font-style: italic;
-            font-size: 0.9em;
-        }
-
-        .choice-entry {
-            display: grid;
-            grid-template-columns: 1fr auto auto;
-            gap: 1rem;
-            margin: 0.5rem 0;
-            padding: 0.5rem;
-            background: rgba(0, 255, 249, 0.05);
-            border-radius: 5px;
-        }
-
-        .add-choice-btn {
-            margin-left: 2rem;
-            margin-top: 0.5rem;
-        }
-
-        .choice-target-select {
-            background: rgba(0, 255, 249, 0.1);
-            border: 1px solid var(--neon-blue);
-            color: var(--terminal-green);
-            padding: 0.5rem;
-            border-radius: 5px;
-        }
-
-        .event-controls {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -526,6 +241,26 @@
         .menu-content a + a {
             margin-top: 0.2rem;
         }
+
+        #killEventFields {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        #eventQuantity {
+            width: 100px;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+        }
+
+        .event-type-select {
+            margin-bottom: 1rem;
+            width: 200px;
+        }
     </style>
 </head>
 <body>
@@ -560,12 +295,33 @@
                         <label>Quest Events:</label>
                         <div id="eventsContainer">
                             <div class="event-controls">
-                                <select id="eventActor">
-                                    <!-- Will be populated with actors -->
+                                <select id="eventType">
+                                    <option value="chat">Chat Event</option>
+                                    <option value="kill">Kill Event</option>
                                 </select>
-                                <textarea 
-                                    id="eventMessage" 
-                                    placeholder="Enter event message"></textarea>
+                                
+                                <!-- Chat Event Fields -->
+                                <div id="chatEventFields">
+                                    <select id="eventActor">
+                                        <!-- Will be populated with actors -->
+                                    </select>
+                                    <textarea 
+                                        id="eventMessage" 
+                                        placeholder="Enter event message"></textarea>
+                                </div>
+                                
+                                <!-- Kill Event Fields -->
+                                <div id="killEventFields" style="display: none;">
+                                    <select id="eventMob">
+                                        <!-- Will be populated with mobs -->
+                                    </select>
+                                    <input type="number" 
+                                        id="eventQuantity" 
+                                        placeholder="Quantity to kill"
+                                        min="1" 
+                                        value="1">
+                                </div>
+                                
                                 <textarea
                                     id="eventHint"
                                     placeholder="Enter optional hint"></textarea>
@@ -609,6 +365,7 @@
         
         let allQuests = [];
         let allActors = [];
+        let allMobs = [];
 
         // Check authentication
         window.onload = async () => {
@@ -629,8 +386,8 @@
                     throw new Error('Invalid token');
                 }
 
-                // Load actors first, then quests
-                await loadActors();
+                // Load actors, mobs, and quests first, then quests
+                await Promise.all([loadActors(), loadMobs()]);
                 await loadQuests();
                 
                 // Start in "new quest" state
@@ -669,12 +426,33 @@
             }
         }
 
+        // Load mobs
+        async function loadMobs() {
+            try {
+                const response = await fetch('/api/mobs', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to load mobs');
+                }
+                allMobs = await response.json();
+                
+                // Populate mob dropdown
+                populateMobSelect();
+            } catch (error) {
+                console.error('Error loading mobs:', error);
+                alert('Failed to load mobs. Please try refreshing the page.');
+            }
+        }
+
         // Load existing quests
         async function loadQuests() {
             try {
-                // Make sure we have actors loaded first
-                if (allActors.length === 0) {
-                    await loadActors();
+                // Make sure we have actors and mobs loaded first
+                if (allActors.length === 0 || allMobs.length === 0) {
+                    await Promise.all([loadActors(), loadMobs()]);
                 }
 
                 const response = await fetch('/api/quests', {
@@ -723,122 +501,127 @@
 
         // Add event to quest
         addEventBtn.addEventListener('click', () => {
-            const actorId = document.getElementById('eventActor').value;
-            const message = document.getElementById('eventMessage').value;
-            const hint = document.getElementById('eventHint').value;
+            const eventType = document.getElementById('eventType').value;
+            let eventData = {
+                eventType,
+                hint: document.getElementById('eventHint').value,
+                isStart: eventsList.children.length === 0
+            };
 
-            if (!actorId || !message) {
-                alert('Please select an actor and enter a message');
-                return;
+            if (eventType === 'chat') {
+                const actorId = document.getElementById('eventActor').value;
+                const message = document.getElementById('eventMessage').value;
+
+                if (!actorId || !message) {
+                    alert('Please select an actor and enter a message');
+                    return;
+                }
+
+                eventData = {
+                    ...eventData,
+                    actorId,
+                    message
+                };
+            } else {
+                const mobId = document.getElementById('eventMob').value;
+                const quantity = parseInt(document.getElementById('eventQuantity').value);
+
+                if (!mobId || !quantity || quantity < 1) {
+                    alert('Please select a mob and enter a valid quantity');
+                    return;
+                }
+
+                eventData = {
+                    ...eventData,
+                    mobId,
+                    quantity
+                };
             }
 
-            const actor = allActors.find(a => a._id === actorId);
-            const isStart = eventsList.children.length === 0;
-            const eventEntry = createEventEntry(actorId, actor.name, message, hint, null, isStart);
+            const eventEntry = createEventEntry(eventData);
             eventsList.appendChild(eventEntry);
             updateEventTargets();
             
             // Clear inputs
-            document.getElementById('eventMessage').value = '';
             document.getElementById('eventHint').value = '';
+            if (eventType === 'chat') {
+                document.getElementById('eventMessage').value = '';
+            } else {
+                document.getElementById('eventQuantity').value = '1';
+            }
         });
 
-        function createEventEntry(actorId, actorName, message, hint = '', eventId = null, isStart = false, isEnd = false) {
+        function createEventEntry(eventData) {
             const eventEntry = document.createElement('div');
             eventEntry.className = 'quest-event';
-            eventEntry.dataset.eventId = eventId || generateObjectId();
-            eventEntry.dataset.isStart = isStart;
-            eventEntry.dataset.isEnd = isEnd;
+            eventEntry.dataset.eventId = eventData.eventId || generateObjectId();
+            eventEntry.dataset.isStart = eventData.isStart || false;
+            eventEntry.dataset.isEnd = eventData.isEnd || false;
+            eventEntry.dataset.eventType = eventData.eventType;
             
-            // Create actor select
-            const actorSelect = document.createElement('select');
-            actorSelect.className = 'event-actor-select';
-            actorSelect.innerHTML = allActors.map(actor => `
-                <option value="${actor._id}" ${actor._id === actorId ? 'selected' : ''}>
-                    ${actor.name}
-                </option>
-            `).join('');
-            
+            // Create the base HTML structure first
             eventEntry.innerHTML = `
                 <span class="event-handle">⋮⋮</span>
                 <div class="event-content">
-                    <div class="input-group">
-                        <label>Actor:</label>
-                        <div class="actor-container"></div>
-                    </div>
-                    <div class="input-group">
-                        <label>Message:</label>
-                        <textarea class="event-message-input" placeholder="Enter event message">${message}</textarea>
-                    </div>
+                    ${eventData.eventType === 'chat' ? `
+                        <div class="input-group">
+                            <label>Actor:</label>
+                            <div class="actor-container"></div>
+                        </div>
+                        <div class="input-group">
+                            <label>Message:</label>
+                            <textarea class="event-message-input" placeholder="Enter event message">${eventData.message || ''}</textarea>
+                        </div>
+                    ` : `
+                        <div class="input-group">
+                            <label>Mob to Kill:</label>
+                            <div class="mob-container"></div>
+                        </div>
+                        <div class="input-group">
+                            <label>Quantity:</label>
+                            <input type="number" class="event-quantity-input" min="1" value="${eventData.quantity || 1}">
+                        </div>
+                    `}
                     <div class="input-group">
                         <label>Hint:</label>
-                        <textarea class="event-hint-input" placeholder="Enter optional hint">${hint || ''}</textarea>
+                        <textarea class="event-hint-input" placeholder="Enter optional hint">${eventData.hint || ''}</textarea>
                     </div>
                 </div>
                 <span class="event-id">ID: ${eventEntry.dataset.eventId}</span>
-                <input type="hidden" class="event-actor-id" value="${actorId}">
-                <input type="hidden" class="event-message" value="${message}">
-                <input type="hidden" class="event-hint" value="${hint || ''}">
                 <span class="remove-event">×</span>
                 <div class="event-choices"></div>
                 <div class="event-controls">
                     <label class="end-event-label">
-                        <input type="checkbox" class="end-event-checkbox" ${isEnd ? 'checked' : ''}>
+                        <input type="checkbox" class="end-event-checkbox" ${eventData.isEnd ? 'checked' : ''}>
                         Mark as quest end
                     </label>
                     <button class="action-button add-choice-btn">Add Choice</button>
                 </div>
             `;
 
-            // Insert actor select into container
-            eventEntry.querySelector('.actor-container').appendChild(actorSelect);
+            // Create and append the appropriate select after the HTML structure is in place
+            if (eventData.eventType === 'chat') {
+                const actorSelect = document.createElement('select');
+                actorSelect.className = 'event-actor-select';
+                actorSelect.innerHTML = allActors.map(actor => `
+                    <option value="${actor._id}" ${actor._id === eventData.actorId ? 'selected' : ''}>
+                        ${actor.name}
+                    </option>
+                `).join('');
+                eventEntry.querySelector('.actor-container').appendChild(actorSelect);
+            } else {
+                const mobSelect = document.createElement('select');
+                mobSelect.className = 'event-mob-select';
+                mobSelect.innerHTML = allMobs.map(mob => `
+                    <option value="${mob._id}" ${mob._id === eventData.mobId ? 'selected' : ''}>
+                        ${mob.name}
+                    </option>
+                `).join('');
+                eventEntry.querySelector('.mob-container').appendChild(mobSelect);
+            }
 
-            // Add input change handlers to update hidden inputs
-            actorSelect.addEventListener('change', (e) => {
-                eventEntry.querySelector('.event-actor-id').value = e.target.value;
-            });
-
-            eventEntry.querySelector('.event-message-input').addEventListener('input', (e) => {
-                eventEntry.querySelector('.event-message').value = e.target.value;
-                updateEventTargets(); // Update choice dropdowns to show new message
-            });
-
-            eventEntry.querySelector('.event-hint-input').addEventListener('input', (e) => {
-                eventEntry.querySelector('.event-hint').value = e.target.value;
-            });
-
-            // Add choice button handler
-            eventEntry.querySelector('.add-choice-btn').addEventListener('click', () => {
-                addChoiceToEvent(eventEntry);
-            });
-
-            // Add existing handlers
-            eventEntry.addEventListener('dragstart', handleDragStart);
-            eventEntry.addEventListener('dragend', handleDragEnd);
-            eventEntry.addEventListener('dragover', handleDragOver);
-            eventEntry.addEventListener('drop', handleDrop);
-
-            eventEntry.querySelector('.remove-event').addEventListener('click', () => {
-                const message = eventEntry.querySelector('.event-message-input').value;
-                const confirmDelete = confirm(`Are you sure you want to delete this event?\n\nEvent message: "${message}"\n\nThis cannot be undone.`);
-                
-                if (confirmDelete) {
-                    eventEntry.remove();
-                    updateEventTargets();
-                }
-            });
-
-            // Add end event checkbox handler
-            eventEntry.querySelector('.end-event-checkbox').addEventListener('change', (e) => {
-                eventEntry.dataset.isEnd = e.target.checked;
-                // If it's an end event, remove all choices
-                if (e.target.checked) {
-                    eventEntry.querySelector('.event-choices').innerHTML = '';
-                    eventEntry.querySelector('.add-choice-btn').style.display = 'none';
-                } else {
-                    eventEntry.querySelector('.add-choice-btn').style.display = '';
-                }
-            });
+            // Add event handlers
+            addEventEntryHandlers(eventEntry);
 
             return eventEntry;
         }
@@ -954,24 +737,44 @@
 
             // Add existing events
             quest.events.forEach(event => {
-                const actor = allActors.find(a => a._id === event.actorId);
-                if (!actor) {
-                    console.error(`Actor not found for ID: ${event.actorId}`);
-                    return;
+                let eventData = {
+                    eventId: event._id,
+                    eventType: event.eventType,
+                    hint: event.hint,
+                    isStart: event.isStart,
+                    isEnd: event.isEnd
+                };
+
+                if (event.eventType === 'chat') {
+                    const actor = allActors.find(a => a._id === event.actorId);
+                    if (!actor) {
+                        console.error(`Actor not found for ID: ${event.actorId}`);
+                        return;
+                    }
+                    eventData = {
+                        ...eventData,
+                        actorId: event.actorId,
+                        message: event.message
+                    };
+                } else if (event.eventType === 'kill') {
+                    // Handle both populated and unpopulated mobId
+                    const mobId = event.mobId._id || event.mobId;
+                    const mob = allMobs.find(m => m._id === mobId);
+                    if (!mob) {
+                        console.error(`Mob not found for ID: ${mobId}`);
+                        return;
+                    }
+                    eventData = {
+                        ...eventData,
+                        mobId: mobId,
+                        quantity: event.quantity
+                    };
                 }
 
-                const eventEntry = createEventEntry(
-                    event.actorId, 
-                    actor.name, 
-                    event.message, 
-                    event.hint,
-                    event._id,
-                    event.isStart,
-                    event.isEnd
-                );
+                const eventEntry = createEventEntry(eventData);
                 eventsList.appendChild(eventEntry);
 
-                // Only add choices if not an end event
+                // Add choices if not an end event
                 if (!event.isEnd && event.choices && event.choices.length > 0) {
                     event.choices.forEach(choice => {
                         const choicesContainer = eventEntry.querySelector('.event-choices');
@@ -998,7 +801,7 @@
             // Highlight selected quest
             document.querySelectorAll('.quest-entry').forEach(entry => {
                 entry.style.backgroundColor = '';
-                if (entry.querySelector('.quest-entry-title').textContent === quest.title) {
+                if (entry.dataset.questId === quest._id) {
                     entry.style.backgroundColor = 'rgba(0, 255, 249, 0.2)';
                 }
             });
@@ -1026,29 +829,32 @@
                 }
 
                 const events = Array.from(eventsList.querySelectorAll('.quest-event')).map(event => {
-                    const choices = Array.from(event.querySelectorAll('.choice-entry'))
-                        .map(choice => {
-                            const nextEventId = choice.querySelector('.choice-target-select').value;
-                            
-                            if (!nextEventId) {
-                                throw new Error('All choices must have a target event');
-                            }
-                            
-                            return {
-                                nextEventId
-                            };
-                        });
-
-                    return {
+                    const eventType = event.dataset.eventType;
+                    const baseEvent = {
                         _id: event.dataset.eventId,
-                        eventType: 'chat',
-                        actorId: event.querySelector('.event-actor-id').value,
-                        message: event.querySelector('.event-message').value,
-                        hint: event.querySelector('input.event-hint').value,
-                        choices: choices,
+                        eventType,
+                        hint: event.querySelector('.event-hint-input').value,
+                        choices: Array.from(event.querySelectorAll('.choice-entry'))
+                            .map(choice => ({
+                                nextEventId: choice.querySelector('.choice-target-select').value
+                            })),
                         isStart: event.dataset.isStart === 'true',
                         isEnd: event.dataset.isEnd === 'true'
                     };
+
+                    if (eventType === 'chat') {
+                        return {
+                            ...baseEvent,
+                            actorId: event.querySelector('.event-actor-select').value,
+                            message: event.querySelector('.event-message-input').value
+                        };
+                    } else {
+                        return {
+                            ...baseEvent,
+                            mobId: event.querySelector('.event-mob-select').value,
+                            quantity: parseInt(event.querySelector('.event-quantity-input').value)
+                        };
+                    }
                 });
 
                 if (events.length === 0) {
@@ -1150,6 +956,82 @@
                 link.style.color = 'var(--neon-pink)';
             }
         });
+
+        document.getElementById('eventType').addEventListener('change', (e) => {
+            const chatFields = document.getElementById('chatEventFields');
+            const killFields = document.getElementById('killEventFields');
+            
+            if (e.target.value === 'chat') {
+                chatFields.style.display = '';
+                killFields.style.display = 'none';
+            } else {
+                chatFields.style.display = 'none';
+                killFields.style.display = '';
+            }
+        });
+
+        // Add this function after createEventEntry
+        function addEventEntryHandlers(eventEntry) {
+            // Add drag and drop handlers
+            eventEntry.draggable = true;
+            eventEntry.addEventListener('dragstart', handleDragStart);
+            eventEntry.addEventListener('dragend', handleDragEnd);
+            eventEntry.addEventListener('dragover', handleDragOver);
+            eventEntry.addEventListener('drop', handleDrop);
+
+            // Add remove event handler
+            eventEntry.querySelector('.remove-event').addEventListener('click', () => {
+                const message = eventEntry.querySelector('.event-message-input')?.value || 
+                               eventEntry.querySelector('.event-quantity-input')?.value;
+                const confirmDelete = confirm(`Are you sure you want to delete this event?\n\nEvent: "${message}"\n\nThis cannot be undone.`);
+                
+                if (confirmDelete) {
+                    eventEntry.remove();
+                    updateEventTargets();
+                }
+            });
+
+            // Add end event checkbox handler
+            eventEntry.querySelector('.end-event-checkbox').addEventListener('change', (e) => {
+                eventEntry.dataset.isEnd = e.target.checked;
+                // If it's an end event, remove all choices
+                if (e.target.checked) {
+                    eventEntry.querySelector('.event-choices').innerHTML = '';
+                    eventEntry.querySelector('.add-choice-btn').style.display = 'none';
+                } else {
+                    eventEntry.querySelector('.add-choice-btn').style.display = '';
+                }
+            });
+
+            // Add choice button handler
+            eventEntry.querySelector('.add-choice-btn').addEventListener('click', () => {
+                addChoiceToEvent(eventEntry);
+            });
+
+            // Add input handlers
+            if (eventEntry.dataset.eventType === 'chat') {
+                eventEntry.querySelector('.event-message-input').addEventListener('input', () => {
+                    updateEventTargets();
+                });
+            } else {
+                eventEntry.querySelector('.event-quantity-input').addEventListener('input', (e) => {
+                    // Ensure quantity is at least 1
+                    if (e.target.value < 1) e.target.value = 1;
+                });
+            }
+        }
+
+        // Also add this function to populate the mob select when the page loads
+        function populateMobSelect() {
+            const eventMob = document.getElementById('eventMob');
+            eventMob.innerHTML = '<option value="">Select Mob</option>';
+            allMobs.forEach(mob => {
+                const option = document.createElement('option');
+                option.value = mob._id;
+                option.textContent = mob.name;
+                eventMob.appendChild(option);
+            });
+        }
     </script>
 </body>
 </html> 

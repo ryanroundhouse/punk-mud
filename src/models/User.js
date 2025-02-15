@@ -64,7 +64,11 @@ const userSchema = new mongoose.Schema({
         completedEventIds: [String],
         completed: Boolean,
         startedAt: Date,
-        completedAt: Date
+        completedAt: Date,
+        killProgress: [{
+            eventId: String,
+            remaining: Number
+        }]
     }],
     stats: {
         hitpoints: { type: Number, default: 100 },
