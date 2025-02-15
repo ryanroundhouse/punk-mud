@@ -9,6 +9,7 @@ const questRoutes = require('./questRoutes');
 const mobRoutes = require('./mobRoutes');
 const moveRoutes = require('./moveRoutes');
 const uploadRoutes = require('./uploadRoutes');
+const combatRoutes = require('./combatRoutes');
 
 router.use('/auth', authRoutes);
 router.use('/character', characterRoutes);
@@ -18,5 +19,6 @@ router.use('/quests', questRoutes);
 router.use('/mobs', mobRoutes);
 router.use('/moves', moveRoutes);
 router.use('/upload', uploadRoutes);
+router.use('/combat', combatRoutes);
 
 module.exports = router; 

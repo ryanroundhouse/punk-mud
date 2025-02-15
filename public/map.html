@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUNK MUD - Map</title>
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+            --terminal-green: #00ff00;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .map-container {
+            position: relative;
+            width: 95%;
+            height: 90vh;
+            background: rgba(10, 10, 15, 0.95);
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-pink),
+                       0 0 40px rgba(255, 46, 136, 0.3);
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .map-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid var(--neon-blue);
+        }
+
+        .map-title {
+            color: var(--neon-pink);
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .return-button {
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .return-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .map-canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            margin: 1rem;
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+        }
+
+        #mapCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: move;
+        }
+
+        .node-tooltip {
+            position: absolute;
+            background: rgba(10, 10, 15, 0.95);
+            color: var(--terminal-green);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            border: 1px solid var(--neon-blue);
+            pointer-events: none;
+            display: none;
+            z-index: 1000;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+
+        .map-controls {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            z-index: 1000;
+        }
+
+        .control-button {
+            background: transparent;
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            padding: 0.5rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .control-button:hover {
+            background: var(--neon-blue);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 0.5rem;
+            border-radius: 5px;
+            border: 1px solid var(--neon-blue);
+            z-index: 1000;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0.25rem 0;
+        }
+
+        .legend-color {
+            width: 1rem;
+            height: 1rem;
+            border-radius: 50%;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.2; }
+            50% { opacity: 1; }
+            100% { opacity: 0.2; }
+        }
+    </style>
+</head>
+<body>
+    <div class="map-container">
+        <div class="map-header">
+            <div class="map-title">World Map</div>
+            <button class="return-button" onclick="window.location.href='/game.html'">Return to Game</button>
+        </div>
+        
+        <div class="map-canvas-container">
+            <div class="map-controls">
+                <button class="control-button" id="resetView">Reset View</button>
+            </div>
+            <canvas id="mapCanvas"></canvas>
+            <div class="node-tooltip" id="nodeTooltip"></div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: var(--terminal-green)"></div>
+                <span>Rest Point</span>
+            </div>
+            <div class="legend-item">
+                <div style="position: relative; width: 1rem; height: 1rem;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 2px solid var(--neon-pink); border-radius: 50%; animation: pulse 2s infinite"></div>
+                </div>
+                <span>Current Location</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: var(--neon-blue)"></div>
+                <span>Regular Node</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let nodes = [];
+        let currentNode = null;
+        let canvas, ctx;
+        let isDragging = false;
+        let startX, startY;
+        let offsetX = 0, offsetY = 0;
+        let hoveredNode = null;
+        let animationFrameId = null;
+
+        const NODE_RADIUS = 20;
+        const NODE_SPACING = 150;
+
+        window.onload = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            canvas = document.getElementById('mapCanvas');
+            ctx = canvas.getContext('2d');
+
+            // Set canvas size
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            try {
+                // Load nodes first
+                await loadNodes();
+                
+                // Then get current location
+                await getCurrentLocation();
+                
+                // Initial draw happens in getCurrentLocation now
+                
+                // Setup event listeners
+                setupEventListeners();
+            } catch (error) {
+                console.error('Error initializing map:', error);
+            }
+        };
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            drawMap();
+        }
+
+        async function loadNodes() {
+            try {
+                const response = await fetch('/api/nodes', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load nodes');
+                }
+                
+                nodes = await response.json();
+                
+                // Calculate node positions
+                calculateNodePositions();
+            } catch (error) {
+                console.error('Error loading nodes:', error);
+            }
+        }
+
+        async function getCurrentLocation() {
+            try {
+                const response = await fetch('/api/nodes/current', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to get current location');
+                }
+                
+                currentNode = await response.json();
+                
+                // Force a redraw after getting current location
+                drawMap();
+            } catch (error) {
+                console.error('Error getting current location:', error);
+            }
+        }
+
+        function calculateNodePositions() {
+            // Create a grid to track occupied positions
+            const grid = new Map();
+            
+            // Start with any node
+            const startNode = nodes[0];
+            placeNode(startNode, 0, 0, grid);
+        }
+
+        function placeNode(node, x, y, grid) {
+            if (!node || grid.has(node.address)) return;
+            
+            // Place the current node
+            grid.set(node.address, { x, y });
+            node.x = x * NODE_SPACING;
+            node.y = y * NODE_SPACING;
+            
+            // Place connected nodes
+            if (node.exits) {
+                node.exits.forEach(exit => {
+                    const targetNode = nodes.find(n => n.address === exit.target);
+                    if (!targetNode) return;
+                    
+                    let nextX = x, nextY = y;
+                    
+                    switch(exit.direction.toLowerCase()) {
+                        case 'north': nextY--; break;
+                        case 'south': nextY++; break;
+                        case 'east': nextX++; break;
+                        case 'west': nextX--; break;
+                        case 'up': nextY--; break;
+                        case 'down': nextY++; break;
+                    }
+                    
+                    if (!grid.has(targetNode.address)) {
+                        placeNode(targetNode, nextX, nextY, grid);
+                    }
+                });
+            }
+        }
+
+        function drawMap() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Apply transformations
+            ctx.save();
+            ctx.translate(canvas.width / 2 + offsetX, canvas.height / 2 + offsetY);
+            
+            // Draw connections first
+            nodes.forEach(node => {
+                if (node.exits) {
+                    node.exits.forEach(exit => {
+                        const targetNode = nodes.find(n => n.address === exit.target);
+                        if (targetNode) {
+                            drawConnection(node, targetNode, exit.direction);
+                        }
+                    });
+                }
+            });
+            
+            // Draw nodes
+            nodes.forEach(node => {
+                drawNode(node);
+            });
+            
+            ctx.restore();
+
+            // Request next frame
+            animationFrameId = requestAnimationFrame(drawMap);
+        }
+
+        function drawNode(node) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI * 2);
+            
+            // Set node color based on type
+            if (node.isRestPoint) {
+                ctx.fillStyle = getComputedStyle(document.documentElement)
+                    .getPropertyValue('--terminal-green').trim();
+                ctx.strokeStyle = ctx.fillStyle;
+            } else {
+                ctx.fillStyle = getComputedStyle(document.documentElement)
+                    .getPropertyValue('--neon-blue').trim();
+                ctx.strokeStyle = ctx.fillStyle;
+            }
+            
+            // Add glow effect
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = ctx.strokeStyle;
+            
+            ctx.fill();
+            ctx.stroke();
+
+            // Draw pulsing ring for current node
+            if (currentNode && node.address === currentNode.address) {
+                const time = Date.now() / 1000;  // Time in seconds
+                const alpha = (Math.sin(time * 3) + 1) / 2;  // Oscillate between 0 and 1
+                const ringRadius = NODE_RADIUS * 1.5; // Ring size relative to node
+                
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, ringRadius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 46, 136, ${alpha})`;
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                // Reset line width
+                ctx.lineWidth = 1;
+            }
+        }
+
+        function drawConnection(node1, node2, direction) {
+            ctx.beginPath();
+            ctx.moveTo(node1.x, node1.y);
+            ctx.lineTo(node2.x, node2.y);
+            ctx.strokeStyle = 'rgba(0, 255, 249, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function setupEventListeners() {
+            // Mouse events
+            canvas.addEventListener('mousedown', startDrag);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseup', endDrag);
+            canvas.addEventListener('mouseleave', endDrag);
+            
+            // Touch events
+            canvas.addEventListener('touchstart', handleTouchStart);
+            canvas.addEventListener('touchmove', handleTouchMove);
+            canvas.addEventListener('touchend', handleTouchEnd);
+            
+            document.getElementById('resetView').addEventListener('click', () => {
+                offsetX = 0;
+                offsetY = 0;
+                drawMap();
+            });
+        }
+
+        function startDrag(e) {
+            isDragging = true;
+            startX = e.clientX - offsetX;
+            startY = e.clientY - offsetY;
+        }
+
+        function handleMouseMove(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left - canvas.width / 2 - offsetX);
+            const y = (e.clientY - rect.top - canvas.height / 2 - offsetY);
+            
+            // Check for node hover
+            hoveredNode = nodes.find(node => {
+                const dx = node.x - x;
+                const dy = node.y - y;
+                return Math.sqrt(dx * dx + dy * dy) <= NODE_RADIUS;
+            });
+            
+            // Update tooltip
+            const tooltip = document.getElementById('nodeTooltip');
+            if (hoveredNode) {
+                tooltip.style.display = 'block';
+                tooltip.style.left = `${e.pageX - tooltip.offsetWidth - 5}px`;
+                tooltip.style.top = `${e.pageY - tooltip.offsetHeight - 45}px`;
+                tooltip.textContent = hoveredNode.name;
+            } else {
+                tooltip.style.display = 'none';
+            }
+            
+            if (isDragging) {
+                offsetX = e.clientX - startX;
+                offsetY = e.clientY - startY;
+                drawMap();
+            }
+        }
+
+        function endDrag() {
+            isDragging = false;
+        }
+
+        // Add these new touch handling functions
+        function handleTouchStart(e) {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                isDragging = true;
+                const touch1 = e.touches[0];
+                startX = touch1.clientX - offsetX;
+                startY = touch1.clientY - offsetY;
+            }
+        }
+
+        function handleTouchMove(e) {
+            if (e.touches.length === 2 && isDragging) {
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                offsetX = touch1.clientX - startX;
+                offsetY = touch1.clientY - startY;
+                drawMap();
+            }
+        }
+
+        function handleTouchEnd(e) {
+            isDragging = false;
+        }
+
+        // Add cleanup when leaving the page
+        window.addEventListener('beforeunload', () => {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+        });
+    </script>
+</body>
+</html> 

@@ -299,6 +299,7 @@ async function handleFightCommand(socket, user, target) {
         return;
     }
 
+    // Update combat state to include health values
     stateService.userCombatStates.set(socket.user.userId, {
         mobInstanceId: mobInstance.instanceId,
         mobName: mobInstance.name
@@ -360,8 +361,37 @@ async function applyEffects(playerResult, mobResult, user, mobInstance) {
     }
 }
 
+async function getCombatStatus(userId) {
+    try {
+        const combatState = stateService.userCombatStates.get(userId);
+        if (!combatState) {
+            return { inCombat: false };
+        }
+
+        const user = await userService.getUser(userId);
+        const mobInstance = stateService.playerMobs.get(userId);
+
+        if (!user || !mobInstance || mobInstance.instanceId !== combatState.mobInstanceId) {
+            // Combat state is invalid, clean it up
+            stateService.userCombatStates.delete(userId);
+            return { inCombat: false };
+        }
+
+        return {
+            inCombat: true,
+            playerHealth: user.stats.currentHitpoints,
+            enemyHealth: mobInstance.stats.currentHitpoints,
+            enemyName: mobInstance.name
+        };
+    } catch (error) {
+        logger.error('Error getting combat status:', error);
+        throw error;
+    }
+}
+
 module.exports = {
     handleCombatCommand,
     handleFleeCommand,
-    handleFightCommand
+    handleFightCommand,
+    getCombatStatus
 }; 

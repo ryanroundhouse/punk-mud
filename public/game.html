@@ -765,6 +765,47 @@
                 initializeChat();
                 loadNode();
 
+                // Check if user is in combat
+                const combatResponse = await fetch('/api/combat/status', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (combatResponse.ok) {
+                    const combatStatus = await combatResponse.json();
+                    if (combatStatus.inCombat) {
+                        const showCombatStatus = () => {
+                            // Show combat status first
+                            const terminalOutput = document.getElementById('terminalOutput');
+                            const inputLine = document.getElementById('terminalInput').parentElement;
+                            
+                            // Create and add the combat status message
+                            const statusLine = document.createElement('div');
+                            statusLine.style.color = 'var(--terminal-green)';
+                            statusLine.textContent = `You are in combat with ${combatStatus.enemyName}!\n` +
+                                                   `Your HP: ${combatStatus.playerHealth}\n` +
+                                                   `${combatStatus.enemyName}'s HP: ${combatStatus.enemyHealth}\n` +
+                                                   `Use combat moves to fight!`;
+                            
+                            terminalOutput.insertBefore(statusLine, inputLine);
+                            inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+                            // Then get combat help text to show available moves
+                            setTimeout(() => {
+                                socket.emit('console command', { command: 'help' });
+                            }, 100);
+                        };
+
+                        // Check if socket is already connected
+                        if (socket.connected) {
+                            showCombatStatus();
+                        } else {
+                            socket.once('connect', showCombatStatus);
+                        }
+                    }
+                }
+
                 // Initialize modal functionality
                 const imageModal = document.getElementById('imageModal');
                 const modalImage = document.getElementById('modalImage');
@@ -1116,8 +1157,11 @@
                     case '?':
                         socket.emit('console command', { command: 'help' });
                         break;
+                    case 'map':
+                        window.location.href = '/map.html';
+                        break;
                     default:
-                        // Check if this is a combat move before declaring it unknown
+                        // Send all unknown commands to the server
                         socket.emit('console command', { 
                             command: fullCommand.toLowerCase()
                         });

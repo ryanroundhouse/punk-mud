@@ -66,20 +66,23 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
         throw new Error('Node not found');
     }
 
-    // Clear any existing mob and check for new spawn
-    mobService.clearUserMob(userId);
-    const mobSpawn = await mobService.spawnMobForUser(userId, node);
-    
-    if (mobSpawn) {
-        await publishSystemMessage(
-            nodeAddress,
-            `A ${mobSpawn.name} appears!`,
-            `A ${mobSpawn.name} appears!`,
-            userId
-        );
+    // Only clear and spawn new mobs if not in combat
+    if (!stateService.isUserInCombat(userId)) {
+        mobService.clearUserMob(userId);
+        const mobSpawn = await mobService.spawnMobForUser(userId, node);
+        
+        if (mobSpawn) {
+            await publishSystemMessage(
+                nodeAddress,
+                `A ${mobSpawn.name} appears!`,
+                `A ${mobSpawn.name} appears!`,
+                userId
+            );
+        }
+        return mobSpawn;
     }
-
-    return mobSpawn;
+    
+    return null;
 }
 
 async function getNode(address) {

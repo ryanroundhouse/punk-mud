@@ -16,6 +16,7 @@ chat <actor>......Talk to an NPC in current location
 quests............View your active quests and current hints
 fight <mob>.......Engage in combat with a mob
 rest..............Rest to restore health (only at rest points)
+map...............Open the world map view
 ?.................Display this help message
 `.trim();
 
@@ -100,6 +101,10 @@ async function handleCommand(socket, data) {
 
             case 'rest':
                 await handleRestCommand(socket, user);
+                break;
+
+            case 'map':
+                await handleMapCommand(socket, user);
                 break;
 
             default:
@@ -316,6 +321,10 @@ async function handleRestCommand(socket, user) {
             message: 'Failed to rest: ' + error.message
         });
     }
+}
+
+async function handleMapCommand(socket, user) {
+    // Implementation of handleMapCommand
 }
 
 module.exports = {

@@ -11,10 +11,11 @@ const {
 
 // Public node routes
 router.get('/public', authenticateToken, getPublicNodes);
+router.get('/current', authenticateToken, getCurrentNode);
 router.get('/:address', authenticateToken, getCurrentNode);
 
 // Builder-only routes
-router.get('/', verifyBuilderAccess, getNodes);
+router.get('/', authenticateToken, getNodes);
 router.post('/', verifyBuilderAccess, createOrUpdateNode);
 router.delete('/:address', verifyBuilderAccess, deleteNode);
 
