@@ -1185,12 +1185,8 @@
 
         // Update the viewCharacter function
         function viewCharacter(username) {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                window.location.href = '/';
-                return;
-            }
-            window.location.href = `/character.html?view=${encodeURIComponent(username)}&token=${encodeURIComponent(token)}`;
+            // Instead of including the token in the URL, rely on localStorage in the target page.
+            window.location.href = `/character.html?view=${encodeURIComponent(username)}`;
         }
 
         function loadCommandHistory() {

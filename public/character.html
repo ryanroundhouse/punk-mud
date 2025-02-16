@@ -606,7 +606,7 @@
         window.onload = async () => {
             const token = localStorage.getItem('token');
             if (!token) {
-                // Try to get token from URL if not in localStorage
+                // Try to get token from URL if not in localStorage (this is just a fallback)
                 const urlParams = new URLSearchParams(window.location.search);
                 const urlToken = urlParams.get('token');
                 if (urlToken) {
@@ -863,7 +863,7 @@
                 window.location.href = '/';
                 return;
             }
-            window.location.href = `/character.html?view=${encodeURIComponent(username)}&token=${encodeURIComponent(token)}`;
+            window.location.href = `/character.html?view=${encodeURIComponent(username)}`;
         }
     </script>
 </body>
