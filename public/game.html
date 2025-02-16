@@ -144,12 +144,21 @@
             border: 1px solid var(--terminal-green);
             border-radius: 5px;
             box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
         }
 
         .exits-list h3 {
             margin-top: 0;
-            margin-bottom: 0.5rem;
+            margin-bottom: 1rem;
             color: var(--terminal-green);
+        }
+
+        .exits-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
         }
 
         .chat-panel {
@@ -247,9 +256,12 @@
         .exit-item {
             color: var(--neon-blue);
             cursor: pointer;
-            padding: 0.5rem;
+            padding: 0.5rem 1rem;
             transition: all 0.3s ease;
             outline: none;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            white-space: nowrap;
         }
 
         .exit-item:hover {
@@ -527,7 +539,10 @@
                 </div>
             </div>
 
-            <div class="exits-list" id="nodeExits"></div>
+            <div class="exits-list" id="nodeExits">
+                <h3>Available Exits:</h3>
+                <div class="exits-container"></div>
+            </div>
         </div>
         
         <div class="chat-panel">
@@ -657,7 +672,8 @@
 
                 // Display exits with target node names
                 const exitsContainer = document.getElementById('nodeExits');
-                exitsContainer.innerHTML = '<h3>Available Exits:</h3>';
+                exitsContainer.innerHTML = '<h3>Available Exits:</h3><div class="exits-container"></div>';
+                const exitsWrapper = exitsContainer.querySelector('.exits-container');
                 
                 // Fetch all nodes to get their names
                 const nodesResponse = await fetch('/api/nodes/public', {
@@ -701,7 +717,7 @@
                         }
                     });
                     
-                    exitsContainer.appendChild(exitElement);
+                    exitsWrapper.appendChild(exitElement);
                 });
 
                 // After setting node description

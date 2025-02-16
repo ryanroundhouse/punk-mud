@@ -341,6 +341,10 @@ async function applyEffect(effect, user, mobInstance) {
     if (stat && target) {
         if (stat === 'hitpoints') {
             target.currentHitpoints += effect.amount || 0;
+            // Cap healing at maximum hitpoints
+            if (target.currentHitpoints > target.hitpoints) {
+                target.currentHitpoints = target.hitpoints;
+            }
             if (target === user.stats) {
                 await User.findByIdAndUpdate(user._id, {
                     'stats.currentHitpoints': user.stats.currentHitpoints
