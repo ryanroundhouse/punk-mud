@@ -19,7 +19,23 @@ class QuestService {
                     
                     const choices = currentEvent.choices.map(choice => {
                         const nextEvent = quest.events.find(e => e._id.toString() === choice.nextEventId.toString());
-                        return nextEvent?.hint || 'No hint available';
+                        if (!nextEvent) return null;
+
+                        let hint = nextEvent.hint || 'No hint available';
+                        
+                        // Replace [Quantity] if this is a kill event
+                        if (nextEvent.eventType === 'kill' && hint.includes('[Quantity]')) {
+                            // Try to find kill progress for this event
+                            const killProgress = userQuest.killProgress?.find(kp => 
+                                kp.eventId === nextEvent._id.toString()
+                            );
+                            
+                            // Use remaining from killProgress if it exists, otherwise use the event's quantity
+                            const quantity = killProgress ? killProgress.remaining : nextEvent.quantity;
+                            hint = hint.replace('[Quantity]', quantity);
+                        }
+
+                        return hint;
                     }).filter(Boolean);
 
                     return {
@@ -66,7 +82,7 @@ class QuestService {
                     
                     return {
                         type: 'quest_start',
-                        message: startEvent.message,
+                        message: `New Quest: ${quest.title}\n\n${startEvent.message}`,
                         questTitle: quest.title,
                         choices: startEvent.choices,
                         hint: startEvent.hint

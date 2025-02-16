@@ -74,7 +74,4 @@ questSchema.pre('save', function(next) {
     next();
 });
 
-// Remove any existing indexes that might be causing issues
-questSchema.index({ _id: 1 }); // Only keep the default MongoDB _id index
-
 module.exports = mongoose.model('Quest', questSchema); 
