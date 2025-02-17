@@ -303,29 +303,38 @@ async function handleFleeCommand(socket, user) {
             return;
         }
 
-        // Check if mob is stunned before it can attack
-        const mobEffects = stateService.getCombatantEffects(mobInstance.instanceId) || [];
-        
-        let mobResult;
-        
-        if (isStunned(mobEffects)) {
-            mobResult = {
-                success: false,
-                effects: [],
-                message: `${mobInstance.name} is stunned and cannot move!`
-            };
-        } else {
-            const mobMove = mobInstance.moves[0];
-            mobResult = calculateAttackResult(mobMove, mobInstance, user);
+        // Mob always gets their attack when player tries to flee
+        const mobMove = mobInstance.moves[0];
+        const mobResult = calculateAttackResult(mobMove, mobInstance, user);
+
+        // Apply mob's effects
+        for (const effect of mobResult.effects) {
+            await applyEffect(effect, user, mobInstance);
         }
-        
-        await applyEffects(null, mobResult, user, mobInstance);
+
+        // Apply mob's damage
+        if (mobResult.damage > 0) {
+            user.stats.currentHitpoints -= mobResult.damage;
+            await User.findByIdAndUpdate(user._id, {
+                'stats.currentHitpoints': user.stats.currentHitpoints
+            });
+        }
 
         // Decrement rounds on existing effects
         stateService.updateCombatantEffects(user._id.toString());
         stateService.updateCombatantEffects(mobInstance.instanceId);
 
+        // 50% chance to escape
         const fleeSuccess = Math.random() < 0.5;
+
+        // Get current HP for status display
+        const userCurrentHP = user.stats.currentHitpoints;
+        const mobCurrentHP = mobInstance.stats.currentHitpoints;
+
+        // Add status to both success and fail messages
+        const statusMessage = `\nStatus:\n` +
+                            `${user.avatarName}: ${userCurrentHP} HP\n` +
+                            `${mobInstance.name}: ${mobCurrentHP} HP`;
 
         if (fleeSuccess) {
             const currentNode = await nodeService.getNode(user.currentNode);
@@ -355,14 +364,16 @@ async function handleFleeCommand(socket, user) {
 
             socket.emit('console response', {
                 type: 'combat',
-                message: `${mobResult.message}\n\nYou successfully flee from combat!`
+                message: `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n\n` +
+                         `You successfully flee from combat!${statusMessage}`
             });
 
             publishSystemMessage(oldNode, `${user.avatarName} flees from combat with ${mobInstance.name}!`);
         } else {
             socket.emit('console response', {
                 type: 'combat',
-                message: `${mobResult.message}\n\nYou fail to escape!`
+                message: `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n\n` +
+                         `You fail to escape!${statusMessage}`
             });
         }
     } catch (error) {
