@@ -10,7 +10,7 @@ const moveSuccessFailureSchema = new mongoose.Schema({
     effect: {
         type: String,
         required: true,
-        enum: ['bleed', 'stun', 'reduceStat', 'increaseStat']
+        enum: ['stun', 'reduceStat', 'increaseStat']
     },
     stat: {
         type: String,
@@ -26,9 +26,9 @@ const moveSuccessFailureSchema = new mongoose.Schema({
         type: Number,
         validate: {
             validator: function(v) {
-                return !(['reduceStat', 'increaseStat', 'bleed'].includes(this.effect)) || v;
+                return !(['reduceStat', 'increaseStat'].includes(this.effect)) || v;
             },
-            message: 'Amount is required when effect is reduceStat, increaseStat, or bleed'
+            message: 'Amount is required when effect is reduceStat or increaseStat'
         }
     },
     rounds: {

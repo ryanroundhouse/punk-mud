@@ -63,19 +63,27 @@ function calculateAttackResult(move, attacker, defender) {
         // Add any success effects from the move
         if (move.success && Array.isArray(move.success)) {
             move.success.forEach(effect => {
-                const effectCopy = {
-                    target: effect.target,
-                    effect: effect.effect,
-                    stat: effect.stat,     // Make sure we copy the stat
-                    amount: effect.amount,  // Make sure we copy the amount
-                    rounds: effect.rounds,
-                    message: effect.message,
-                    initiator: attacker.avatarName || attacker.name
-                };
-                logger.debug('Creating effect copy:', effectCopy);
-                effects.push(effectCopy);
-                if (effect.message) {
-                    messages.push(formatMessage(effect.message));
+                // For stun effects, we'll add them to a separate array
+                if (effect.effect === 'stun') {
+                    // Add delay increase message
+                    messages.push(formatMessage(
+                        `[opponent] staggers from the attack!`
+                    ));
+                    // The delay increase will be handled by applyStunEffect
+                } else {
+                    const effectCopy = {
+                        target: effect.target,
+                        effect: effect.effect,
+                        stat: effect.stat,
+                        amount: effect.amount,
+                        rounds: effect.rounds,
+                        message: effect.message,
+                        initiator: attacker.avatarName || attacker.name
+                    };
+                    effects.push(effectCopy);
+                    if (effect.message) {
+                        messages.push(formatMessage(effect.message));
+                    }
                 }
             });
         }
@@ -112,43 +120,16 @@ function isStunned(effects) {
     return effects && effects.some(effect => effect.effect === 'stun' && effect.rounds > 0);
 }
 
-// Add this helper at the top
-function logCombatEffects(prefix, userName, userEffects, mobName, mobEffects) {
-    logger.debug(`${prefix} Effects:`, {
-        [`${userName}`]: userEffects.map(e => `${e.effect} (${e.rounds})`),
-        [`${mobName}`]: mobEffects.map(e => `${e.effect} (${e.rounds})`)
-    });
-}
-
-// Modify the applyBleedEffects function to handle rounds correctly
-function applyBleedEffects(effects, target, excludeNew = false) {
-    if (!effects) return 0;
-    
-    let totalBleedDamage = 0;
-    effects.forEach(effect => {
-        if (effect.effect === 'bleed' && effect.rounds > 0) {
-            // Only skip if it's the first round (rounds equals initialRounds)
-            if (excludeNew && effect.rounds === effect.initialRounds) {
-                logger.debug('Skipping new bleed effect:', { effect });
-                return;
-            }
-            totalBleedDamage += effect.amount || 1;
-            logger.debug('Applying bleed damage:', { 
-                damage: effect.amount || 1, 
-                remainingRounds: effect.rounds,
-                initialRounds: effect.initialRounds 
-            });
-        }
-    });
-    
-    return totalBleedDamage;
-}
-
-// Modify the applyEffect function to store the initial rounds
+// Modify the applyEffect function to handle stun differently
 async function applyEffect(effect, user, mobInstance) {
     if (!effect) return;
 
-    // Handle status effects like stun
+    // For stun effects, we don't store them anymore since they just modify delays
+    if (effect.effect === 'stun') {
+        return;
+    }
+
+    // Handle other status effects
     if (effect.effect) {
         const targetId = effect.target === 'self' 
             ? (effect.initiator === user.avatarName ? user._id.toString() : mobInstance.instanceId)
@@ -157,7 +138,7 @@ async function applyEffect(effect, user, mobInstance) {
         stateService.addCombatantEffect(targetId, {
             effect: effect.effect,
             rounds: effect.rounds || 1,
-            initialRounds: effect.rounds || 1,  // Store the initial number of rounds
+            initialRounds: effect.rounds || 1,
             stat: effect.stat,
             amount: effect.amount,
             target: effect.target
@@ -192,193 +173,34 @@ async function handleCombatCommand(socket, user, moveName) {
             return;
         }
 
-        const mobMoves = mobInstance.moves;
-        if (!mobMoves || !Array.isArray(mobMoves)) {
-            throw new Error('Invalid mob moves configuration');
-        }
-
-        const totalChance = mobMoves.reduce((sum, move) => sum + move.usageChance, 0);
-        let random = Math.random() * totalChance;
-        let mobMove;
-
-        for (const move of mobMoves) {
-            random -= move.usageChance;
-            if (random <= 0) {
-                mobMove = move;
-                break;
-            }
-        }
-
-        // Get current effects for both combatants
-        const userEffects = stateService.getCombatantEffects(user._id.toString()) || [];
-        const mobEffects = stateService.getCombatantEffects(mobInstance.instanceId) || [];
-
-        // Log effects at start of round
-        logCombatEffects('Start of Round', user.avatarName, userEffects, mobInstance.name, mobEffects);
-
-        // Initialize results as null
-        let playerResult = null;
-        let mobResult = null;
-
-        // Check if player is stunned
-        if (isStunned(userEffects)) {
-            playerResult = {
-                success: false,
-                effects: [],
-                damage: 0,
-                message: `${user.avatarName} is stunned and cannot move!`
-            };
-        } else {
-            playerResult = calculateAttackResult(selectedMove, user, mobInstance);
-        }
-
-        // Apply player's effects first
-        for (const effect of playerResult.effects) {
-            await applyEffect(effect, user, mobInstance);
-        }
-
-        // Get current effects after applying new ones
-        const userEffectsAfter = stateService.getCombatantEffects(user._id.toString()) || [];
-        const mobEffectsAfter = stateService.getCombatantEffects(mobInstance.instanceId) || [];
-
-        // Apply player's damage
-        if (playerResult.damage > 0) {
-            mobInstance.stats.currentHitpoints -= playerResult.damage;
-        }
-
-        // Initialize mobResult before using it
-        mobResult = {
-            success: false,
-            effects: [],
-            damage: 0,
-            message: ''
-        };
-
-        // Apply bleed effects to both combatants, excluding new effects
-        const userBleedDamage = applyBleedEffects(userEffectsAfter, user, true);
-        if (userBleedDamage > 0) {
-            user.stats.currentHitpoints -= userBleedDamage;
-            await User.findByIdAndUpdate(user._id, {
-                'stats.currentHitpoints': user.stats.currentHitpoints
-            });
-            playerResult.message += ` ${user.avatarName} takes ${userBleedDamage} bleed damage!`;
-        }
-
-        // Apply bleed damage to mob, excluding new effects
-        const mobBleedDamage = applyBleedEffects(mobEffectsAfter, mobInstance, true);
-        if (mobBleedDamage > 0) {
-            mobInstance.stats.currentHitpoints -= mobBleedDamage;
-            // Append to message instead of overwriting
-            if (mobResult.message) {
-                mobResult.message += ` ${mobInstance.name} takes ${mobBleedDamage} bleed damage!`;
-            } else {
-                mobResult.message = `${mobInstance.name} takes ${mobBleedDamage} bleed damage!`;
-            }
-        }
-
-        // Process mob's action if they're still alive
-        if (mobInstance.stats.currentHitpoints <= 0) {
-            // Append defeat message instead of overwriting
-            if (mobResult.message) {
-                mobResult.message += ` ${mobInstance.name} has been defeated!`;
-            } else {
-                mobResult.message = `${mobInstance.name} has been defeated!`;
-            }
-        } else {
-            // Get updated mob effects after player's action
-            const updatedMobEffects = stateService.getCombatantEffects(mobInstance.instanceId) || [];
-
-            // Check if mob is stunned with updated effects
-            if (isStunned(updatedMobEffects)) {
-                // Append stun message instead of overwriting
-                if (mobResult.message) {
-                    mobResult.message += ` ${mobInstance.name} is stunned and cannot move!`;
-                } else {
-                    mobResult.message = `${mobInstance.name} is stunned and cannot move!`;
-                }
-            } else {
-                // Save any existing messages before calculating mob's attack
-                const existingMessage = mobResult.message;
-                mobResult = calculateAttackResult(mobMove, mobInstance, user);
-                if (existingMessage) {
-                    mobResult.message = existingMessage + ' ' + mobResult.message;
-                }
-
-                // Apply mob's effects
-                for (const effect of mobResult.effects) {
-                    await applyEffect(effect, user, mobInstance);
-                }
-
-                // Apply mob's damage
-                if (mobResult.damage > 0) {
-                    user.stats.currentHitpoints -= mobResult.damage;
-                    await User.findByIdAndUpdate(user._id, {
-                        'stats.currentHitpoints': user.stats.currentHitpoints
-                    });
-                }
-            }
-        }
-
-        // Decrement rounds on existing effects AFTER all damage is applied
-        // But ONLY for effects that have dealt their damage this round
-        stateService.updateCombatantEffects(user._id.toString(), true);
-        stateService.updateCombatantEffects(mobInstance.instanceId, true);
-
-        // Log effects at end of round
-        const endUserEffects = stateService.getCombatantEffects(user._id.toString()) || [];
-        const endMobEffects = stateService.getCombatantEffects(mobInstance.instanceId) || [];
-        logCombatEffects('End of Round', user.avatarName, endUserEffects, mobInstance.name, endMobEffects);
-
-        const userCurrentHP = user.stats.currentHitpoints;
-        const mobCurrentHP = mobInstance.stats.currentHitpoints;
-
-        if (mobCurrentHP <= 0) {
-            stateService.clearUserCombatState(socket.user.userId);
-            
-            // Get the original mob's _id - mobInstance is created from the Mob document
-            const mobId = mobInstance._id || mobInstance.mobId;
-            logger.debug('Mob killed:', {
-                mobId,
-                mobName: mobInstance.name,
-                mobInstanceId: mobInstance.instanceId
-            });
-            
-            const questUpdates = await questService.handleMobKill(user._id, mobId);
-            mobService.clearUserMob(user._id.toString());
-
-            let victoryMessage = `You use ${selectedMove.name}! ${playerResult.message}\n` +
-                                `${mobResult.message}\n` +
-                                `\nVictory! You have defeated ${mobInstance.name}!`;
-
-            if (questUpdates && questUpdates.length > 0) {
-                victoryMessage += '\n\n' + questUpdates.map(update => update.message).join('\n');
-                
-                const progressUpdate = questUpdates.find(u => u.type === 'quest_progress' && u.nextMessage);
-                if (progressUpdate) {
-                    victoryMessage += `\n\n${progressUpdate.nextMessage}`;
-                }
-            }
-
+        // Check if player already has a move in progress
+        if (stateService.getCombatDelay(user._id.toString())) {
             socket.emit('console response', {
                 type: 'combat',
-                message: victoryMessage
+                message: 'You are still executing your previous move.'
             });
-
-            publishSystemMessage(
-                user.currentNode,
-                `${user.avatarName} has defeated ${mobInstance.name}!`
-            );
             return;
         }
 
-        socket.emit('console response', {
-            type: 'combat',
-            message: `You use ${selectedMove.name}! ${playerResult.message}\n` +
-                     `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n` +
-                     `\nStatus:\n` +
-                     `${user.avatarName}: ${userCurrentHP} HP\n` +
-                     `${mobInstance.name}: ${mobCurrentHP} HP`
+        // Set player's move with delay
+        stateService.setCombatDelay(user._id.toString(), {
+            delay: selectedMove.delay,
+            move: selectedMove,
+            target: mobInstance
         });
+
+        // If mob doesn't have a move queued, select one
+        if (!stateService.getCombatDelay(mobInstance.instanceId)) {
+            const mobMove = selectMobMove(mobInstance);
+            stateService.setCombatDelay(mobInstance.instanceId, {
+                delay: mobMove.delay,
+                move: mobMove,
+                target: user
+            });
+        }
+
+        // Process combat until player needs to select a new move
+        await processCombatUntilInput(socket, user, mobInstance);
 
     } catch (error) {
         logger.error('Error handling combat command:', error);
@@ -387,6 +209,246 @@ async function handleCombatCommand(socket, user, moveName) {
             message: 'Error processing combat command'
         });
     }
+}
+
+// New function to process combat until player input is needed
+async function processCombatUntilInput(socket, user, mobInstance) {
+    while (true) {
+        const playerDelay = stateService.getCombatDelay(user._id.toString());
+        const mobDelay = stateService.getCombatDelay(mobInstance.instanceId);
+
+        // If either combatant doesn't have a move selected, break
+        if (!playerDelay || !mobDelay) {
+            break;
+        }
+
+        // Apply stun effects to current delays (now passing the moves)
+        const playerEffectiveDelay = applyStunEffect([], playerDelay.delay, mobDelay.move);
+        const mobEffectiveDelay = applyStunEffect([], mobDelay.delay, playerDelay.move);
+
+        // Debug log delays
+        logger.debug('Combat delays:', {
+            player: {
+                name: user.avatarName,
+                move: playerDelay.move.name,
+                baseDelay: playerDelay.delay,
+                effectiveDelay: playerEffectiveDelay,
+                stunned: playerEffectiveDelay > playerDelay.delay
+            },
+            mob: {
+                name: mobInstance.name,
+                move: mobDelay.move.name,
+                baseDelay: mobDelay.delay,
+                effectiveDelay: mobEffectiveDelay,
+                stunned: mobEffectiveDelay > mobDelay.delay
+            },
+            minDelay: Math.min(playerEffectiveDelay, mobEffectiveDelay)
+        });
+
+        // Find the minimum delay to process
+        const minDelay = Math.min(playerEffectiveDelay, mobEffectiveDelay);
+
+        // Reduce delays by the minimum amount
+        playerDelay.delay = Math.max(0, playerEffectiveDelay - minDelay);
+        mobDelay.delay = Math.max(0, mobEffectiveDelay - minDelay);
+
+        // Debug log updated delays
+        logger.debug('Updated delays:', {
+            player: {
+                name: user.avatarName,
+                remainingDelay: playerDelay.delay
+            },
+            mob: {
+                name: mobInstance.name,
+                remainingDelay: mobDelay.delay
+            }
+        });
+
+        // Get any moves that are ready to execute
+        const readyMoves = [];
+        if (playerDelay.delay <= 0) {
+            readyMoves.push({ type: 'player', ...playerDelay });
+            stateService.clearCombatDelay(user._id.toString());
+        }
+        if (mobDelay.delay <= 0) {
+            readyMoves.push({ type: 'mob', ...mobDelay });
+            stateService.clearCombatDelay(mobInstance.instanceId);
+        }
+
+        // Execute ready moves if any
+        if (readyMoves.length > 0) {
+            await executeCombatMoves(readyMoves, user, mobInstance, socket);
+            
+            // If mob's move executed and they're still alive, select new move
+            if (readyMoves.some(move => move.type === 'mob') && 
+                mobInstance.stats.currentHitpoints > 0) {
+                const mobMove = selectMobMove(mobInstance);
+                stateService.setCombatDelay(mobInstance.instanceId, {
+                    delay: mobMove.delay,
+                    move: mobMove,
+                    target: user
+                });
+            }
+        } else {
+            // Show current state of moves with effective delays
+            socket.emit('console response', {
+                type: 'combat',
+                message: `You prepare ${playerDelay.move.name} (${playerEffectiveDelay} delay${playerEffectiveDelay > playerDelay.delay ? ' - stunned!' : ''})\n` +
+                         `${mobInstance.name} is preparing ${mobDelay.move.name} (${mobEffectiveDelay} delay${mobEffectiveDelay > mobDelay.delay ? ' - stunned!' : ''})`
+            });
+            break;
+        }
+
+        // If player needs to select a new move, break the loop
+        if (!stateService.getCombatDelay(user._id.toString())) {
+            break;
+        }
+    }
+}
+
+// Helper function to select a random mob move based on chances
+function selectMobMove(mobInstance) {
+    const mobMoves = mobInstance.moves;
+    const totalChance = mobMoves.reduce((sum, move) => sum + move.usageChance, 0);
+    let random = Math.random() * totalChance;
+    
+    for (const move of mobMoves) {
+        random -= move.usageChance;
+        if (random <= 0) {
+            return move;
+        }
+    }
+    return mobMoves[0]; // Fallback to first move
+}
+
+// New function to execute combat moves
+async function executeCombatMoves(readyMoves, user, mobInstance, socket) {
+    // Initialize results with default values
+    let playerResult = {
+        success: false,
+        effects: [],
+        damage: 0,
+        message: '',
+        move: null
+    };
+    
+    let mobResult = {
+        success: false,
+        effects: [],
+        damage: 0,
+        message: '',
+        move: null
+    };
+
+    // Get current effects
+    const userEffects = stateService.getCombatantEffects(user._id.toString()) || [];
+    const mobEffects = stateService.getCombatantEffects(mobInstance.instanceId) || [];
+
+    // Execute each ready move
+    for (const moveInfo of readyMoves) {
+        if (moveInfo.type === 'player') {
+            playerResult = calculateAttackResult(moveInfo.move, user, mobInstance);
+            playerResult.move = moveInfo.move;
+            // Apply effects and damage from player's move
+            for (const effect of playerResult.effects) {
+                await applyEffect(effect, user, mobInstance);
+            }
+            if (playerResult.damage > 0) {
+                mobInstance.stats.currentHitpoints -= playerResult.damage;
+            }
+        } else if (moveInfo.type === 'mob') {
+            mobResult = calculateAttackResult(moveInfo.move, mobInstance, user);
+            mobResult.move = moveInfo.move;
+            // Apply effects and damage from mob's move
+            for (const effect of mobResult.effects) {
+                await applyEffect(effect, user, mobInstance);
+            }
+            if (mobResult.damage > 0) {
+                user.stats.currentHitpoints -= mobResult.damage;
+                await User.findByIdAndUpdate(user._id, {
+                    'stats.currentHitpoints': user.stats.currentHitpoints
+                });
+            }
+        }
+    }
+
+    // Process mob's action if they're still alive
+    if (mobInstance.stats.currentHitpoints <= 0) {
+        mobResult.message += ` ${mobInstance.name} has been defeated!`;
+    }
+
+    // Decrement rounds on existing effects AFTER all damage is applied
+    stateService.updateCombatantEffects(user._id.toString(), true);
+    stateService.updateCombatantEffects(mobInstance.instanceId, true);
+
+    const userCurrentHP = user.stats.currentHitpoints;
+    const mobCurrentHP = mobInstance.stats.currentHitpoints;
+
+    if (mobCurrentHP <= 0) {
+        stateService.clearUserCombatState(socket.user.userId);
+        
+        const mobId = mobInstance._id || mobInstance.mobId;
+        logger.debug('Mob killed:', {
+            mobId,
+            mobName: mobInstance.name,
+            mobInstanceId: mobInstance.instanceId
+        });
+        
+        const questUpdates = await questService.handleMobKill(user._id, mobId);
+        mobService.clearUserMob(user._id.toString());
+
+        let victoryMessage = '';
+        if (playerResult.move) {
+            victoryMessage = `You use ${playerResult.move.name}! ${playerResult.message}\n`;
+        }
+        if (mobResult.message) {
+            victoryMessage += `${mobResult.message}\n`;
+        }
+        victoryMessage += `\nVictory! You have defeated ${mobInstance.name}!`;
+
+        if (questUpdates && questUpdates.length > 0) {
+            victoryMessage += '\n\n' + questUpdates.map(update => update.message).join('\n');
+            
+            const progressUpdate = questUpdates.find(u => u.type === 'quest_progress' && u.nextMessage);
+            if (progressUpdate) {
+                victoryMessage += `\n\n${progressUpdate.nextMessage}`;
+            }
+        }
+
+        socket.emit('console response', {
+            type: 'combat',
+            message: victoryMessage
+        });
+
+        publishSystemMessage(
+            user.currentNode,
+            `${user.avatarName} has defeated ${mobInstance.name}!`
+        );
+        return;
+    }
+
+    // Construct combat message
+    let combatMessage = '';
+    if (playerResult.move) {
+        combatMessage += `You use ${playerResult.move.name}! ${playerResult.message}\n`;
+        
+        // Only show status after player moves
+        combatMessage += `\nStatus:\n` +
+                        `${user.avatarName}: ${userCurrentHP} HP\n` +
+                        `${mobInstance.name}: ${mobCurrentHP} HP`;
+    }
+    if (mobResult.move) {
+        // If there was also a player move, add a newline
+        if (playerResult.move) {
+            combatMessage += '\n\n';
+        }
+        combatMessage += `${mobInstance.name} uses ${mobResult.move.name}! ${mobResult.message}`;
+    }
+
+    socket.emit('console response', {
+        type: 'combat',
+        message: combatMessage
+    });
 }
 
 async function handleFleeCommand(socket, user) {
@@ -559,6 +621,22 @@ async function getCombatStatus(userId) {
         logger.error('Error getting combat status:', error);
         throw error;
     }
+}
+
+// Update applyStunEffect to look at the move's effects
+function applyStunEffect(effects, delay, move) {
+    let totalStunDelay = 0;
+    
+    // If this move has stun effects that succeeded, apply their delay
+    if (move.success) {
+        move.success.forEach(effect => {
+            if (effect.effect === 'stun') {
+                totalStunDelay += 2 * (effect.rounds || 1);
+            }
+        });
+    }
+    
+    return delay + totalStunDelay;
 }
 
 module.exports = {

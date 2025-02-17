@@ -10,6 +10,7 @@ class StateService {
         this.playerMobs = new Map(); // tracks per-player spawned enemies
         this.userCombatStates = new Map(); // tracks combat state for each user
         this.combatantEffects = new Map(); // key: combatantId, value: array of active effects
+        this.combatDelays = new Map(); // Tracks active move delays for combatants
     }
 
     addClient(userId, socket) {
@@ -170,6 +171,50 @@ class StateService {
 
     clearCombatantEffects(combatantId) {
         this.combatantEffects.delete(combatantId);
+    }
+
+    // Add methods for managing combat delays
+    setCombatDelay(combatantId, moveInfo) {
+        this.combatDelays.set(combatantId, {
+            delay: moveInfo.delay,
+            move: moveInfo.move,
+            target: moveInfo.target
+        });
+    }
+
+    getCombatDelay(combatantId) {
+        return this.combatDelays.get(combatantId);
+    }
+
+    clearCombatDelay(combatantId) {
+        this.combatDelays.delete(combatantId);
+    }
+
+    // Decrement delays and return moves that are ready (delay === 0)
+    processDelays(userId, mobInstanceId) {
+        const readyMoves = [];
+        
+        // Process player move
+        const playerDelay = this.combatDelays.get(userId);
+        if (playerDelay) {
+            playerDelay.delay--;
+            if (playerDelay.delay <= 0) {
+                readyMoves.push({ type: 'player', ...playerDelay });
+                this.clearCombatDelay(userId);
+            }
+        }
+
+        // Process mob move
+        const mobDelay = this.combatDelays.get(mobInstanceId);
+        if (mobDelay) {
+            mobDelay.delay--;
+            if (mobDelay.delay <= 0) {
+                readyMoves.push({ type: 'mob', ...mobDelay });
+                this.clearCombatDelay(mobInstanceId);
+            }
+        }
+
+        return readyMoves;
     }
 
     // ... Add other state management methods as needed
