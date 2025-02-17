@@ -48,6 +48,13 @@ const moveSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    delay: {
+        type: Number,
+        required: true,
+        min: 1,
+        max: 8,
+        default: 1
+    },
     attackStat: {
         type: String,
         required: true,

@@ -91,7 +91,9 @@ const userSchema = new mongoose.Schema({
         reflexes: { type: Number, default: 10 },
         agility: { type: Number, default: 10 },
         tech: { type: Number, default: 10 },
-        luck: { type: Number, default: 10 }
+        luck: { type: Number, default: 10 },
+        experience: { type: Number, default: 0 },
+        level: { type: Number, default: 1 }
     },
     activeEffects: {
         type: [activeEffectSchema],

@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUNK MUD - Class Builder</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+            --terminal-green: #00ff00;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .builder-container {
+            width: 95%;
+            height: 90vh;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-pink),
+                       0 0 40px rgba(255, 46, 136, 0.3);
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .layout-container {
+            display: flex;
+            gap: 2rem;
+            height: 100%;
+        }
+
+        .left-panel {
+            flex: 1;
+            height: 100%;
+            position: relative;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-blue) var(--dark-bg);
+            min-width: 0;
+        }
+
+        .left-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .left-panel::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        .left-panel::-webkit-scrollbar-thumb {
+            background-color: var(--neon-blue);
+            border-radius: 4px;
+        }
+
+        #classForm {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1.5rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            margin-top: 5rem;
+            margin-bottom: 5rem;
+            box-sizing: border-box;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+            position: relative;
+            width: 100%;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--neon-blue);
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .growth-section {
+            border: 1px solid var(--neon-blue);
+            padding: 1.5rem;
+            border-radius: 5px;
+            margin-bottom: 1.5rem;
+            background: rgba(0, 255, 249, 0.05);
+        }
+
+        .growth-section h3 {
+            color: var(--neon-blue);
+            margin-top: 0;
+            margin-bottom: 1rem;
+        }
+
+        .growth-entry {
+            background: rgba(0, 255, 249, 0.1);
+            padding: 1rem;
+            border-radius: 5px;
+            border: 1px solid var(--neon-blue);
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .growth-entry:hover {
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .action-button {
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .action-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .delete-button {
+            border-color: var(--neon-pink);
+            color: var(--neon-pink);
+        }
+
+        .delete-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+        }
+
+        .right-panel {
+            width: 300px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            display: flex;
+            flex-direction: column;
+            margin-top: 5rem;
+            height: calc(100% - 7rem);
+        }
+
+        .filter-container {
+            margin-bottom: 1rem;
+        }
+
+        .filter-container input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #classesListPanel {
+            flex: 1;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-blue) var(--dark-bg);
+        }
+
+        .move-entry {
+            padding: 0.8rem;
+            border-bottom: 1px solid var(--neon-blue);
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .move-entry:hover {
+            background: rgba(0, 255, 249, 0.1);
+        }
+
+        .move-entry-name {
+            color: var(--neon-pink);
+            font-weight: bold;
+        }
+
+        .move-entry-type {
+            color: var(--neon-blue);
+            font-size: 0.9em;
+        }
+
+        #secondaryStats {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 2rem;
+        }
+
+        /* Hamburger menu styles */
+        .hamburger-menu {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+        }
+
+        .hamburger-button {
+            background: transparent;
+            border: none;
+            color: var(--neon-pink);
+            font-size: 2rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .hamburger-button:hover {
+            color: var(--neon-blue);
+            transform: scale(1.1);
+        }
+
+        .menu-content {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: rgba(10, 10, 15, 0.95);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 0.5rem;
+            display: none;
+            min-width: 200px;
+            box-shadow: 0 0 20px rgba(0, 255, 249, 0.3);
+        }
+
+        .menu-content.show {
+            display: block;
+        }
+
+        .menu-content a {
+            display: block;
+            color: var(--terminal-green);
+            text-decoration: none;
+            padding: 0.8rem 1rem;
+            transition: all 0.3s ease;
+            border-radius: 3px;
+        }
+
+        .menu-content a:hover {
+            background: rgba(0, 255, 249, 0.1);
+            color: var(--neon-blue);
+            transform: translateX(5px);
+        }
+
+        .menu-content a + a {
+            margin-top: 0.2rem;
+        }
+
+        .move-entry-description {
+            color: var(--terminal-green);
+            font-size: 0.8em;
+            margin-top: 0.5em;
+            opacity: 0.8;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+    </style>
+</head>
+<body>
+    <div class="hamburger-menu">
+        <button class="hamburger-button">☰</button>
+        <div class="menu-content">
+            <a href="/nodebuilder.html">Node Builder</a>
+            <a href="/actorbuilder.html">Actor Builder</a>
+            <a href="/mobbuilder.html">Mob Builder</a>
+            <a href="/movebuilder.html">Move Builder</a>
+            <a href="/questbuilder.html">Quest Builder</a>
+            <a href="/classbuilder.html">Class Builder</a>
+        </div>
+    </div>
+
+    <div class="builder-container">
+        <div class="layout-container">
+            <div class="left-panel">
+                <button class="action-button" id="newClassBtn">Add New Class</button>
+                <div class="move-form" id="classForm">
+                    <div class="form-group">
+                        <label for="className">Class Name:</label>
+                        <input type="text" id="className" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="classDescription">Description:</label>
+                        <textarea id="classDescription" 
+                                  required 
+                                  rows="4" 
+                                  placeholder="Enter a description for this class..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="baseHitpoints">Base Hitpoints:</label>
+                        <input type="number" 
+                               id="baseHitpoints" 
+                               required 
+                               min="1" 
+                               value="10"
+                               placeholder="Enter base hitpoints...">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="hpPerLevel">HP Per Level:</label>
+                        <input type="number" 
+                               id="hpPerLevel" 
+                               required 
+                               min="0" 
+                               step="0.1"
+                               value="2"
+                               placeholder="Enter HP per level...">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="hpPerBod">HP Per Body:</label>
+                        <input type="number" 
+                               id="hpPerBod" 
+                               required 
+                               min="0" 
+                               step="0.1"
+                               value="1"
+                               placeholder="Enter HP per body stat...">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="primaryStat">Primary Stat:</label>
+                        <select id="primaryStat" required>
+                            <option value="body">Body</option>
+                            <option value="reflexes">Reflexes</option>
+                            <option value="agility">Agility</option>
+                            <option value="tech">Tech</option>
+                            <option value="luck">Luck</option>
+                            <option value="charisma">Charisma</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Secondary Stats:</label>
+                        <div id="secondaryStats">
+                            <!-- Checkboxes will be dynamically added here -->
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button class="action-button delete-button hidden" id="deleteClassBtn">Delete Class</button>
+                        <button class="action-button" id="saveClassBtn">Save Class</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="filter-container">
+                    <input type="text" 
+                           id="classFilter" 
+                           placeholder="Filter classes..."
+                           class="chat-input">
+                </div>
+                <div class="moves-list" id="classesListPanel">
+                    <!-- Classes will be listed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Templates -->
+    <template id="moveGrowthTemplate">
+        <div class="growth-entry">
+            <div class="form-group">
+                <label>Level:</label>
+                <input type="number" class="move-growth-level" required min="1">
+            </div>
+            <div class="form-group">
+                <label>Move:</label>
+                <select class="move-growth-move" required>
+                    <!-- Moves will be populated dynamically -->
+                </select>
+            </div>
+            <button type="button" class="action-button delete-button" onclick="removeGrowth(this)">Remove</button>
+        </div>
+    </template>
+
+    <script>
+        const newClassBtn = document.getElementById('newClassBtn');
+        const saveClassBtn = document.getElementById('saveClassBtn');
+        const deleteClassBtn = document.getElementById('deleteClassBtn');
+        const classFilter = document.getElementById('classFilter');
+        let allClasses = [];
+        let allMoves = [];
+
+        // Check authentication
+        window.onload = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/auth/verify-token', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                await Promise.all([
+                    loadClasses(),
+                    loadMoves()
+                ]);
+                setupSecondaryStats();
+            } catch (error) {
+                console.error('Authentication error:', error);
+                window.location.href = '/';
+            }
+        };
+
+        // Load existing classes
+        async function loadClasses() {
+            try {
+                const response = await fetch('/api/classes', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                allClasses = await response.json();
+                filterAndDisplayClasses();
+            } catch (error) {
+                console.error('Error loading classes:', error);
+            }
+        }
+
+        // Load moves for move growth
+        async function loadMoves() {
+            try {
+                const response = await fetch('/api/moves', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                allMoves = await response.json();
+                updateMoveSelects();
+            } catch (error) {
+                console.error('Error loading moves:', error);
+            }
+        }
+
+        // Setup secondary stats checkboxes
+        function setupSecondaryStats() {
+            const container = document.getElementById('secondaryStats');
+            const stats = ['body', 'reflexes', 'agility', 'tech', 'luck', 'charisma'];
+            
+            container.innerHTML = stats.map(stat => `
+                <div>
+                    <input type="checkbox" id="secondary-${stat}" value="${stat}" class="secondary-stat-checkbox">
+                    <label for="secondary-${stat}">${stat.charAt(0).toUpperCase() + stat.slice(1)}</label>
+                </div>
+            `).join('');
+
+            // Update secondary stats when primary stat changes
+            document.getElementById('primaryStat').addEventListener('change', updateSecondaryStats);
+        }
+
+        function updateSecondaryStats() {
+            const primaryStat = document.getElementById('primaryStat').value;
+            document.querySelectorAll('.secondary-stat-checkbox').forEach(checkbox => {
+                checkbox.disabled = checkbox.value === primaryStat;
+                if (checkbox.disabled) checkbox.checked = false;
+            });
+        }
+
+        // Filter and display classes
+        function filterAndDisplayClasses() {
+            const filterValue = classFilter.value.toLowerCase();
+            const classesListPanel = document.getElementById('classesListPanel');
+            classesListPanel.innerHTML = '';
+            
+            allClasses
+                .filter(cls => 
+                    cls.name.toLowerCase().includes(filterValue)
+                )
+                .forEach(cls => {
+                    const classEntry = document.createElement('div');
+                    classEntry.className = 'move-entry';
+                    classEntry.innerHTML = `
+                        <div class="move-entry-name">${cls.name}</div>
+                        <div class="move-entry-type">Primary: ${cls.primaryStat} | HP: ${cls.baseHitpoints} (+${cls.hpPerLevel}/lvl, +${cls.hpPerBod}/bod)</div>
+                        <div class="move-entry-description">${cls.description.substring(0, 50)}${cls.description.length > 50 ? '...' : ''}</div>
+                    `;
+                    classEntry.addEventListener('click', () => loadClassData(cls));
+                    classesListPanel.appendChild(classEntry);
+                });
+        }
+
+        // Add filter event listener
+        classFilter.addEventListener('input', filterAndDisplayClasses);
+
+        // Growth management functions
+        function addMoveGrowth() {
+            const container = document.getElementById('moveGrowth');
+            const template = document.getElementById('moveGrowthTemplate');
+            const clone = template.content.cloneNode(true);
+            
+            // Populate move select
+            const moveSelect = clone.querySelector('.move-growth-move');
+            allMoves.forEach(move => {
+                const option = document.createElement('option');
+                option.value = move._id;
+                option.textContent = move.name;
+                moveSelect.appendChild(option);
+            });
+            
+            container.appendChild(clone);
+        }
+
+        function removeGrowth(button) {
+            button.closest('.growth-entry').remove();
+        }
+
+        function updateMoveSelects() {
+            document.querySelectorAll('.move-growth-move').forEach(select => {
+                const currentValue = select.value;
+                select.innerHTML = '';
+                allMoves.forEach(move => {
+                    const option = document.createElement('option');
+                    option.value = move._id;
+                    option.textContent = move.name;
+                    select.appendChild(option);
+                });
+                select.value = currentValue;
+            });
+        }
+
+        // Load class data
+        function loadClassData(cls) {
+            document.getElementById('classForm').dataset.classId = cls._id;
+            deleteClassBtn.classList.remove('hidden');
+            
+            document.getElementById('className').value = cls.name;
+            document.getElementById('classDescription').value = cls.description;
+            document.getElementById('baseHitpoints').value = cls.baseHitpoints;
+            document.getElementById('hpPerLevel').value = cls.hpPerLevel;
+            document.getElementById('hpPerBod').value = cls.hpPerBod;
+            document.getElementById('primaryStat').value = cls.primaryStat;
+            
+            // Set secondary stats
+            document.querySelectorAll('.secondary-stat-checkbox').forEach(checkbox => {
+                checkbox.checked = cls.secondaryStats.includes(checkbox.value);
+            });
+            updateSecondaryStats();
+            
+            // Load move growth
+            const moveGrowthContainer = document.getElementById('moveGrowth');
+            moveGrowthContainer.innerHTML = '';
+            cls.moveGrowth?.forEach(growth => {
+                addMoveGrowth();
+                const entry = moveGrowthContainer.lastElementChild;
+                entry.querySelector('.move-growth-level').value = growth.level;
+                entry.querySelector('.move-growth-move').value = growth.move._id;
+            });
+
+            // Highlight selected class
+            document.querySelectorAll('.move-entry').forEach(entry => {
+                entry.style.backgroundColor = '';
+                if (entry.querySelector('.move-entry-name').textContent === cls.name) {
+                    entry.style.backgroundColor = 'rgba(0, 255, 249, 0.2)';
+                }
+            });
+        }
+
+        // Clear form for new class
+        newClassBtn.addEventListener('click', () => {
+            document.getElementById('classForm').dataset.classId = '';
+            deleteClassBtn.classList.add('hidden');
+            
+            document.getElementById('className').value = '';
+            document.getElementById('classDescription').value = '';
+            document.getElementById('baseHitpoints').value = '10';
+            document.getElementById('hpPerLevel').value = '2';
+            document.getElementById('hpPerBod').value = '1';
+            document.getElementById('primaryStat').value = 'body';
+            
+            document.querySelectorAll('.secondary-stat-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateSecondaryStats();
+            
+            document.getElementById('moveGrowth').innerHTML = '';
+        });
+
+        // Save class
+        saveClassBtn.addEventListener('click', async () => {
+            const classData = {
+                _id: document.getElementById('classForm').dataset.classId || undefined,
+                name: document.getElementById('className').value,
+                description: document.getElementById('classDescription').value,
+                baseHitpoints: parseInt(document.getElementById('baseHitpoints').value),
+                hpPerLevel: parseFloat(document.getElementById('hpPerLevel').value),
+                hpPerBod: parseFloat(document.getElementById('hpPerBod').value),
+                primaryStat: document.getElementById('primaryStat').value,
+                secondaryStats: Array.from(document.querySelectorAll('.secondary-stat-checkbox:checked')).map(cb => cb.value),
+                moveGrowth: Array.from(document.querySelectorAll('#moveGrowth .growth-entry')).map(entry => ({
+                    level: parseInt(entry.querySelector('.move-growth-level').value),
+                    move: entry.querySelector('.move-growth-move').value
+                }))
+            };
+
+            try {
+                const response = await fetch('/api/classes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(classData)
+                });
+
+                if (response.ok) {
+                    alert('Class saved successfully!');
+                    loadClasses();
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to save class');
+                }
+            } catch (error) {
+                console.error('Error saving class:', error);
+                alert(error.message || 'Error saving class');
+            }
+        });
+
+        // Delete class
+        deleteClassBtn.addEventListener('click', async () => {
+            const classId = document.getElementById('classForm').dataset.classId;
+            if (!classId) return;
+            
+            const className = document.getElementById('className').value;
+            const confirmDelete = confirm(`Are you sure you want to delete the class "${className}"? This cannot be undone.`);
+            
+            if (confirmDelete) {
+                try {
+                    const response = await fetch(`/api/classes/${classId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        alert('Class deleted successfully');
+                        newClassBtn.click();
+                        loadClasses();
+                    } else {
+                        throw new Error('Failed to delete class');
+                    }
+                } catch (error) {
+                    console.error('Error deleting class:', error);
+                    alert('Error deleting class');
+                }
+            }
+        });
+
+        // Hamburger menu functionality
+        const hamburgerButton = document.querySelector('.hamburger-button');
+        const menuContent = document.querySelector('.menu-content');
+
+        hamburgerButton.addEventListener('click', () => {
+            menuContent.classList.toggle('show');
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!hamburgerButton.contains(e.target) && !menuContent.contains(e.target)) {
+                menuContent.classList.remove('show');
+            }
+        });
+
+        // Highlight current page in menu
+        document.querySelectorAll('.menu-content a').forEach(link => {
+            if (link.href === window.location.href) {
+                link.style.color = 'var(--neon-pink)';
+            }
+        });
+    </script>
+</body>
+</html> 

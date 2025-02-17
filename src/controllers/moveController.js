@@ -27,6 +27,7 @@ async function createOrUpdateMove(req, res) {
             _id,
             name,
             helpDescription,
+            delay,
             attackStat,
             defenceStat,
             success,
@@ -40,6 +41,7 @@ async function createOrUpdateMove(req, res) {
         const moveData = {
             name,
             helpDescription: helpDescription || '',
+            delay: delay || 1,
             attackStat,
             defenceStat,
             success,

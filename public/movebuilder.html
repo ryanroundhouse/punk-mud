@@ -291,6 +291,16 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="moveDelay">Delay (1-8):</label>
+                        <input type="number" 
+                               id="moveDelay" 
+                               min="1" 
+                               max="8" 
+                               value="1" 
+                               required>
+                    </div>
+
+                    <div class="form-group">
                         <label for="attackStat">Attack Stat:</label>
                         <select id="attackStat" required>
                             <option value="body">Body</option>
@@ -477,6 +487,7 @@
             
             document.getElementById('moveName').value = move.name;
             document.getElementById('helpDescription').value = move.helpDescription || '';
+            document.getElementById('moveDelay').value = move.delay || 1;
             
             document.getElementById('attackStat').value = move.attackStat;
             document.getElementById('defenceStat').value = move.defenceStat;
@@ -500,6 +511,7 @@
             
             document.getElementById('moveName').value = '';
             document.getElementById('helpDescription').value = '';
+            document.getElementById('moveDelay').value = '1';
             
             document.getElementById('attackStat').value = 'body';
             document.getElementById('defenceStat').value = 'body';
@@ -514,6 +526,7 @@
                 _id: document.getElementById('moveForm').dataset.moveId || undefined,
                 name: document.getElementById('moveName').value,
                 helpDescription: document.getElementById('helpDescription').value,
+                delay: parseInt(document.getElementById('moveDelay').value),
                 attackStat: document.getElementById('attackStat').value,
                 defenceStat: document.getElementById('defenceStat').value,
                 success: getEffectsData('success'),

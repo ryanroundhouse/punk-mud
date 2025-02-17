@@ -458,6 +458,14 @@
                         <h2>Character Stats</h2>
                         <div class="stats-grid">
                             <div class="stat-item">
+                                <label>Level:</label>
+                                <span id="statLevel">1</span>
+                            </div>
+                            <div class="stat-item">
+                                <label>Experience:</label>
+                                <span id="statExperience">0</span>
+                            </div>
+                            <div class="stat-item">
                                 <label>Hit Points:</label>
                                 <span><span id="statCurrentHitPoints">100</span>/<span id="statHitPoints">100</span></span>
                             </div>
@@ -674,6 +682,8 @@
                 
                 // Update stats
                 if (data.stats) {
+                    document.getElementById('statLevel').textContent = data.stats.level;
+                    document.getElementById('statExperience').textContent = data.stats.experience;
                     document.getElementById('statHitPoints').textContent = data.stats.hitpoints;
                     document.getElementById('statCurrentHitPoints').textContent = data.stats.currentHitpoints;
                     document.getElementById('statArmor').textContent = data.stats.armor;
