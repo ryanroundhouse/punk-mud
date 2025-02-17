@@ -7,15 +7,24 @@ const socketService = require('./socketService');
 const userService = require('./userService');
 const { publishSystemMessage } = require('./chatService');
 const questService = require('./questService');
+const Move = require('../models/Move');
 
 function calculateAttackResult(move, attacker, defender) {
     // Roll d20 for both attacker and defender
     const attackerRoll = Math.floor(Math.random() * 20) + 1;
     const defenderRoll = Math.floor(Math.random() * 20) + 1;
 
-    // Get the relevant stats from attacker and defender
-    const attackerStatValue = attacker.stats[move.attackStat] || 0;
-    const defenderStatValue = defender.stats[move.defenceStat] || 0;
+    // Get the base stats from attacker and defender
+    const attackerBaseStatValue = attacker.stats[move.attackStat] || 0;
+    const defenderBaseStatValue = defender.stats[move.defenceStat] || 0;
+
+    // Get active effects for both combatants
+    const attackerEffects = stateService.getCombatantEffects(attacker._id?.toString() || attacker.instanceId) || [];
+    const defenderEffects = stateService.getCombatantEffects(defender._id?.toString() || defender.instanceId) || [];
+
+    // Calculate effective stats using the new method
+    const attackerStatValue = Move.calculateEffectiveStat(attackerBaseStatValue, attackerEffects, move.attackStat);
+    const defenderStatValue = Move.calculateEffectiveStat(defenderBaseStatValue, defenderEffects, move.defenceStat);
 
     // Calculate total scores
     const attackerTotal = attackerStatValue + attackerRoll;
@@ -33,7 +42,17 @@ function calculateAttackResult(move, attacker, defender) {
     };
 
     let effects = [];
-    let messages = [`(${attackerStatValue}+${attackerRoll} vs ${defenderStatValue}+${defenderRoll})`];
+    let messages = [];
+    
+    // Add stat modification details to the roll message
+    const attackerModifier = attackerStatValue - attackerBaseStatValue;
+    const defenderModifier = defenderStatValue - defenderBaseStatValue;
+    
+    messages.push(
+        `(${attackerBaseStatValue}${attackerModifier ? `${attackerModifier >= 0 ? '+' : ''}${attackerModifier}` : ''}+${attackerRoll} vs ` +
+        `${defenderBaseStatValue}${defenderModifier ? `${defenderModifier >= 0 ? '+' : ''}${defenderModifier}` : ''}+${defenderRoll})`
+    );
+    
     let damage = 0;
 
     if (success) {
@@ -47,10 +66,13 @@ function calculateAttackResult(move, attacker, defender) {
                 const effectCopy = {
                     target: effect.target,
                     effect: effect.effect,
+                    stat: effect.stat,     // Make sure we copy the stat
+                    amount: effect.amount,  // Make sure we copy the amount
                     rounds: effect.rounds,
                     message: effect.message,
                     initiator: attacker.avatarName || attacker.name
                 };
+                logger.debug('Creating effect copy:', effectCopy);
                 effects.push(effectCopy);
                 if (effect.message) {
                     messages.push(formatMessage(effect.message));
@@ -437,7 +459,10 @@ async function applyEffect(effect, user, mobInstance) {
         
         stateService.addCombatantEffect(targetId, {
             effect: effect.effect,
-            rounds: effect.rounds || 1
+            rounds: effect.rounds || 1,
+            stat: effect.stat,     // Add stat information
+            amount: effect.amount,  // Add amount information
+            target: effect.target  // Add target information
         });
     }
 }

@@ -103,9 +103,31 @@ class StateService {
 
     addCombatantEffect(combatantId, effect) {
         const effects = this.combatantEffects.get(combatantId) || [];
-        effects.push(effect);
+        
+        // Create a complete copy of the effect with ALL properties
+        const effectCopy = {
+            effect: effect.effect,
+            rounds: effect.rounds,
+            stat: effect.stat,
+            amount: effect.amount,
+            target: effect.target,
+            message: effect.message,
+            initiator: effect.initiator
+        };
+
+        effects.push(effectCopy);
         this.combatantEffects.set(combatantId, effects);
-        logger.debug('Added effect:', { combatantId, effect });
+        
+        logger.debug('Added effect:', { 
+            combatantId, 
+            effect: effectCopy,
+            allEffects: effects.map(e => ({
+                effect: e.effect,
+                stat: e.stat,
+                amount: e.amount,
+                rounds: e.rounds
+            }))
+        });
     }
 
     updateCombatantEffects(combatantId) {
@@ -113,10 +135,15 @@ class StateService {
         
         logger.debug('Updating effects:', { 
             combatantId, 
-            before: effects.map(e => `${e.effect} (${e.rounds})`)
+            before: effects.map(e => ({
+                effect: e.effect,
+                stat: e.stat,
+                amount: e.amount,
+                rounds: e.rounds
+            }))
         });
         
-        // Decrement rounds and filter out expired effects
+        // Preserve all properties when updating
         const updatedEffects = effects
             .map(effect => ({
                 ...effect,
@@ -132,7 +159,12 @@ class StateService {
 
         logger.debug('Updated effects:', { 
             combatantId, 
-            after: updatedEffects.map(e => `${e.effect} (${e.rounds})`)
+            after: updatedEffects.map(e => ({
+                effect: e.effect,
+                stat: e.stat,
+                amount: e.amount,
+                rounds: e.rounds
+            }))
         });
     }
 

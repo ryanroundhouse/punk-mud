@@ -367,12 +367,27 @@
             </div>
             <div class="form-group">
                 <label>Effect:</label>
-                <select class="effect-type" required>
+                <select class="effect-type" required onchange="handleEffectTypeChange(this)">
                     <option value="bleed">Bleed</option>
                     <option value="stun">Stun</option>
                     <option value="reduceStat">Reduce Stat</option>
                     <option value="increaseStat">Increase Stat</option>
                 </select>
+            </div>
+            <div class="form-group stat-field" style="display: none;">
+                <label>Stat:</label>
+                <select class="effect-stat">
+                    <option value="body">Body</option>
+                    <option value="reflexes">Reflexes</option>
+                    <option value="agility">Agility</option>
+                    <option value="charisma">Charisma</option>
+                    <option value="tech">Tech</option>
+                    <option value="luck">Luck</option>
+                </select>
+            </div>
+            <div class="form-group amount-field" style="display: none;">
+                <label>Amount:</label>
+                <input type="number" class="effect-amount" min="1" value="1">
             </div>
             <div class="form-group">
                 <label>Rounds:</label>
@@ -591,16 +606,42 @@
             button.closest('.effect-entry').remove();
         }
 
+        function handleEffectTypeChange(select) {
+            const effectEntry = select.closest('.effect-entry');
+            const statField = effectEntry.querySelector('.stat-field');
+            const amountField = effectEntry.querySelector('.amount-field');
+            const effectType = select.value;
+
+            // Show/hide stat field
+            statField.style.display = ['reduceStat', 'increaseStat'].includes(effectType) ? 'block' : 'none';
+            
+            // Show/hide amount field
+            amountField.style.display = ['reduceStat', 'increaseStat', 'bleed'].includes(effectType) ? 'block' : 'none';
+        }
+
         function getEffectsData(type) {
             const effects = [];
             const container = document.getElementById(`${type}Effects`);
             container.querySelectorAll('.effect-entry').forEach(entry => {
-                effects.push({
+                const effectType = entry.querySelector('.effect-type').value;
+                const effect = {
                     message: entry.querySelector('.effect-message').value,
                     target: entry.querySelector('.effect-target').value,
-                    effect: entry.querySelector('.effect-type').value,
+                    effect: effectType,
                     rounds: parseInt(entry.querySelector('.effect-rounds').value)
-                });
+                };
+
+                // Add stat if required
+                if (['reduceStat', 'increaseStat'].includes(effectType)) {
+                    effect.stat = entry.querySelector('.effect-stat').value;
+                }
+
+                // Add amount if required
+                if (['reduceStat', 'increaseStat', 'bleed'].includes(effectType)) {
+                    effect.amount = parseInt(entry.querySelector('.effect-amount').value);
+                }
+
+                effects.push(effect);
             });
             return effects;
         }
@@ -615,6 +656,17 @@
                 entry.querySelector('.effect-target').value = effect.target;
                 entry.querySelector('.effect-type').value = effect.effect;
                 entry.querySelector('.effect-rounds').value = effect.rounds || 1;
+
+                // Set stat and amount if they exist
+                if (effect.stat) {
+                    entry.querySelector('.effect-stat').value = effect.stat;
+                }
+                if (effect.amount) {
+                    entry.querySelector('.effect-amount').value = effect.amount;
+                }
+
+                // Show/hide fields based on effect type
+                handleEffectTypeChange(entry.querySelector('.effect-type'));
             });
         }
     </script>
