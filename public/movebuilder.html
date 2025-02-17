@@ -284,14 +284,6 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="moveType">Type:</label>
-                        <select id="moveType" required>
-                            <option value="none">None</option>
-                            <option value="attack">Attack</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
                         <label for="helpDescription">Help Description:</label>
                         <textarea id="helpDescription" 
                                   placeholder="Describe what this move does when players use the help command..."
@@ -299,79 +291,43 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="successChance">Success Chance (%):</label>
-                        <input type="number" 
-                               id="successChance" 
-                               min="0" 
-                               max="100" 
-                               value="50" 
-                               required>
+                        <label for="attackStat">Attack Stat:</label>
+                        <select id="attackStat" required>
+                            <option value="body">Body</option>
+                            <option value="reflexes">Reflexes</option>
+                            <option value="agility">Agility</option>
+                            <option value="charisma">Charisma</option>
+                            <option value="tech">Tech</option>
+                            <option value="luck">Luck</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="defenceStat">Defence Stat:</label>
+                        <select id="defenceStat" required>
+                            <option value="body">Body</option>
+                            <option value="reflexes">Reflexes</option>
+                            <option value="agility">Agility</option>
+                            <option value="charisma">Charisma</option>
+                            <option value="tech">Tech</option>
+                            <option value="luck">Luck</option>
+                        </select>
                     </div>
 
                     <div class="outcome-section">
-                        <h3>Success Outcome</h3>
-                        <div class="form-group">
-                            <label for="successMessage">Message:</label>
-                            <textarea id="successMessage" required></textarea>
+                        <h3>Success Effects</h3>
+                        <div id="successEffects">
+                            <!-- Success effects will be added here -->
                         </div>
-                        <div class="outcome-grid">
-                            <div class="form-group">
-                                <label for="successTarget">Target:</label>
-                                <select id="successTarget" required>
-                                    <option value="self">Self</option>
-                                    <option value="opponent">Opponent</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="successStat">Stat:</label>
-                                <select id="successStat" required>
-                                    <option value="hitpoints">Hitpoints</option>
-                                    <option value="armor">Armor</option>
-                                    <option value="body">Body</option>
-                                    <option value="reflexes">Reflexes</option>
-                                    <option value="agility">Agility</option>
-                                    <option value="tech">Tech</option>
-                                    <option value="luck">Luck</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="successAmount">Amount:</label>
-                                <input type="number" id="successAmount" required>
-                            </div>
-                        </div>
+                        <button type="button" class="action-button" onclick="addEffect('success')">Add Success Effect</button>
                     </div>
 
                     <div class="outcome-section">
-                        <h3>Failure Outcome</h3>
-                        <div class="form-group">
-                            <label for="failureMessage">Message:</label>
-                            <textarea id="failureMessage" required></textarea>
+                        <h3>Failure Effects</h3>
+                        <div id="failureEffects">
+                            <!-- Failure effects will be added here -->
                         </div>
-                        <div class="outcome-grid">
-                            <div class="form-group">
-                                <label for="failureTarget">Target:</label>
-                                <select id="failureTarget" required>
-                                    <option value="self">Self</option>
-                                    <option value="opponent">Opponent</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="failureStat">Stat:</label>
-                                <select id="failureStat" required>
-                                    <option value="hitpoints">Hitpoints</option>
-                                    <option value="armor">Armor</option>
-                                    <option value="body">Body</option>
-                                    <option value="reflexes">Reflexes</option>
-                                    <option value="agility">Agility</option>
-                                    <option value="tech">Tech</option>
-                                    <option value="luck">Luck</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="failureAmount">Amount:</label>
-                                <input type="number" id="failureAmount" required>
-                            </div>
-                        </div>
+                        <button type="button" class="action-button" onclick="addEffect('failure')">Add Failure Effect</button>
                     </div>
 
                     <div class="form-actions">
@@ -394,6 +350,37 @@
             </div>
         </div>
     </div>
+
+    <!-- Add this template for effect entries -->
+    <template id="effectTemplate">
+        <div class="effect-entry">
+            <div class="form-group">
+                <label>Message:</label>
+                <textarea class="effect-message" required></textarea>
+            </div>
+            <div class="form-group">
+                <label>Target:</label>
+                <select class="effect-target" required>
+                    <option value="self">Self</option>
+                    <option value="opponent">Opponent</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Effect:</label>
+                <select class="effect-type" required>
+                    <option value="bleed">Bleed</option>
+                    <option value="stun">Stun</option>
+                    <option value="reduceStat">Reduce Stat</option>
+                    <option value="increaseStat">Increase Stat</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Rounds:</label>
+                <input type="number" class="effect-rounds" min="1" value="1" required>
+            </div>
+            <button type="button" class="action-button delete-button" onclick="removeEffect(this)">Remove Effect</button>
+        </div>
+    </template>
 
     <script>
         const newMoveBtn = document.getElementById('newMoveBtn');
@@ -474,19 +461,13 @@
             deleteMoveBtn.classList.remove('hidden');
             
             document.getElementById('moveName').value = move.name;
-            document.getElementById('moveType').value = move.type;
             document.getElementById('helpDescription').value = move.helpDescription || '';
-            document.getElementById('successChance').value = move.successChance;
             
-            document.getElementById('successMessage').value = move.success.message;
-            document.getElementById('successTarget').value = move.success.target;
-            document.getElementById('successStat').value = move.success.stat;
-            document.getElementById('successAmount').value = move.success.amount;
+            document.getElementById('attackStat').value = move.attackStat;
+            document.getElementById('defenceStat').value = move.defenceStat;
             
-            document.getElementById('failureMessage').value = move.failure.message;
-            document.getElementById('failureTarget').value = move.failure.target;
-            document.getElementById('failureStat').value = move.failure.stat;
-            document.getElementById('failureAmount').value = move.failure.amount;
+            loadEffects('success', move.success);
+            loadEffects('failure', move.failure);
 
             // Highlight selected move
             document.querySelectorAll('.move-entry').forEach(entry => {
@@ -503,19 +484,13 @@
             deleteMoveBtn.classList.add('hidden');
             
             document.getElementById('moveName').value = '';
-            document.getElementById('moveType').value = 'none';
             document.getElementById('helpDescription').value = '';
-            document.getElementById('successChance').value = '50';
             
-            document.getElementById('successMessage').value = '';
-            document.getElementById('successTarget').value = 'opponent';
-            document.getElementById('successStat').value = 'hitpoints';
-            document.getElementById('successAmount').value = '';
+            document.getElementById('attackStat').value = 'body';
+            document.getElementById('defenceStat').value = 'body';
             
-            document.getElementById('failureMessage').value = '';
-            document.getElementById('failureTarget').value = 'self';
-            document.getElementById('failureStat').value = 'hitpoints';
-            document.getElementById('failureAmount').value = '';
+            document.getElementById('successEffects').innerHTML = '';
+            document.getElementById('failureEffects').innerHTML = '';
         });
 
         // Save move
@@ -523,21 +498,11 @@
             const moveData = {
                 _id: document.getElementById('moveForm').dataset.moveId || undefined,
                 name: document.getElementById('moveName').value,
-                type: document.getElementById('moveType').value,
                 helpDescription: document.getElementById('helpDescription').value,
-                successChance: parseInt(document.getElementById('successChance').value),
-                success: {
-                    message: document.getElementById('successMessage').value,
-                    target: document.getElementById('successTarget').value,
-                    stat: document.getElementById('successStat').value,
-                    amount: parseInt(document.getElementById('successAmount').value)
-                },
-                failure: {
-                    message: document.getElementById('failureMessage').value,
-                    target: document.getElementById('failureTarget').value,
-                    stat: document.getElementById('failureStat').value,
-                    amount: parseInt(document.getElementById('failureAmount').value)
-                }
+                attackStat: document.getElementById('attackStat').value,
+                defenceStat: document.getElementById('defenceStat').value,
+                success: getEffectsData('success'),
+                failure: getEffectsData('failure')
             };
 
             try {
@@ -614,6 +579,44 @@
                 link.style.color = 'var(--neon-pink)';
             }
         });
+
+        function addEffect(type) {
+            const container = document.getElementById(`${type}Effects`);
+            const template = document.getElementById('effectTemplate');
+            const clone = template.content.cloneNode(true);
+            container.appendChild(clone);
+        }
+
+        function removeEffect(button) {
+            button.closest('.effect-entry').remove();
+        }
+
+        function getEffectsData(type) {
+            const effects = [];
+            const container = document.getElementById(`${type}Effects`);
+            container.querySelectorAll('.effect-entry').forEach(entry => {
+                effects.push({
+                    message: entry.querySelector('.effect-message').value,
+                    target: entry.querySelector('.effect-target').value,
+                    effect: entry.querySelector('.effect-type').value,
+                    rounds: parseInt(entry.querySelector('.effect-rounds').value)
+                });
+            });
+            return effects;
+        }
+
+        function loadEffects(type, effects) {
+            const container = document.getElementById(`${type}Effects`);
+            container.innerHTML = '';
+            effects?.forEach(effect => {
+                addEffect(type);
+                const entry = container.lastElementChild;
+                entry.querySelector('.effect-message').value = effect.message;
+                entry.querySelector('.effect-target').value = effect.target;
+                entry.querySelector('.effect-type').value = effect.effect;
+                entry.querySelector('.effect-rounds').value = effect.rounds || 1;
+            });
+        }
     </script>
 </body>
 </html> 

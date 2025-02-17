@@ -33,6 +33,19 @@ const moveSchema = new mongoose.Schema({
     failure: moveSuccessFailureSchema
 }, { _id: false });
 
+const activeEffectSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true,
+        enum: ['bleed', 'stun', 'reduceStat', 'increaseStat']
+    },
+    remainingRounds: {
+        type: Number,
+        required: true,
+        min: 0
+    }
+}, { _id: false });
+
 const userSchema = new mongoose.Schema({
     email: {
         type: String,
@@ -79,6 +92,10 @@ const userSchema = new mongoose.Schema({
         agility: { type: Number, default: 10 },
         tech: { type: Number, default: 10 },
         luck: { type: Number, default: 10 }
+    },
+    activeEffects: {
+        type: [activeEffectSchema],
+        default: []
     },
     moves: [{
         type: mongoose.Schema.Types.ObjectId,

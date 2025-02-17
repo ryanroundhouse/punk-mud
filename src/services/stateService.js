@@ -9,6 +9,7 @@ class StateService {
         this.actorChatStates = new Map(); // tracks last message index per user per actor
         this.playerMobs = new Map(); // tracks per-player spawned enemies
         this.userCombatStates = new Map(); // tracks combat state for each user
+        this.combatantEffects = new Map(); // key: combatantId, value: array of active effects
     }
 
     addClient(userId, socket) {
@@ -96,8 +97,54 @@ class StateService {
         return this.userCombatStates.has(userId);
     }
 
+    getCombatantEffects(combatantId) {
+        return this.combatantEffects.get(combatantId) || [];
+    }
+
+    addCombatantEffect(combatantId, effect) {
+        const effects = this.combatantEffects.get(combatantId) || [];
+        effects.push(effect);
+        this.combatantEffects.set(combatantId, effects);
+        logger.debug('Added effect:', { combatantId, effect });
+    }
+
+    updateCombatantEffects(combatantId) {
+        const effects = this.combatantEffects.get(combatantId) || [];
+        
+        logger.debug('Updating effects:', { 
+            combatantId, 
+            before: effects.map(e => `${e.effect} (${e.rounds})`)
+        });
+        
+        // Decrement rounds and filter out expired effects
+        const updatedEffects = effects
+            .map(effect => ({
+                ...effect,
+                rounds: effect.rounds - 1
+            }))
+            .filter(effect => effect.rounds > 0);
+        
+        if (updatedEffects.length > 0) {
+            this.combatantEffects.set(combatantId, updatedEffects);
+        } else {
+            this.combatantEffects.delete(combatantId);
+        }
+
+        logger.debug('Updated effects:', { 
+            combatantId, 
+            after: updatedEffects.map(e => `${e.effect} (${e.rounds})`)
+        });
+    }
+
+    clearCombatantEffects(combatantId) {
+        this.combatantEffects.delete(combatantId);
+    }
+
     // ... Add other state management methods as needed
 }
 
+// Create a single instance
 const stateService = new StateService();
+
+// Export the instance directly
 module.exports = stateService; 

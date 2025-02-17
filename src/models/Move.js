@@ -6,11 +6,17 @@ const moveSuccessFailureSchema = new mongoose.Schema({
         type: String,
         enum: ['self', 'opponent']
     },
-    stat: {
+    effect: {
         type: String,
-        enum: ['hitpoints', 'armor', 'body', 'reflexes', 'agility', 'tech', 'luck']
+        required: true,
+        enum: ['bleed', 'stun', 'reduceStat', 'increaseStat']
     },
-    amount: Number
+    rounds: {
+        type: Number,
+        required: true,
+        min: 1,
+        default: 1
+    }
 }, { _id: false });
 
 const moveSchema = new mongoose.Schema({
@@ -18,23 +24,28 @@ const moveSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    type: {
-        type: String,
-        enum: ['none', 'attack'],
-        default: 'none'
-    },
     helpDescription: {
         type: String,
         default: ''
     },
-    successChance: {
-        type: Number,
-        min: 0,
-        max: 100,
-        default: 50
+    attackStat: {
+        type: String,
+        required: true,
+        enum: ['body', 'reflexes', 'agility', 'charisma', 'tech', 'luck']
     },
-    success: moveSuccessFailureSchema,
-    failure: moveSuccessFailureSchema
+    defenceStat: {
+        type: String,
+        required: true,
+        enum: ['body', 'reflexes', 'agility', 'charisma', 'tech', 'luck']
+    },
+    success: {
+        type: [moveSuccessFailureSchema],
+        default: undefined
+    },
+    failure: {
+        type: [moveSuccessFailureSchema],
+        default: undefined
+    }
 }, {
     timestamps: true
 });
