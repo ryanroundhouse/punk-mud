@@ -120,6 +120,51 @@ function logCombatEffects(prefix, userName, userEffects, mobName, mobEffects) {
     });
 }
 
+// Modify the applyBleedEffects function to handle rounds correctly
+function applyBleedEffects(effects, target, excludeNew = false) {
+    if (!effects) return 0;
+    
+    let totalBleedDamage = 0;
+    effects.forEach(effect => {
+        if (effect.effect === 'bleed' && effect.rounds > 0) {
+            // Only skip if it's the first round (rounds equals initialRounds)
+            if (excludeNew && effect.rounds === effect.initialRounds) {
+                logger.debug('Skipping new bleed effect:', { effect });
+                return;
+            }
+            totalBleedDamage += effect.amount || 1;
+            logger.debug('Applying bleed damage:', { 
+                damage: effect.amount || 1, 
+                remainingRounds: effect.rounds,
+                initialRounds: effect.initialRounds 
+            });
+        }
+    });
+    
+    return totalBleedDamage;
+}
+
+// Modify the applyEffect function to store the initial rounds
+async function applyEffect(effect, user, mobInstance) {
+    if (!effect) return;
+
+    // Handle status effects like stun
+    if (effect.effect) {
+        const targetId = effect.target === 'self' 
+            ? (effect.initiator === user.avatarName ? user._id.toString() : mobInstance.instanceId)
+            : (effect.initiator === user.avatarName ? mobInstance.instanceId : user._id.toString());
+        
+        stateService.addCombatantEffect(targetId, {
+            effect: effect.effect,
+            rounds: effect.rounds || 1,
+            initialRounds: effect.rounds || 1,  // Store the initial number of rounds
+            stat: effect.stat,
+            amount: effect.amount,
+            target: effect.target
+        });
+    }
+}
+
 async function handleCombatCommand(socket, user, moveName) {
     try {
         const userMoves = await userService.getUserMoves(user._id);
@@ -192,52 +237,92 @@ async function handleCombatCommand(socket, user, moveName) {
             await applyEffect(effect, user, mobInstance);
         }
 
+        // Get current effects after applying new ones
+        const userEffectsAfter = stateService.getCombatantEffects(user._id.toString()) || [];
+        const mobEffectsAfter = stateService.getCombatantEffects(mobInstance.instanceId) || [];
+
         // Apply player's damage
         if (playerResult.damage > 0) {
             mobInstance.stats.currentHitpoints -= playerResult.damage;
         }
 
-        // Check if mob is dead before their action
+        // Initialize mobResult before using it
+        mobResult = {
+            success: false,
+            effects: [],
+            damage: 0,
+            message: ''
+        };
+
+        // Apply bleed effects to both combatants, excluding new effects
+        const userBleedDamage = applyBleedEffects(userEffectsAfter, user, true);
+        if (userBleedDamage > 0) {
+            user.stats.currentHitpoints -= userBleedDamage;
+            await User.findByIdAndUpdate(user._id, {
+                'stats.currentHitpoints': user.stats.currentHitpoints
+            });
+            playerResult.message += ` ${user.avatarName} takes ${userBleedDamage} bleed damage!`;
+        }
+
+        // Apply bleed damage to mob, excluding new effects
+        const mobBleedDamage = applyBleedEffects(mobEffectsAfter, mobInstance, true);
+        if (mobBleedDamage > 0) {
+            mobInstance.stats.currentHitpoints -= mobBleedDamage;
+            // Append to message instead of overwriting
+            if (mobResult.message) {
+                mobResult.message += ` ${mobInstance.name} takes ${mobBleedDamage} bleed damage!`;
+            } else {
+                mobResult.message = `${mobInstance.name} takes ${mobBleedDamage} bleed damage!`;
+            }
+        }
+
+        // Process mob's action if they're still alive
         if (mobInstance.stats.currentHitpoints <= 0) {
-            mobResult = {
-                success: false,
-                effects: [],
-                damage: 0,
-                message: `${mobInstance.name} has been defeated!`
-            };
+            // Append defeat message instead of overwriting
+            if (mobResult.message) {
+                mobResult.message += ` ${mobInstance.name} has been defeated!`;
+            } else {
+                mobResult.message = `${mobInstance.name} has been defeated!`;
+            }
         } else {
             // Get updated mob effects after player's action
             const updatedMobEffects = stateService.getCombatantEffects(mobInstance.instanceId) || [];
 
             // Check if mob is stunned with updated effects
             if (isStunned(updatedMobEffects)) {
-                mobResult = {
-                    success: false,
-                    effects: [],
-                    damage: 0,
-                    message: `${mobInstance.name} is stunned and cannot move!`
-                };
+                // Append stun message instead of overwriting
+                if (mobResult.message) {
+                    mobResult.message += ` ${mobInstance.name} is stunned and cannot move!`;
+                } else {
+                    mobResult.message = `${mobInstance.name} is stunned and cannot move!`;
+                }
             } else {
+                // Save any existing messages before calculating mob's attack
+                const existingMessage = mobResult.message;
                 mobResult = calculateAttackResult(mobMove, mobInstance, user);
-            }
+                if (existingMessage) {
+                    mobResult.message = existingMessage + ' ' + mobResult.message;
+                }
 
-            // Apply mob's effects
-            for (const effect of mobResult.effects) {
-                await applyEffect(effect, user, mobInstance);
-            }
+                // Apply mob's effects
+                for (const effect of mobResult.effects) {
+                    await applyEffect(effect, user, mobInstance);
+                }
 
-            // Apply mob's damage
-            if (mobResult.damage > 0) {
-                user.stats.currentHitpoints -= mobResult.damage;
-                await User.findByIdAndUpdate(user._id, {
-                    'stats.currentHitpoints': user.stats.currentHitpoints
-                });
+                // Apply mob's damage
+                if (mobResult.damage > 0) {
+                    user.stats.currentHitpoints -= mobResult.damage;
+                    await User.findByIdAndUpdate(user._id, {
+                        'stats.currentHitpoints': user.stats.currentHitpoints
+                    });
+                }
             }
         }
 
-        // Decrement rounds on existing effects AFTER all actions are resolved
-        stateService.updateCombatantEffects(user._id.toString());
-        stateService.updateCombatantEffects(mobInstance.instanceId);
+        // Decrement rounds on existing effects AFTER all damage is applied
+        // But ONLY for effects that have dealt their damage this round
+        stateService.updateCombatantEffects(user._id.toString(), true);
+        stateService.updateCombatantEffects(mobInstance.instanceId, true);
 
         // Log effects at end of round
         const endUserEffects = stateService.getCombatantEffects(user._id.toString()) || [];
@@ -446,25 +531,6 @@ async function handleFightCommand(socket, user, target) {
     });
 
     publishSystemMessage(user.currentNode, `${user.avatarName} engages in combat with ${mobInstance.name}!`);
-}
-
-async function applyEffect(effect, user, mobInstance) {
-    if (!effect) return;
-
-    // Handle status effects like stun
-    if (effect.effect) {
-        const targetId = effect.target === 'self' 
-            ? (effect.initiator === user.avatarName ? user._id.toString() : mobInstance.instanceId)
-            : (effect.initiator === user.avatarName ? mobInstance.instanceId : user._id.toString());
-        
-        stateService.addCombatantEffect(targetId, {
-            effect: effect.effect,
-            rounds: effect.rounds || 1,
-            stat: effect.stat,     // Add stat information
-            amount: effect.amount,  // Add amount information
-            target: effect.target  // Add target information
-        });
-    }
 }
 
 async function getCombatStatus(userId) {

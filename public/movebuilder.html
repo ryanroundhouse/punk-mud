@@ -600,6 +600,11 @@
             const template = document.getElementById('effectTemplate');
             const clone = template.content.cloneNode(true);
             container.appendChild(clone);
+            
+            // Trigger the effect type change handler for the new effect
+            const newEffect = container.lastElementChild;
+            const effectTypeSelect = newEffect.querySelector('.effect-type');
+            handleEffectTypeChange(effectTypeSelect);
         }
 
         function removeEffect(button) {
@@ -615,8 +620,18 @@
             // Show/hide stat field
             statField.style.display = ['reduceStat', 'increaseStat'].includes(effectType) ? 'block' : 'none';
             
-            // Show/hide amount field
-            amountField.style.display = ['reduceStat', 'increaseStat', 'bleed'].includes(effectType) ? 'block' : 'none';
+            // Show/hide amount field and update label
+            if (['reduceStat', 'increaseStat', 'bleed'].includes(effectType)) {
+                amountField.style.display = 'block';
+                const amountLabel = amountField.querySelector('label');
+                if (effectType === 'bleed') {
+                    amountLabel.textContent = 'Damage per Round:';
+                } else {
+                    amountLabel.textContent = 'Amount:';
+                }
+            } else {
+                amountField.style.display = 'none';
+            }
         }
 
         function getEffectsData(type) {
