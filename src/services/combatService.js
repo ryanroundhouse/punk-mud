@@ -8,6 +8,7 @@ const userService = require('./userService');
 const { publishSystemMessage } = require('./chatService');
 const questService = require('./questService');
 const Move = require('../models/Move');
+const messageService = require('./messageService');
 
 function calculateAttackResult(move, attacker, defender) {
     // Roll d20 for both attacker and defender
@@ -146,7 +147,7 @@ async function applyEffect(effect, user, mobInstance) {
     }
 }
 
-async function handleCombatCommand(socket, user, moveName) {
+async function handleCombatCommand(user, moveName) {
     try {
         const userMoves = await userService.getUserMoves(user._id);
         const selectedMove = userMoves.find(move => 
@@ -154,31 +155,22 @@ async function handleCombatCommand(socket, user, moveName) {
         );
 
         if (!selectedMove) {
-            socket.emit('console response', {
-                type: 'error',
-                message: `You don't know the move "${moveName}"`
-            });
+            messageService.sendErrorMessage(user._id.toString(), `You don't know the move "${moveName}"`);
             return;
         }
 
-        const combatState = stateService.userCombatStates.get(socket.user.userId);
+        const combatState = stateService.userCombatStates.get(user._id.toString());
         const mobInstance = stateService.playerMobs.get(user._id.toString());
 
         if (!mobInstance || mobInstance.instanceId !== combatState.mobInstanceId) {
-            socket.emit('console response', {
-                type: 'error',
-                message: 'Your target is no longer available.'
-            });
-            stateService.userCombatStates.delete(socket.user.userId);
+            messageService.sendErrorMessage(user._id.toString(), 'Your target is no longer available.');
+            stateService.userCombatStates.delete(user._id.toString());
             return;
         }
 
         // Check if player already has a move in progress
         if (stateService.getCombatDelay(user._id.toString())) {
-            socket.emit('console response', {
-                type: 'combat',
-                message: 'You are still executing your previous move.'
-            });
+            messageService.sendCombatMessage(user._id.toString(), 'You are still executing your previous move.');
             return;
         }
 
@@ -200,19 +192,16 @@ async function handleCombatCommand(socket, user, moveName) {
         }
 
         // Process combat until player needs to select a new move
-        await processCombatUntilInput(socket, user, mobInstance);
+        await processCombatUntilInput(user, mobInstance);
 
     } catch (error) {
         logger.error('Error handling combat command:', error);
-        socket.emit('console response', {
-            type: 'error',
-            message: 'Error processing combat command'
-        });
+        messageService.sendErrorMessage(user._id.toString(), 'Error processing combat command');
     }
 }
 
 // New function to process combat until player input is needed
-async function processCombatUntilInput(socket, user, mobInstance) {
+async function processCombatUntilInput(user, mobInstance) {
     while (true) {
         const playerDelay = stateService.getCombatDelay(user._id.toString());
         const mobDelay = stateService.getCombatDelay(mobInstance.instanceId);
@@ -277,7 +266,7 @@ async function processCombatUntilInput(socket, user, mobInstance) {
 
         // Execute ready moves if any
         if (readyMoves.length > 0) {
-            await executeCombatMoves(readyMoves, user, mobInstance, socket);
+            await executeCombatMoves(readyMoves, user, mobInstance);
             
             // If mob's move executed and they're still alive, select new move
             if (readyMoves.some(move => move.type === 'mob') && 
@@ -291,11 +280,11 @@ async function processCombatUntilInput(socket, user, mobInstance) {
             }
         } else {
             // Show current state of moves with effective delays
-            socket.emit('console response', {
-                type: 'combat',
-                message: `You prepare ${playerDelay.move.name} (${playerEffectiveDelay} delay${playerEffectiveDelay > playerDelay.delay ? ' - stunned!' : ''})\n` +
-                         `${mobInstance.name} is preparing ${mobDelay.move.name} (${mobEffectiveDelay} delay${mobEffectiveDelay > mobDelay.delay ? ' - stunned!' : ''})`
-            });
+            messageService.sendCombatMessage(
+                user._id.toString(),
+                `You prepare ${playerDelay.move.name} (${playerEffectiveDelay} delay${playerEffectiveDelay > playerDelay.delay ? ' - stunned!' : ''})\n` +
+                `${mobInstance.name} is preparing ${mobDelay.move.name} (${mobEffectiveDelay} delay${mobEffectiveDelay > mobDelay.delay ? ' - stunned!' : ''})`
+            );
             break;
         }
 
@@ -322,7 +311,7 @@ function selectMobMove(mobInstance) {
 }
 
 // New function to execute combat moves
-async function executeCombatMoves(readyMoves, user, mobInstance, socket) {
+async function executeCombatMoves(readyMoves, user, mobInstance) {
     // Initialize results with default values
     let playerResult = {
         success: false,
@@ -375,6 +364,17 @@ async function executeCombatMoves(readyMoves, user, mobInstance, socket) {
     // Process mob's action if they're still alive
     if (mobInstance.stats.currentHitpoints <= 0) {
         mobResult.message += ` ${mobInstance.name} has been defeated!`;
+        
+        // Award experience points
+        try {
+            const experiencePoints = mobInstance.experiencePoints || 10; // Default to 10 if not set
+            const experienceResult = await userService.awardExperience(user._id.toString(), experiencePoints);
+            if (experienceResult.success) {
+                mobResult.message += `\nYou gained ${experiencePoints} experience points!`;
+            }
+        } catch (error) {
+            logger.error('Error awarding experience points:', error);
+        }
     }
 
     // Decrement rounds on existing effects AFTER all damage is applied
@@ -385,7 +385,7 @@ async function executeCombatMoves(readyMoves, user, mobInstance, socket) {
     const mobCurrentHP = mobInstance.stats.currentHitpoints;
 
     if (mobCurrentHP <= 0) {
-        stateService.clearUserCombatState(socket.user.userId);
+        stateService.clearUserCombatState(user._id.toString());
         
         const mobId = mobInstance._id || mobInstance.mobId;
         logger.debug('Mob killed:', {
@@ -394,7 +394,7 @@ async function executeCombatMoves(readyMoves, user, mobInstance, socket) {
             mobInstanceId: mobInstance.instanceId
         });
         
-        const questUpdates = await questService.handleMobKill(user._id, mobId);
+        const questUpdates = await questService.handleMobKill(user, mobId);
         mobService.clearUserMob(user._id.toString());
 
         let victoryMessage = '';
@@ -407,19 +407,18 @@ async function executeCombatMoves(readyMoves, user, mobInstance, socket) {
         victoryMessage += `\nVictory! You have defeated ${mobInstance.name}!`;
 
         if (questUpdates && questUpdates.length > 0) {
-            victoryMessage += '\n\n' + questUpdates.map(update => update.message).join('\n');
-            
-            const progressUpdate = questUpdates.find(u => u.type === 'quest_progress' && u.nextMessage);
-            if (progressUpdate) {
-                victoryMessage += `\n\n${progressUpdate.nextMessage}`;
-            }
+            victoryMessage += '\n\n' + questUpdates
+                .filter(update => update.message)  // Only include updates with messages
+                .map(update => {
+                    if (update.type === 'quest_progress') {
+                        return `Quest "${update.questTitle}": ${update.message}`;
+                    }
+                    return update.message;
+                })
+                .join('\n');
         }
 
-        socket.emit('console response', {
-            type: 'combat',
-            message: victoryMessage
-        });
-
+        messageService.sendCombatMessage(user._id.toString(), victoryMessage);
         publishSystemMessage(
             user.currentNode,
             `${user.avatarName} has defeated ${mobInstance.name}!`
@@ -445,30 +444,21 @@ async function executeCombatMoves(readyMoves, user, mobInstance, socket) {
         combatMessage += `${mobInstance.name} uses ${mobResult.move.name}! ${mobResult.message}`;
     }
 
-    socket.emit('console response', {
-        type: 'combat',
-        message: combatMessage
-    });
+    messageService.sendCombatMessage(user._id.toString(), combatMessage);
 }
 
-async function handleFleeCommand(socket, user) {
+async function handleFleeCommand(user) {
     try {
-        const combatState = stateService.userCombatStates.get(socket.user.userId);
+        const combatState = stateService.userCombatStates.get(user._id.toString());
         if (!combatState) {
-            socket.emit('console response', {
-                type: 'error',
-                message: 'You are not in combat!'
-            });
+            messageService.sendErrorMessage(user._id.toString(), 'You are not in combat!');
             return;
         }
 
         const mobInstance = stateService.playerMobs.get(user._id.toString());
         if (!mobInstance || mobInstance.instanceId !== combatState.mobInstanceId) {
-            socket.emit('console response', {
-                type: 'error',
-                message: 'Your target is no longer available.'
-            });
-            stateService.userCombatStates.delete(socket.user.userId);
+            messageService.sendErrorMessage(user._id.toString(), 'Your target is no longer available.');
+            stateService.userCombatStates.delete(user._id.toString());
             return;
         }
 
@@ -510,87 +500,72 @@ async function handleFleeCommand(socket, user) {
             const exits = currentNode.exits || [];
             
             if (exits.length === 0) {
-                socket.emit('console response', {
-                    type: 'error',
-                    message: 'There is nowhere to flee to!'
-                });
+                messageService.sendErrorMessage(user._id.toString(), 'There is nowhere to flee to!');
                 return;
             }
 
             const randomExit = exits[Math.floor(Math.random() * exits.length)];
             const oldNode = user.currentNode;
-            await nodeService.moveUser(socket.user.userId, randomExit.direction);
+            await nodeService.moveUser(user._id.toString(), randomExit.direction);
             
             if (oldNode) {
-                stateService.removeUserFromNode(socket.user.userId, oldNode);
+                stateService.removeUserFromNode(user._id.toString(), oldNode);
                 await socketService.unsubscribeFromNodeChat(oldNode);
             }
-            stateService.addUserToNode(socket.user.userId, user.currentNode);
+            stateService.addUserToNode(user._id.toString(), user.currentNode);
             await socketService.subscribeToNodeChat(user.currentNode);
 
-            stateService.clearUserCombatState(socket.user.userId);
+            stateService.clearUserCombatState(user._id.toString());
             mobService.clearUserMob(user._id.toString());
 
-            socket.emit('console response', {
-                type: 'combat',
-                message: `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n\n` +
-                         `You successfully flee from combat!${statusMessage}`
-            });
+            messageService.sendCombatMessage(
+                user._id.toString(),
+                `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n\n` +
+                `You successfully flee from combat!${statusMessage}`
+            );
 
             publishSystemMessage(oldNode, `${user.avatarName} flees from combat with ${mobInstance.name}!`);
         } else {
-            socket.emit('console response', {
-                type: 'combat',
-                message: `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n\n` +
-                         `You fail to escape!${statusMessage}`
-            });
+            messageService.sendCombatMessage(
+                user._id.toString(),
+                `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n\n` +
+                `You fail to escape!${statusMessage}`
+            );
         }
     } catch (error) {
         logger.error('Error handling flee command:', error);
-        socket.emit('console response', {
-            type: 'error',
-            message: 'Error processing flee command'
-        });
+        messageService.sendErrorMessage(user._id.toString(), 'Error processing flee command');
     }
 }
 
-async function handleFightCommand(socket, user, target) {
+async function handleFightCommand(user, target) {
     if (!target) {
-        socket.emit('console response', {
-            type: 'error',
-            message: 'Usage: fight <mob name>'
-        });
+        messageService.sendErrorMessage(user._id.toString(), 'Usage: fight <mob name>');
         return;
     }
 
-    if (stateService.userCombatStates.get(socket.user.userId)) {
-        socket.emit('console response', {
-            type: 'error',
-            message: 'You are already in combat!'
-        });
+    if (stateService.userCombatStates.get(user._id.toString())) {
+        messageService.sendErrorMessage(user._id.toString(), 'You are already in combat!');
         return;
     }
 
     const mobInstance = stateService.playerMobs.get(user._id.toString());
     if (!mobInstance || mobInstance.name.toLowerCase() !== target.toLowerCase()) {
-        socket.emit('console response', {
-            type: 'error',
-            message: `No mob named "${target}" found in current location.`
-        });
+        messageService.sendErrorMessage(user._id.toString(), `No mob named "${target}" found in current location.`);
         return;
     }
 
     // Update combat state to include health values
-    stateService.userCombatStates.set(socket.user.userId, {
+    stateService.userCombatStates.set(user._id.toString(), {
         mobInstanceId: mobInstance.instanceId,
         mobName: mobInstance.name
     });
 
-    socket.emit('console response', {
-        type: 'combat',
-        message: `You engage in combat with ${mobInstance.name}!`,
-        hint: 'Type ? to see available combat commands.'
-    });
+    messageService.sendCombatMessage(
+        user._id.toString(),
+        `You engage in combat with ${mobInstance.name}!`,
+        'Type ? to see available combat commands.'
+    );
 
     publishSystemMessage(user.currentNode, `${user.avatarName} engages in combat with ${mobInstance.name}!`);
 }

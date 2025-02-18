@@ -56,6 +56,10 @@ const mobSchema = new mongoose.Schema({
         required: true
     },
     image: String,
+    experiencePoints: {
+        type: Number,
+        default: 10
+    },
     intent: {
         type: String,
         enum: ['hostile', 'neutral', 'friendly'],

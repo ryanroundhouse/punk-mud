@@ -768,6 +768,15 @@
                                 </select>
                             </div>
 
+                            <div class="form-group">
+                                <label for="experiencePoints">Experience Points:</label>
+                                <input type="number" 
+                                       id="experiencePoints" 
+                                       min="0" 
+                                       value="10" 
+                                       required>
+                            </div>
+
                             <div class="stats-grid">
                                 <div class="stat-group">
                                     <label for="hitpoints">Hitpoints:</label>
@@ -1104,30 +1113,11 @@
             moveEntry.className = 'move-entry';
             moveEntry.innerHTML = `
                 <span class="move-name">${move.name}</span>
-                <span class="move-type">${move.type}</span>
+                <span class="move-type">ATK: ${move.attackStat} | DEF: ${move.defenceStat} | Delay: ${move.delay}</span>
                 <span class="move-usage">${usageChance}%</span>
-                <span class="move-chance">${move.successChance}%</span>
                 <span class="remove-move">×</span>
                 <input type="hidden" class="move-id" value="${move._id}">
                 <input type="hidden" class="move-usage-chance" value="${usageChance}">
-                <div class="move-messages">
-                    <div class="move-message success">
-                        <strong>Success:</strong> ${move.success.message}
-                        <div class="outcome-details">
-                            <span>Target:</span> <span>${move.success.target}</span>
-                            <span>Stat:</span> <span>${move.success.stat}</span>
-                            <span>Amount:</span> <span>${move.success.amount}</span>
-                        </div>
-                    </div>
-                    <div class="move-message failure">
-                        <strong>Failure:</strong> ${move.failure.message}
-                        <div class="outcome-details">
-                            <span>Target:</span> <span>${move.failure.target}</span>
-                            <span>Stat:</span> <span>${move.failure.stat}</span>
-                            <span>Amount:</span> <span>${move.failure.amount}</span>
-                        </div>
-                    </div>
-                </div>
             `;
 
             moveEntry.querySelector('.remove-move').addEventListener('click', () => {
@@ -1201,6 +1191,7 @@
                 _id: document.getElementById('mobForm').dataset.mobId || undefined,
                 name,
                 intent: document.getElementById('mobIntent').value,
+                experiencePoints: parseInt(document.getElementById('experiencePoints').value) || 10,
                 description,
                 image: document.getElementById('imagePath').value,
                 stats,
@@ -1223,7 +1214,12 @@
 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to save mob');
+                    if (errorData.code === 'DUPLICATE_NAME') {
+                        alert('A mob with this name already exists. Please choose a different name.');
+                    } else {
+                        throw new Error(errorData.error || 'Failed to save mob');
+                    }
+                    return;
                 }
 
                 alert('Mob saved successfully!');
@@ -1283,6 +1279,7 @@
             
             document.getElementById('mobName').value = mob.name;
             document.getElementById('mobIntent').value = mob.intent;
+            document.getElementById('experiencePoints').value = mob.experiencePoints || 10;
             document.getElementById('description').value = mob.description;
             document.getElementById('hitpoints').value = mob.stats.hitpoints;
             document.getElementById('armor').value = mob.stats.armor;
@@ -1349,30 +1346,11 @@
                     moveEntry.className = 'move-entry';
                     moveEntry.innerHTML = `
                         <span class="move-name">${move.name}</span>
-                        <span class="move-type">${move.type}</span>
+                        <span class="move-type">ATK: ${move.attackStat} | DEF: ${move.defenceStat} | Delay: ${move.delay}</span>
                         <span class="move-usage">${moveRef.usageChance}%</span>
-                        <span class="move-chance">${move.successChance}%</span>
                         <span class="remove-move">×</span>
                         <input type="hidden" class="move-id" value="${move._id}">
                         <input type="hidden" class="move-usage-chance" value="${moveRef.usageChance}">
-                        <div class="move-messages">
-                            <div class="move-message success">
-                                <strong>Success:</strong> ${move.success.message}
-                                <div class="outcome-details">
-                                    <span>Target:</span> <span>${move.success.target}</span>
-                                    <span>Stat:</span> <span>${move.success.stat}</span>
-                                    <span>Amount:</span> <span>${move.success.amount}</span>
-                                </div>
-                            </div>
-                            <div class="move-message failure">
-                                <strong>Failure:</strong> ${move.failure.message}
-                                <div class="outcome-details">
-                                    <span>Target:</span> <span>${move.failure.target}</span>
-                                    <span>Stat:</span> <span>${move.failure.stat}</span>
-                                    <span>Amount:</span> <span>${move.failure.amount}</span>
-                                </div>
-                            </div>
-                        </div>
                     `;
 
                     moveEntry.querySelector('.remove-move').addEventListener('click', () => {
@@ -1394,6 +1372,7 @@
             document.getElementById('moveSelect').value = '';
             document.getElementById('usageChance').value = '100';
             document.getElementById('mobIntent').value = 'neutral';
+            document.getElementById('experiencePoints').value = '10';
         };
 
         // Delete mob

@@ -35,7 +35,8 @@ async function createOrUpdateMob(req, res) {
             stats,
             chatMessages,
             moves,
-            intent 
+            intent,
+            experiencePoints
         } = req.body;
 
         if (!name || !description) {
@@ -74,23 +75,54 @@ async function createOrUpdateMob(req, res) {
             stats,
             chatMessages,
             moves,
-            intent
+            intent,
+            experiencePoints
         };
 
+        let savedMob;
+        
         if (_id) {
             const existingMob = await Mob.findById(_id);
             if (!existingMob) {
                 return res.status(404).json({ error: 'Mob not found' });
             }
 
-            Object.assign(existingMob, mobData);
-            const savedMob = await existingMob.save();
-            return res.json(await savedMob.populate('moves.move'));
+            if (name !== existingMob.name) {
+                const nameConflict = await Mob.findOne({ 
+                    name, 
+                    _id: { $ne: _id } 
+                });
+                if (nameConflict) {
+                    return res.status(400).json({ 
+                        error: 'A mob with this name already exists',
+                        code: 'DUPLICATE_NAME'
+                    });
+                }
+            }
+
+            savedMob = await Mob.findByIdAndUpdate(
+                _id,
+                mobData,
+                { 
+                    new: true,
+                    runValidators: true
+                }
+            );
+        } else {
+            const nameConflict = await Mob.findOne({ name });
+            if (nameConflict) {
+                return res.status(400).json({ 
+                    error: 'A mob with this name already exists',
+                    code: 'DUPLICATE_NAME'
+                });
+            }
+            
+            const mob = new Mob(mobData);
+            savedMob = await mob.save();
         }
 
-        const mob = new Mob(mobData);
-        const savedMob = await mob.save();
-        res.status(201).json(await savedMob.populate('moves.move'));
+        await savedMob.populate('moves.move');
+        res.json(savedMob);
 
     } catch (error) {
         logger.error('Error saving mob:', error);

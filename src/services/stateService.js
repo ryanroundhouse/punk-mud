@@ -14,15 +14,31 @@ class StateService {
     }
 
     addClient(userId, socket) {
+        logger.debug('Adding client socket:', { userId });
         this.clients.set(userId, socket);
+        logger.debug('Client socket map size:', { 
+            size: this.clients.size,
+            allUserIds: Array.from(this.clients.keys())
+        });
     }
 
     getClient(userId) {
+        logger.debug('Getting client socket:', { 
+            userId,
+            exists: this.clients.has(userId),
+            mapSize: this.clients.size,
+            allUserIds: Array.from(this.clients.keys())
+        });
         return this.clients.get(userId);
     }
 
     removeClient(userId) {
+        logger.debug('Removing client socket:', { userId });
         this.clients.delete(userId);
+        logger.debug('Client socket map size after removal:', { 
+            size: this.clients.size,
+            allUserIds: Array.from(this.clients.keys())
+        });
     }
 
     addUserToNode(userId, nodeAddress) {

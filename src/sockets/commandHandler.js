@@ -32,7 +32,7 @@ async function handleCommand(socket, data) {
         
         // If in combat, handle combat moves first
         if (combatState && data.command !== 'help' && data.command !== 'flee') {
-            await combatService.handleCombatCommand(socket, user, data.command);
+            await combatService.handleCombatCommand(user, data.command);
             return;
         }
 
@@ -92,11 +92,11 @@ async function handleCommand(socket, data) {
                 break;
 
             case 'fight':
-                await combatService.handleFightCommand(socket, user, data.target);
+                await combatService.handleFightCommand(user, data.target);
                 break;
 
             case 'flee':
-                await combatService.handleFleeCommand(socket, user);
+                await combatService.handleFleeCommand(user);
                 break;
 
             case 'rest':
@@ -110,7 +110,7 @@ async function handleCommand(socket, data) {
             default:
                 // If in combat, handle combat moves
                 if (combatState && data.command !== 'help') {
-                    await combatService.handleCombatCommand(socket, user, data.command);
+                    await combatService.handleCombatCommand(user, data.command);
                     return;
                 }
                 socket.emit('console response', {
@@ -205,7 +205,7 @@ async function handleChatCommand(socket, user, target) {
     const actor = await actorService.findActorInLocation(target, user.currentNode);
 
     if (actor) {
-        const questResponse = await questService.handleQuestProgression(socket.user.userId, actor.id);
+        const questResponse = await questService.handleQuestProgression(user, actor.id);
 
         if (questResponse) {
             socket.emit('console response', { 

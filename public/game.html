@@ -949,16 +949,33 @@
 
             // Update the console response handler
             socket.on('console response', (data) => {
+                console.log('Received console response:', data);
+                
                 const inputLine = terminalInput.parentElement;
                 const responseLine = document.createElement('div');
                 
                 // Check if this is a movement response or successful flee
                 if ((data.message && data.message.startsWith('You move ')) || 
                     (data.message && data.message.includes('You successfully flee from combat!'))) {
-                    // Refresh the location display
+                    console.log('Movement detected, refreshing location');
                     loadNode();
                 }
                 
+                // Set color based on message type
+                switch(data.type) {
+                    case 'error':
+                        responseLine.style.color = 'var(--neon-red)';
+                        break;
+                    case 'success':
+                        responseLine.style.color = 'var(--neon-blue)';
+                        break;
+                    case 'combat':
+                        responseLine.style.color = 'var(--neon-pink)';
+                        break;
+                    default:
+                        responseLine.style.color = 'var(--terminal-green)';
+                }
+
                 if (data.type === 'list') {
                     if (data.redirect) {
                         if (data.isActor) {
@@ -988,8 +1005,6 @@
                     }
                 } else if (data.type === 'quests') {
                     responseLine.style.whiteSpace = 'pre-wrap';
-                    responseLine.style.fontFamily = 'monospace';
-                    
                     if (data.message === 'You have no active quests.') {
                         responseLine.textContent = data.message;
                     } else {
@@ -1000,14 +1015,15 @@
                             }
                             return line;
                         }).join('\n');
-                        
                         responseLine.textContent = header + '\n' + formattedQuests;
                     }
                 } else {
+                    console.log('Received console response:', data);
                     responseLine.textContent = data.message;
                 }
-                
+
                 responseLine.style.fontFamily = 'monospace';
+                responseLine.style.whiteSpace = 'pre-wrap';
                 terminalOutput.insertBefore(responseLine, inputLine);
                 inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 terminalInput.focus();
