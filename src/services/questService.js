@@ -57,12 +57,19 @@ class QuestService {
         }
     }
 
-    async handleQuestProgression(user, actorId) {
+    async handleQuestProgression(user, actorId, completionEventIds = []) {
         try {
             if (!user) {
                 logger.error('No user provided');
                 return null;
             }
+
+            logger.debug('handleQuestProgression called with:', {
+                userId: user._id.toString(),
+                actorId,
+                completionEventIds,
+                userQuestsCount: user.quests?.length || 0
+            });
 
             // Initialize quests array if it doesn't exist
             if (!user.quests) {
@@ -70,7 +77,88 @@ class QuestService {
             }
 
             const allQuests = await Quest.find();
-            
+            let questUpdates = [];
+
+            // First handle any completion events
+            if (completionEventIds && completionEventIds.length > 0) {
+                logger.debug('Processing completion events:', { 
+                    completionEventIds,
+                    userQuests: user.quests.map(q => ({
+                        questId: q.questId,
+                        currentEventId: q.currentEventId,
+                        completed: q.completed
+                    }))
+                });
+                
+                for (const userQuest of user.quests) {
+                    if (userQuest.completed) {
+                        logger.debug('Skipping completed quest:', {
+                            questId: userQuest.questId
+                        });
+                        continue;
+                    }
+
+                    const quest = allQuests.find(q => q._id.toString() === userQuest.questId);
+                    if (!quest) continue;
+
+                    // Find the current event
+                    const currentEvent = quest.events.find(e => 
+                        e._id.toString() === userQuest.currentEventId
+                    );
+                    
+                    if (!currentEvent) continue;
+
+                    // Check if current event has a choice leading to our completion event
+                    const nextEventChoice = currentEvent.choices?.find(choice => 
+                        completionEventIds.includes(choice.nextEventId.toString())
+                    );
+
+                    if (nextEventChoice) {
+                        logger.debug('Found matching next event choice:', {
+                            currentEventId: currentEvent._id.toString(),
+                            nextEventId: nextEventChoice.nextEventId.toString()
+                        });
+
+                        // Progress to the next event
+                        userQuest.completedEventIds.push(currentEvent._id.toString());
+                        userQuest.currentEventId = nextEventChoice.nextEventId.toString();
+
+                        // If this is an end event, complete the quest
+                        const nextEvent = quest.events.find(e => 
+                            e._id.toString() === nextEventChoice.nextEventId.toString()
+                        );
+
+                        if (nextEvent?.isEnd) {
+                            userQuest.completed = true;
+                            userQuest.completedAt = new Date();
+                            
+                            logger.debug('Completing quest:', {
+                                questId: quest._id.toString(),
+                                questTitle: quest.title
+                            });
+
+                            messageService.sendSuccessMessage(
+                                user._id.toString(),
+                                `Quest "${quest.title}" completed!`
+                            );
+
+                            questUpdates.push({
+                                type: 'quest_complete',
+                                questTitle: quest.title
+                            });
+                        }
+                    }
+                }
+
+                if (questUpdates.length > 0) {
+                    logger.debug('Saving quest updates:', {
+                        updates: questUpdates
+                    });
+                    await user.save();
+                    return questUpdates;
+                }
+            }
+
             // Find quests that haven't been started by the user
             const availableQuests = allQuests.filter(quest => {
                 return !user.quests.some(userQuest => userQuest.questId === quest._id.toString());
@@ -149,7 +237,10 @@ class QuestService {
 
             return null;
         } catch (error) {
-            logger.error('Error handling quest progression:', error);
+            logger.error('Error handling quest progression:', error, {
+                userId: user._id.toString(),
+                completionEventIds
+            });
             return null;
         }
     }

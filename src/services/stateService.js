@@ -11,6 +11,7 @@ class StateService {
         this.userCombatStates = new Map(); // tracks combat state for each user
         this.combatantEffects = new Map(); // key: combatantId, value: array of active effects
         this.combatDelays = new Map(); // Tracks active move delays for combatants
+        this.activeConversations = new Map(); // userId -> { conversationId, currentNode }
     }
 
     addClient(userId, socket) {
@@ -231,6 +232,27 @@ class StateService {
         }
 
         return readyMoves;
+    }
+
+    // Add conversation state methods
+    setActiveConversation(userId, conversationId, currentNode, actorId) {
+        this.activeConversations.set(userId, {
+            conversationId,
+            currentNode,
+            actorId
+        });
+    }
+
+    getActiveConversation(userId) {
+        return this.activeConversations.get(userId);
+    }
+
+    clearActiveConversation(userId) {
+        this.activeConversations.delete(userId);
+    }
+
+    isInConversation(userId) {
+        return this.activeConversations.has(userId);
     }
 
     // ... Add other state management methods as needed

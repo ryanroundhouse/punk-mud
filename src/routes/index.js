@@ -11,6 +11,7 @@ const moveRoutes = require('./moveRoutes');
 const uploadRoutes = require('./uploadRoutes');
 const combatRoutes = require('./combatRoutes');
 const classRoutes = require('./classRoutes');
+const conversationRoutes = require('./conversationRoutes');
 
 router.use('/auth', authRoutes);
 router.use('/character', characterRoutes);
@@ -22,5 +23,6 @@ router.use('/moves', moveRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/combat', combatRoutes);
 router.use('/classes', classRoutes);
+router.use('/conversations', conversationRoutes);
 
 module.exports = router; 

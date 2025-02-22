@@ -1110,6 +1110,17 @@
                 
                 // Clear the input
                 terminalInput.value = '';
+
+                // If input is a number and we're in a conversation, treat it as a conversation choice
+                if (/^\d+$/.test(fullCommand)) {
+                    socket.emit('console command', { 
+                        command: 'chat',
+                        target: fullCommand
+                    });
+                    inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    terminalInput.focus();
+                    return;
+                }
                 
                 // Parse command and arguments
                 const [cmd, ...args] = fullCommand.split(' ');
@@ -1120,9 +1131,9 @@
                     case 'north':
                     case 'n':
                         socket.emit('console command', { 
-                            command: 'move',
-                            direction: 'north'
-                        });
+                        command: 'move',
+                        direction: 'north'
+                    });
                         break;
                     case 'south': 
                     case 's':

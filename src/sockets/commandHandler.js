@@ -6,6 +6,7 @@ const userService = require('../services/userService');
 const combatService = require('../services/combatService');
 const actorService = require('../services/actorService');
 const questService = require('../services/questService');
+const conversationService = require('../services/conversationService');
 
 const HELP_TEXT = `
 Available Commands:
@@ -201,10 +202,55 @@ async function handleChatCommand(socket, user, target) {
         return;
     }
 
-    // First, try to find an actor in the current location
+    // First check if user is in an active conversation
+    if (conversationService.isInConversation(user._id.toString())) {
+        const result = await conversationService.processConversationInput(
+            user._id.toString(), 
+            target
+        );
+        
+        if (result) {
+            if (result.error) {
+                socket.emit('console response', {
+                    type: 'error',
+                    message: result.message
+                });
+            } else {
+                // Get the actor name from the active conversation
+                const activeConv = stateService.getActiveConversation(user._id.toString());
+                const actor = await actorService.findActorById(activeConv.actorId);
+                
+                socket.emit('console response', {
+                    type: 'chat',
+                    message: `${actor.name} says: "${result.message}"`,
+                    isEndOfConversation: result.isEnd
+                });
+
+                // If this is the end of the conversation, clear the state
+                if (result.isEnd) {
+                    stateService.clearActiveConversation(user._id.toString());
+                }
+            }
+        }
+        return;
+    }
+
+    // If not in conversation, try to find an actor in the current location
     const actor = await actorService.findActorInLocation(target, user.currentNode);
 
     if (actor) {
+        // Try to start a conversation
+        const conversationResult = await conversationService.handleActorChat(user, actor);
+        
+        if (conversationResult) {
+            socket.emit('console response', {
+                type: 'chat',
+                message: `${actor.name} says: "${conversationResult.message}"`
+            });
+            return;
+        }
+
+        // Fall back to quest progression if no conversation available
         const questResponse = await questService.handleQuestProgression(user, actor.id);
 
         if (questResponse) {

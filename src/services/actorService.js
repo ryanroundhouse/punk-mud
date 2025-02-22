@@ -34,6 +34,15 @@ class ActorService {
             nextIndex
         };
     }
+
+    async findActorById(actorId) {
+        try {
+            return await Actor.findById(actorId);
+        } catch (error) {
+            logger.error('Error finding actor by ID:', error);
+            throw error;
+        }
+    }
 }
 
 const actorService = new ActorService();

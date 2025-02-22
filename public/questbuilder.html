@@ -77,7 +77,8 @@
         }
 
         input[type="text"],
-        textarea {
+        textarea,
+        select {
             width: 100%;
             background: rgba(0, 255, 249, 0.1);
             border: 1px solid var(--neon-blue);
@@ -261,6 +262,192 @@
             margin-bottom: 1rem;
             width: 200px;
         }
+
+        .action-button {
+            background: transparent;
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            transition: all 0.3s ease;
+            border-radius: 5px;
+        }
+
+        .action-button:hover {
+            background: rgba(0, 255, 249, 0.1);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .delete-button {
+            border-color: var(--neon-pink);
+            color: var(--neon-pink);
+        }
+
+        .delete-button:hover {
+            background: rgba(255, 46, 136, 0.1);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .right-panel {
+            width: 300px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--terminal-green);
+            border-radius: 5px;
+            padding: 1rem;
+            height: calc(100% - 2rem);
+            overflow-y: auto;
+        }
+
+        /* Scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--neon-blue);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--neon-pink);
+        }
+
+        .quest-event {
+            border: 1px solid var(--neon-blue);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 5px;
+            background: rgba(0, 255, 249, 0.05);
+            position: relative;
+        }
+
+        .quest-event[data-is-end="true"] {
+            border-color: var(--neon-pink);
+            box-shadow: 0 0 10px rgba(255, 46, 136, 0.3);
+        }
+
+        .event-choices {
+            margin-left: 2rem;
+            padding: 1rem;
+            border-left: 2px solid var(--neon-pink);
+            margin-top: 1rem;
+            background: rgba(255, 46, 136, 0.05);
+        }
+
+        .event-message-input,
+        .event-hint-input {
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            color: var(--terminal-green);
+        }
+
+        .event-hint-input {
+            color: var(--neon-blue);
+            font-style: italic;
+        }
+
+        .event-message-input:focus,
+        .event-hint-input:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .remove-event {
+            color: var(--neon-pink);
+            cursor: pointer;
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            font-size: 1.2em;
+            transition: all 0.3s ease;
+        }
+
+        .remove-event:hover {
+            transform: scale(1.2);
+            text-shadow: 0 0 5px var(--neon-pink);
+        }
+
+        .event-handle {
+            color: var(--neon-blue);
+            cursor: move;
+            position: absolute;
+            top: 0.5rem;
+            left: 0.5rem;
+        }
+
+        .quest-entry {
+            border: 1px solid var(--neon-blue);
+            margin: 0.5rem 0;
+            padding: 1rem;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .quest-entry:hover {
+            background: rgba(0, 255, 249, 0.1);
+            transform: translateX(5px);
+        }
+
+        .quest-entry-title {
+            color: var(--neon-blue);
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .quest-entry-events {
+            color: var(--terminal-green);
+            font-size: 0.9em;
+        }
+
+        .dragging {
+            opacity: 0.5;
+        }
+
+        .drag-over {
+            border: 2px dashed var(--neon-pink);
+        }
+
+        .event-id {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8em;
+            color: var(--neon-blue);
+            opacity: 0.7;
+        }
+
+        .copy-id-btn {
+            cursor: pointer;
+            color: var(--neon-pink);
+            transition: all 0.3s ease;
+        }
+
+        .copy-id-btn:hover {
+            transform: scale(1.2);
+            color: var(--neon-blue);
+        }
+
+        .copy-tooltip {
+            position: absolute;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.3rem 0.6rem;
+            border-radius: 3px;
+            font-size: 0.8em;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .copy-tooltip.show {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -273,6 +460,7 @@
             <a href="/mobbuilder.html">Mob Builder</a>
             <a href="/movebuilder.html">Move Builder</a>
             <a href="/questbuilder.html">Quest Builder</a>
+            <a href="/conversationbuilder.html">Conversation Builder</a>
         </div>
     </div>
 
@@ -295,16 +483,20 @@
                         <label>Quest Events:</label>
                         <div id="eventsContainer">
                             <div class="event-controls">
-                                <select id="eventType">
+                                <select id="eventType" class="event-type-select">
                                     <option value="chat">Chat Event</option>
                                     <option value="kill">Kill Event</option>
+                                    <option value="conversation">Conversation Event</option>
                                 </select>
                                 
-                                <!-- Chat Event Fields -->
-                                <div id="chatEventFields">
+                                <div class="input-group" id="actorSelection">
                                     <select id="eventActor">
                                         <!-- Will be populated with actors -->
                                     </select>
+                                </div>
+                                
+                                <!-- Chat Event Fields -->
+                                <div id="chatEventFields">
                                     <textarea 
                                         id="eventMessage" 
                                         placeholder="Enter event message"></textarea>
@@ -320,6 +512,13 @@
                                         placeholder="Quantity to kill"
                                         min="1" 
                                         value="1">
+                                </div>
+                                
+                                <!-- Conversation Event Fields -->
+                                <div id="conversationEventFields" style="display: none;">
+                                    <select id="eventConversation">
+                                        <!-- Will be populated with conversations -->
+                                    </select>
                                 </div>
                                 
                                 <textarea
@@ -366,6 +565,7 @@
         let allQuests = [];
         let allActors = [];
         let allMobs = [];
+        let allConversations = [];
 
         // Check authentication
         window.onload = async () => {
@@ -389,6 +589,7 @@
                 // Load everything sequentially to avoid race conditions
                 await loadActors();
                 await loadMobs();
+                await loadConversations();
                 await loadQuests();
                 
                 // Start in "new quest" state
@@ -472,6 +673,27 @@
             }
         }
 
+        // Load conversations
+        async function loadConversations() {
+            try {
+                const response = await fetch('/api/conversations', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load conversations - Status: ${response.status}`);
+                }
+                
+                allConversations = await response.json();
+                populateConversationSelect();
+            } catch (error) {
+                console.error('Error loading conversations:', error);
+                alert('Failed to load conversations. Please try refreshing the page.');
+            }
+        }
+
         // Load existing quests
         async function loadQuests() {
             try {
@@ -533,34 +755,52 @@
                 isStart: eventsList.children.length === 0
             };
 
-            if (eventType === 'chat') {
-                const actorId = document.getElementById('eventActor').value;
-                const message = document.getElementById('eventMessage').value;
+            switch(eventType) {
+                case 'chat':
+                    const chatActorId = document.getElementById('eventActor').value;
+                    const message = document.getElementById('eventMessage').value;
 
-                if (!actorId || !message) {
-                    alert('Please select an actor and enter a message');
-                    return;
-                }
+                    if (!chatActorId || !message) {
+                        alert('Please select an actor and enter a message');
+                        return;
+                    }
 
-                eventData = {
-                    ...eventData,
-                    actorId,
-                    message
-                };
-            } else {
-                const mobId = document.getElementById('eventMob').value;
-                const quantity = parseInt(document.getElementById('eventQuantity').value);
+                    eventData = {
+                        ...eventData,
+                        actorId: chatActorId,
+                        message
+                    };
+                    break;
 
-                if (!mobId || !quantity || quantity < 1) {
-                    alert('Please select a mob and enter a valid quantity');
-                    return;
-                }
+                case 'kill':
+                    const mobId = document.getElementById('eventMob').value;
+                    const quantity = parseInt(document.getElementById('eventQuantity').value);
 
-                eventData = {
-                    ...eventData,
-                    mobId,
-                    quantity
-                };
+                    if (!mobId || !quantity || quantity < 1) {
+                        alert('Please select a mob and enter a valid quantity');
+                        return;
+                    }
+
+                    eventData = {
+                        ...eventData,
+                        mobId,
+                        quantity
+                    };
+                    break;
+
+                case 'conversation':
+                    const conversationId = document.getElementById('eventConversation').value;
+
+                    if (!conversationId) {
+                        alert('Please select a conversation');
+                        return;
+                    }
+
+                    eventData = {
+                        ...eventData,
+                        conversationId
+                    };
+                    break;
             }
 
             const eventEntry = createEventEntry(eventData);
@@ -571,7 +811,7 @@
             document.getElementById('eventHint').value = '';
             if (eventType === 'chat') {
                 document.getElementById('eventMessage').value = '';
-            } else {
+            } else if (eventType === 'kill') {
                 document.getElementById('eventQuantity').value = '1';
             }
         });
@@ -584,35 +824,20 @@
             eventEntry.dataset.isEnd = eventData.isEnd || false;
             eventEntry.dataset.eventType = eventData.eventType;
             
-            // Create the base HTML structure first
+            // Create the base HTML structure
             eventEntry.innerHTML = `
                 <span class="event-handle">⋮⋮</span>
                 <div class="event-content">
-                    ${eventData.eventType === 'chat' ? `
-                        <div class="input-group">
-                            <label>Actor:</label>
-                            <div class="actor-container"></div>
-                        </div>
-                        <div class="input-group">
-                            <label>Message:</label>
-                            <textarea class="event-message-input" placeholder="Enter event message">${eventData.message || ''}</textarea>
-                        </div>
-                    ` : `
-                        <div class="input-group">
-                            <label>Mob to Kill:</label>
-                            <div class="mob-container"></div>
-                        </div>
-                        <div class="input-group">
-                            <label>Quantity:</label>
-                            <input type="number" class="event-quantity-input" min="1" value="${eventData.quantity || 1}">
-                        </div>
-                    `}
+                    ${getEventTypeSpecificHTML(eventData)}
                     <div class="input-group">
                         <label>Hint:</label>
                         <textarea class="event-hint-input" placeholder="Enter optional hint">${eventData.hint || ''}</textarea>
                     </div>
                 </div>
-                <span class="event-id">ID: ${eventEntry.dataset.eventId}</span>
+                <div class="event-id">
+                    ID: ${eventEntry.dataset.eventId}
+                    <span class="copy-id-btn" title="Copy ID">📋</span>
+                </div>
                 <span class="remove-event">×</span>
                 <div class="event-choices"></div>
                 <div class="event-controls">
@@ -624,31 +849,64 @@
                 </div>
             `;
 
-            // Create and append the appropriate select after the HTML structure is in place
-            if (eventData.eventType === 'chat') {
-                const actorSelect = document.createElement('select');
-                actorSelect.className = 'event-actor-select';
-                actorSelect.innerHTML = allActors.map(actor => `
-                    <option value="${actor._id}" ${actor._id === eventData.actorId ? 'selected' : ''}>
-                        ${actor.name}
-                    </option>
-                `).join('');
-                eventEntry.querySelector('.actor-container').appendChild(actorSelect);
-            } else {
-                const mobSelect = document.createElement('select');
-                mobSelect.className = 'event-mob-select';
-                mobSelect.innerHTML = allMobs.map(mob => `
-                    <option value="${mob._id}" ${mob._id === eventData.mobId ? 'selected' : ''}>
-                        ${mob.name}
-                    </option>
-                `).join('');
-                eventEntry.querySelector('.mob-container').appendChild(mobSelect);
-            }
-
             // Add event handlers
             addEventEntryHandlers(eventEntry);
 
             return eventEntry;
+        }
+
+        function getEventTypeSpecificHTML(eventData) {
+            switch(eventData.eventType) {
+                case 'chat':
+                    return `
+                        <div class="input-group">
+                            <label>Actor:</label>
+                            <select class="event-actor-select">
+                                ${allActors.map(actor => `
+                                    <option value="${actor._id}" ${actor._id === eventData.actorId ? 'selected' : ''}>
+                                        ${actor.name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Message:</label>
+                            <textarea class="event-message-input" placeholder="Enter event message">${eventData.message || ''}</textarea>
+                        </div>
+                    `;
+                case 'kill':
+                    return `
+                        <div class="input-group">
+                            <label>Mob to Kill:</label>
+                            <select class="event-mob-select">
+                                ${allMobs.map(mob => `
+                                    <option value="${mob._id}" ${mob._id === eventData.mobId ? 'selected' : ''}>
+                                        ${mob.name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Quantity:</label>
+                            <input type="number" class="event-quantity-input" min="1" value="${eventData.quantity || 1}">
+                        </div>
+                    `;
+                case 'conversation':
+                    return `
+                        <div class="input-group">
+                            <label>Conversation:</label>
+                            <select class="event-conversation-select">
+                                ${allConversations.map(conv => `
+                                    <option value="${conv._id}" ${conv._id === eventData.conversationId ? 'selected' : ''}>
+                                        ${conv.title || conv._id}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                    `;
+                default:
+                    return '';
+            }
         }
 
         function addChoiceToEvent(eventEntry) {
@@ -867,18 +1125,26 @@
                         isEnd: event.dataset.isEnd === 'true'
                     };
 
-                    if (eventType === 'chat') {
-                        return {
-                            ...baseEvent,
-                            actorId: event.querySelector('.event-actor-select').value,
-                            message: event.querySelector('.event-message-input').value
-                        };
-                    } else {
-                        return {
-                            ...baseEvent,
-                            mobId: event.querySelector('.event-mob-select').value,
-                            quantity: parseInt(event.querySelector('.event-quantity-input').value)
-                        };
+                    switch(eventType) {
+                        case 'chat':
+                            return {
+                                ...baseEvent,
+                                actorId: event.querySelector('.event-actor-select').value,
+                                message: event.querySelector('.event-message-input').value
+                            };
+                        case 'kill':
+                            return {
+                                ...baseEvent,
+                                mobId: event.querySelector('.event-mob-select').value,
+                                quantity: parseInt(event.querySelector('.event-quantity-input').value)
+                            };
+                        case 'conversation':
+                            return {
+                                ...baseEvent,
+                                conversationId: event.querySelector('.event-conversation-select').value
+                            };
+                        default:
+                            return baseEvent;
                     }
                 });
 
@@ -912,7 +1178,7 @@
                 await loadQuests();
             } catch (error) {
                 console.error('Error saving quest:', error);
-                alert(error.message);
+                alert('Error saving quest: ' + error.message);
             }
         });
 
@@ -985,13 +1251,26 @@
         document.getElementById('eventType').addEventListener('change', (e) => {
             const chatFields = document.getElementById('chatEventFields');
             const killFields = document.getElementById('killEventFields');
+            const conversationFields = document.getElementById('conversationEventFields');
+            const actorSelection = document.getElementById('actorSelection');
             
-            if (e.target.value === 'chat') {
-                chatFields.style.display = '';
-                killFields.style.display = 'none';
-            } else {
-                chatFields.style.display = 'none';
-                killFields.style.display = '';
+            // Hide all fields first
+            chatFields.style.display = 'none';
+            killFields.style.display = 'none';
+            conversationFields.style.display = 'none';
+            actorSelection.style.display = 'block';  // Show actor by default
+            
+            switch(e.target.value) {
+                case 'chat':
+                    chatFields.style.display = 'block';
+                    break;
+                case 'kill':
+                    killFields.style.display = 'block';
+                    break;
+                case 'conversation':
+                    conversationFields.style.display = 'block';
+                    actorSelection.style.display = 'none';  // Hide actor for conversation events
+                    break;
             }
         });
 
@@ -1006,9 +1285,27 @@
 
             // Add remove event handler
             eventEntry.querySelector('.remove-event').addEventListener('click', () => {
-                const message = eventEntry.querySelector('.event-message-input')?.value || 
-                               eventEntry.querySelector('.event-quantity-input')?.value;
-                const confirmDelete = confirm(`Are you sure you want to delete this event?\n\nEvent: "${message}"\n\nThis cannot be undone.`);
+                let confirmMessage = '';
+                
+                // Customize confirmation message based on event type
+                switch(eventEntry.dataset.eventType) {
+                    case 'chat':
+                        confirmMessage = `Event message: "${eventEntry.querySelector('.event-message-input').value}"`;
+                        break;
+                    case 'kill':
+                        const mobSelect = eventEntry.querySelector('.event-mob-select');
+                        const quantity = eventEntry.querySelector('.event-quantity-input').value;
+                        const mobName = mobSelect.options[mobSelect.selectedIndex].text;
+                        confirmMessage = `Kill ${quantity} ${mobName}`;
+                        break;
+                    case 'conversation':
+                        const convSelect = eventEntry.querySelector('.event-conversation-select');
+                        const convName = convSelect.options[convSelect.selectedIndex].text;
+                        confirmMessage = `Conversation: "${convName}"`;
+                        break;
+                }
+                
+                const confirmDelete = confirm(`Are you sure you want to delete this event?\n\n${confirmMessage}\n\nThis cannot be undone.`);
                 
                 if (confirmDelete) {
                     eventEntry.remove();
@@ -1033,17 +1330,56 @@
                 addChoiceToEvent(eventEntry);
             });
 
-            // Add input handlers
-            if (eventEntry.dataset.eventType === 'chat') {
-                eventEntry.querySelector('.event-message-input').addEventListener('input', () => {
-                    updateEventTargets();
-                });
-            } else {
-                eventEntry.querySelector('.event-quantity-input').addEventListener('input', (e) => {
-                    // Ensure quantity is at least 1
-                    if (e.target.value < 1) e.target.value = 1;
-                });
+            // Add input handlers based on event type
+            switch(eventEntry.dataset.eventType) {
+                case 'chat':
+                    eventEntry.querySelector('.event-message-input')?.addEventListener('input', () => {
+                        updateEventTargets();
+                    });
+                    break;
+                case 'kill':
+                    eventEntry.querySelector('.event-quantity-input')?.addEventListener('input', (e) => {
+                        // Ensure quantity is at least 1
+                        if (e.target.value < 1) e.target.value = 1;
+                    });
+                    break;
+                case 'conversation':
+                    eventEntry.querySelector('.event-conversation-select')?.addEventListener('change', () => {
+                        updateEventTargets();
+                    });
+                    break;
             }
+
+            // Add copy ID button handler
+            const copyBtn = eventEntry.querySelector('.copy-id-btn');
+            copyBtn.addEventListener('click', (e) => {
+                const id = eventEntry.dataset.eventId;
+                navigator.clipboard.writeText(id).then(() => {
+                    // Create and show tooltip
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'copy-tooltip';
+                    tooltip.textContent = 'Copied!';
+                    
+                    // Position tooltip near the click
+                    tooltip.style.position = 'absolute';
+                    tooltip.style.left = `${e.pageX + 10}px`;
+                    tooltip.style.top = `${e.pageY - 30}px`;
+                    
+                    document.body.appendChild(tooltip);
+                    
+                    // Show tooltip
+                    setTimeout(() => tooltip.classList.add('show'), 10);
+                    
+                    // Remove tooltip after animation
+                    setTimeout(() => {
+                        tooltip.classList.remove('show');
+                        setTimeout(() => tooltip.remove(), 300);
+                    }, 1500);
+                }).catch(err => {
+                    console.error('Failed to copy:', err);
+                    alert('Failed to copy ID to clipboard');
+                });
+            });
         }
 
         // Also add this function to populate the mob select when the page loads
@@ -1057,6 +1393,61 @@
                 eventMob.appendChild(option);
             });
         }
+
+        function populateConversationSelect() {
+            const eventConversation = document.getElementById('eventConversation');
+            eventConversation.innerHTML = '<option value="">Select Conversation</option>';
+            allConversations.forEach(conversation => {
+                const option = document.createElement('option');
+                option.value = conversation._id;
+                option.textContent = conversation.title || conversation._id;
+                eventConversation.appendChild(option);
+            });
+        }
+
+        // First, add this CSS to your existing styles section
+        function addStyleToHead() {
+            const style = document.createElement('style');
+            style.textContent = `
+                .event-id {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    font-size: 0.8em;
+                    color: var(--neon-blue);
+                    opacity: 0.7;
+                }
+
+                .copy-id-btn {
+                    cursor: pointer;
+                    color: var(--neon-pink);
+                    transition: all 0.3s ease;
+                }
+
+                .copy-id-btn:hover {
+                    transform: scale(1.2);
+                    color: var(--neon-blue);
+                }
+
+                .copy-tooltip {
+                    position: absolute;
+                    background: rgba(0, 255, 249, 0.1);
+                    border: 1px solid var(--neon-blue);
+                    padding: 0.3rem 0.6rem;
+                    border-radius: 3px;
+                    font-size: 0.8em;
+                    pointer-events: none;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                }
+
+                .copy-tooltip.show {
+                    opacity: 1;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        addStyleToHead();
     </script>
 </body>
 </html> 

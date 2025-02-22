@@ -11,10 +11,14 @@ const questSchema = new mongoose.Schema({
         required: true
     },
     events: [{
+        _id: {
+            type: mongoose.Schema.Types.ObjectId,
+            auto: true
+        },
         eventType: {
             type: String,
             required: true,
-            enum: ['chat', 'kill'],  // Added 'kill' event type
+            enum: ['chat', 'kill', 'conversation'],  // Added 'conversation' event type
             default: 'chat'
         },
         // Common fields for all event types
@@ -39,7 +43,7 @@ const questSchema = new mongoose.Schema({
         // Chat event specific fields
         actorId: {
             type: String,
-            required: function() { return this.eventType === 'chat'; },
+            required: function() { return this.eventType === 'chat'; }, // Removed conversation requirement
             ref: 'Actor'
         },
         message: {
@@ -57,6 +61,12 @@ const questSchema = new mongoose.Schema({
             required: function() { return this.eventType === 'kill'; },
             min: 1,
             default: 1
+        },
+        // Conversation event specific fields
+        conversationId: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: function() { return this.eventType === 'conversation'; },
+            ref: 'Conversation'
         }
     }],
     createdAt: {
@@ -66,6 +76,16 @@ const questSchema = new mongoose.Schema({
     updatedAt: {
         type: Date,
         default: Date.now
+    }
+});
+
+questSchema.set('id', false);
+questSchema.set('toJSON', {
+    virtuals: false,
+    versionKey: false,
+    transform: function (doc, ret) {
+        delete ret.id;
+        return ret;
     }
 });
 

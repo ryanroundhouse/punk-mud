@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Quest = require('../models/Quest');
 const logger = require('../config/logger');
 
@@ -5,7 +6,8 @@ async function getQuests(req, res) {
     try {
         const quests = await Quest.find()
             .sort({ title: 1 })
-            .populate('events.mobId'); // Populate mob data for kill events
+            .populate('events.mobId')
+            .populate('events.conversationId'); // Add population for conversation
         res.json(quests);
     } catch (error) {
         logger.error('Error fetching quests:', error);
@@ -46,10 +48,17 @@ async function createOrUpdateQuest(req, res) {
                         details: 'Kill events must have mobId and quantity (minimum 1)'
                     });
                 }
+            } else if (event.eventType === 'conversation') {
+                if (!event.conversationId) {
+                    return res.status(400).json({ 
+                        error: 'Invalid conversation event data',
+                        details: 'Conversation events must have a conversationId'
+                    });
+                }
             } else {
                 return res.status(400).json({ 
                     error: 'Invalid event type',
-                    details: 'Event type must be either "chat" or "kill"'
+                    details: 'Event type must be either "chat", "kill", or "conversation"'
                 });
             }
 
@@ -90,16 +99,28 @@ async function createOrUpdateQuest(req, res) {
                 return res.status(404).json({ error: 'Quest not found' });
             }
 
+            // Preserve existing event IDs or create new ones
+            const updatedEvents = events.map(event => ({
+                ...event,
+                _id: event._id || new mongoose.Types.ObjectId() // Create new ObjectId if none exists
+            }));
+
             quest.title = title;
             quest.journalDescription = journalDescription;
-            quest.events = events;
+            quest.events = updatedEvents;
             await quest.save();
         } else {
             // Create new quest
+            // Ensure each event has a unique _id
+            const eventsWithIds = events.map(event => ({
+                ...event,
+                _id: new mongoose.Types.ObjectId()
+            }));
+
             quest = new Quest({
                 title,
                 journalDescription,
-                events
+                events: eventsWithIds
             });
             await quest.save();
         }
