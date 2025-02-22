@@ -592,6 +592,10 @@
                 await loadConversations();
                 await loadQuests();
                 
+                // Trigger event type change handler to set initial state
+                const eventTypeSelect = document.getElementById('eventType');
+                eventTypeSelect.dispatchEvent(new Event('change'));
+
                 // Start in "new quest" state
                 newQuestBtn.click();
             } catch (error) {
@@ -1005,6 +1009,17 @@
             } else {
                 this.parentNode.insertBefore(draggingItem, this);
             }
+
+            // Update start event after reordering
+            updateStartEvent();
+        }
+
+        // Add this new function
+        function updateStartEvent() {
+            const allEvents = eventsList.querySelectorAll('.quest-event');
+            allEvents.forEach((event, index) => {
+                event.dataset.isStart = (index === 0).toString();
+            });
         }
 
         // Load quest data
@@ -1310,6 +1325,7 @@
                 if (confirmDelete) {
                     eventEntry.remove();
                     updateEventTargets();
+                    updateStartEvent();
                 }
             });
 

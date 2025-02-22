@@ -112,8 +112,8 @@ class ConversationService {
                 // This would need to be coordinated with questService
             }
 
-            // Format and send the conversation prompt
-            return this.formatConversationResponse(rootNode);
+            // Pass userId to formatConversationResponse
+            return await this.formatConversationResponse(rootNode, userId);
         } catch (error) {
             logger.error('Error starting conversation:', error);
             return null;
@@ -145,27 +145,59 @@ class ConversationService {
                 return null;
             }
 
-            // Validate choice
-            const choiceIndex = parseInt(choice) - 1;
-            logger.debug('Processing choice:', {
-                rawChoice: choice,
-                parsedIndex: choiceIndex,
-                validRange: `0-${currentNode.choices.length - 1}`
-            });
+            // Get user data to check quests
+            const user = await User.findById(userId);
+            
+            // Filter choices first
+            const validChoices = currentNode.choices
+                .map((choice, index) => ({ choice, originalIndex: index }))
+                .filter(({ choice }) => {
+                    if (!choice.nextNode?.activateQuestId) return true;
+                    
+                    // Check if user already has this quest
+                    const hasQuest = user.quests?.some(userQuest => 
+                        userQuest.questId.toString() === choice.nextNode.activateQuestId.toString()
+                    );
+                    
+                    return !hasQuest;
+                });
 
-            if (isNaN(choiceIndex) || choiceIndex < 0 || choiceIndex >= currentNode.choices.length) {
+            // End conversation if no valid choices remain
+            if (validChoices.length === 0) {
+                logger.debug('No valid choices available after filtering, ending conversation');
+                stateService.clearActiveConversation(userId);
+                return null;
+            }
+
+            // Now validate the choice against valid choices
+            const selectedIndex = parseInt(choice) - 1;
+            if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= validChoices.length) {
                 logger.debug('Invalid choice provided');
                 return {
                     error: true,
-                    message: `Invalid choice. Please choose 1-${currentNode.choices.length}.`
+                    message: `Invalid choice. Please choose 1-${validChoices.length}.`
                 };
             }
 
-            const selectedChoice = currentNode.choices[choiceIndex];
+            const selectedChoice = validChoices[selectedIndex].choice;
             logger.debug('Selected choice:', {
                 text: selectedChoice.text,
-                hasNextNode: !!selectedChoice.nextNode
+                hasNextNode: !!selectedChoice.nextNode,
+                hasActivateQuest: !!selectedChoice.nextNode?.activateQuestId
             });
+
+            // Handle quest activation if specified in the choice's next node
+            if (selectedChoice.nextNode?.activateQuestId) {
+                const user = await User.findById(userId);
+                if (user) {
+                    await questService.handleQuestProgression(
+                        user,
+                        activeConv.actorId,
+                        [],  // No completion events
+                        selectedChoice.nextNode.activateQuestId // Pass the quest to activate
+                    );
+                }
+            }
 
             if (!selectedChoice.nextNode) {
                 logger.debug('End of conversation branch reached');
@@ -184,11 +216,6 @@ class ConversationService {
                 selectedChoice.nextNode,
                 activeConv.actorId
             );
-
-            // Handle quest activation if specified
-            if (selectedChoice.nextNode.activateQuestId) {
-                await questService.handleQuestProgression(userId, selectedChoice.nextNode.activateQuestId);
-            }
 
             // Handle quest completion events
             if (selectedChoice.nextNode.questCompletionEvents?.length > 0) {
@@ -217,27 +244,53 @@ class ConversationService {
                 }
             }
 
-            return this.formatConversationResponse(selectedChoice.nextNode);
+            // Update the formatConversationResponse call to include userId
+            return await this.formatConversationResponse(selectedChoice.nextNode, userId);
         } catch (error) {
             logger.error('Error handling conversation choice:', error);
             return null;
         }
     }
 
-    formatConversationResponse(node) {
+    async formatConversationResponse(node, userId) {
         let response = node.prompt + '\n\n';
         
         if (node.choices && node.choices.length > 0) {
-            response += 'Responses:\n';
-            node.choices.forEach((choice, index) => {
-                response += `${index + 1}. ${choice.text}\n`;
-            });
+            // Get user data to check quests
+            const user = await User.findById(userId);
+            
+            // Filter choices
+            const validChoices = node.choices
+                .map((choice, index) => ({ choice, originalIndex: index }))
+                .filter(({ choice }) => {
+                    if (!choice.nextNode?.activateQuestId) return true;
+                    
+                    // Check if user already has this quest
+                    const hasQuest = user.quests?.some(userQuest => 
+                        userQuest.questId.toString() === choice.nextNode.activateQuestId.toString()
+                    );
+                    
+                    return !hasQuest;
+                });
+
+            if (validChoices.length > 0) {
+                response += 'Responses:\n';
+                validChoices.forEach(({ choice }, index) => {
+                    response += `${index + 1}. ${choice.text}\n`;
+                });
+            }
+
+            return {
+                message: response.trim(),
+                hasChoices: validChoices.length > 0,
+                isEnd: validChoices.length === 0
+            };
         }
 
         return {
             message: response.trim(),
-            hasChoices: node.choices && node.choices.length > 0,
-            isEnd: !node.choices || node.choices.length === 0
+            hasChoices: false,
+            isEnd: true
         };
     }
 

@@ -57,7 +57,7 @@ class QuestService {
         }
     }
 
-    async handleQuestProgression(user, actorId, completionEventIds = []) {
+    async handleQuestProgression(user, actorId, completionEventIds = [], questToActivate = null) {
         try {
             if (!user) {
                 logger.error('No user provided');
@@ -68,6 +68,7 @@ class QuestService {
                 userId: user._id.toString(),
                 actorId,
                 completionEventIds,
+                questToActivate,
                 userQuestsCount: user.quests?.length || 0
             });
 
@@ -78,6 +79,50 @@ class QuestService {
 
             const allQuests = await Quest.find();
             let questUpdates = [];
+
+            // Handle direct quest activation if specified
+            if (questToActivate) {
+                const questToStart = allQuests.find(q => q._id.toString() === questToActivate.toString());
+                
+                if (questToStart) {
+                    // Check if quest is already active
+                    const isQuestActive = user.quests.some(uq => 
+                        uq.questId === questToStart._id.toString() && !uq.completed
+                    );
+
+                    if (!isQuestActive) {
+                        const startEvent = questToStart.events.find(event => event.isStart);
+                        
+                        if (startEvent) {
+                            user.quests.push({
+                                questId: questToStart._id.toString(),
+                                currentEventId: startEvent._id.toString(),
+                                completedEventIds: [],
+                                startedAt: new Date()
+                            });
+                            await user.save();
+                            
+                            // Only send the quest start message if there's a message to send
+                            if (startEvent.message) {
+                                messageService.sendQuestsMessage(
+                                    user._id.toString(),
+                                    `New Quest: ${questToStart.title}\n\n${startEvent.message}`
+                                );
+                            } else {
+                                messageService.sendQuestsMessage(
+                                    user._id.toString(),
+                                    `New Quest: ${questToStart.title}`
+                                );
+                            }
+                            
+                            return {
+                                type: 'quest_start',
+                                questTitle: questToStart.title
+                            };
+                        }
+                    }
+                }
+            }
 
             // First handle any completion events
             if (completionEventIds && completionEventIds.length > 0) {
@@ -239,7 +284,8 @@ class QuestService {
         } catch (error) {
             logger.error('Error handling quest progression:', error, {
                 userId: user._id.toString(),
-                completionEventIds
+                completionEventIds,
+                questToActivate
             });
             return null;
         }
