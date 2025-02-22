@@ -740,16 +740,22 @@
                 const form = document.getElementById('conversationForm');
                 
                 function getNodeData(nodeElement) {
+                    const questSelects = nodeElement.querySelectorAll('.quest-select');
                     const nodeData = {
                         prompt: nodeElement.querySelector('.node-prompt').value,
-                        requiredQuestId: nodeElement.querySelector('.quest-select')?.value || undefined,
-                        activateQuestId: nodeElement.querySelectorAll('.quest-select')[1]?.value || undefined,
+                        requiredQuestId: questSelects[0]?.value || undefined,
+                        activateQuestId: questSelects[1]?.value || undefined,
                         questCompletionEvents: nodeElement.querySelector('.quest-events').value
                             .split(',')
                             .map(id => id.trim())
                             .filter(id => id.length > 0),
                         choices: []
                     };
+
+                    // Remove undefined quest IDs
+                    if (!nodeData.requiredQuestId) delete nodeData.requiredQuestId;
+                    if (!nodeData.activateQuestId) delete nodeData.activateQuestId;
+                    if (nodeData.questCompletionEvents.length === 0) delete nodeData.questCompletionEvents;
 
                     // Get all choices for this node
                     const choiceElements = nodeElement.querySelector('.node-choices').children;
@@ -828,10 +834,21 @@
 
         // Update the load function to handle the nested structure
         function loadNodeData(nodeElement, nodeData) {
-            nodeElement.querySelector('.node-prompt').value = nodeData.prompt;
+            nodeElement.querySelector('.node-prompt').value = nodeData.prompt || '';
+            
+            // Handle quest selects more carefully
             const questSelects = nodeElement.querySelectorAll('.quest-select');
-            if (questSelects[0]) questSelects[0].value = nodeData.requiredQuestId || '';
-            if (questSelects[1]) questSelects[1].value = nodeData.activateQuestId || '';
+            if (questSelects[0]) {
+                // For required quest
+                const requiredQuestId = nodeData.requiredQuestId?._id || nodeData.requiredQuestId;
+                questSelects[0].value = requiredQuestId || '';
+            }
+            if (questSelects[1]) {
+                // For activate quest
+                const activateQuestId = nodeData.activateQuestId?._id || nodeData.activateQuestId;
+                questSelects[1].value = activateQuestId || '';
+            }
+            
             nodeElement.querySelector('.quest-events').value = (nodeData.questCompletionEvents || []).join(',');
 
             // Clear existing choices
@@ -841,11 +858,9 @@
             // Add each choice and its subsequent nodes
             if (nodeData.choices && nodeData.choices.length > 0) {
                 nodeData.choices.forEach(choice => {
-                    // Create the choice container
                     const choiceContainer = addChoice(choicesContainer);
                     choiceContainer.querySelector('.choice-text').value = choice.text;
 
-                    // If this choice has a next node, create and populate it
                     if (choice.nextNode) {
                         const nextNodeContainer = choiceContainer.querySelector('.next-node-container');
                         const nextNode = createConversationNode();

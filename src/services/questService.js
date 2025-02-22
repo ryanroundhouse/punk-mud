@@ -2,6 +2,7 @@ const Quest = require('../models/Quest');
 const User = require('../models/User');
 const logger = require('../config/logger');
 const messageService = require('./messageService');
+const userService = require('./userService');
 
 class QuestService {
     async getActiveQuests(userId) {
@@ -59,11 +60,6 @@ class QuestService {
 
     async handleQuestProgression(user, actorId, completionEventIds = [], questToActivate = null) {
         try {
-            if (!user) {
-                logger.error('No user provided');
-                return null;
-            }
-
             logger.debug('handleQuestProgression called with:', {
                 userId: user._id.toString(),
                 actorId,
@@ -79,6 +75,150 @@ class QuestService {
 
             const allQuests = await Quest.find();
             let questUpdates = [];
+
+            // First handle any completion events
+            if (completionEventIds && completionEventIds.length > 0) {
+                logger.debug('Processing completion events:', { 
+                    completionEventIds,
+                    userQuests: user.quests.map(q => ({
+                        questId: q.questId,
+                        currentEventId: q.currentEventId,
+                        completed: q.completed
+                    }))
+                });
+                
+                for (const userQuest of user.quests) {
+                    if (userQuest.completed) {
+                        logger.debug('Skipping completed quest:', {
+                            questId: userQuest.questId
+                        });
+                        continue;
+                    }
+
+                    const quest = allQuests.find(q => q._id.toString() === userQuest.questId);
+                    if (!quest) {
+                        logger.debug('Quest not found:', {
+                            questId: userQuest.questId
+                        });
+                        continue;
+                    }
+
+                    // Find the current event
+                    const currentEvent = quest.events.find(e => 
+                        e._id.toString() === userQuest.currentEventId
+                    );
+                    
+                    if (!currentEvent) {
+                        logger.debug('Current event not found:', {
+                            currentEventId: userQuest.currentEventId
+                        });
+                        continue;
+                    }
+
+                    logger.debug('Checking current event:', {
+                        eventId: currentEvent._id.toString(),
+                        eventType: currentEvent.eventType,
+                        hasChoices: !!currentEvent.choices,
+                        choicesCount: currentEvent.choices?.length
+                    });
+
+                    // Check if current event has a choice leading to our completion event
+                    const nextEventChoice = currentEvent.choices?.find(choice => 
+                        completionEventIds.includes(choice.nextEventId.toString())
+                    );
+
+                    if (nextEventChoice) {
+                        logger.debug('Found matching next event choice:', {
+                            currentEventId: currentEvent._id.toString(),
+                            nextEventId: nextEventChoice.nextEventId.toString()
+                        });
+
+                        // Progress to the next event
+                        userQuest.completedEventIds.push(currentEvent._id.toString());
+                        userQuest.currentEventId = nextEventChoice.nextEventId.toString();
+
+                        // If this is an end event, complete the quest
+                        const nextEvent = quest.events.find(e => 
+                            e._id.toString() === nextEventChoice.nextEventId.toString()
+                        );
+
+                        if (nextEvent?.isEnd) {
+                            logger.debug('Found end event:', {
+                                eventId: nextEvent._id.toString(),
+                                questId: quest._id.toString(),
+                                questTitle: quest.title,
+                                hasExperiencePoints: !!quest.experiencePoints,
+                                experiencePoints: quest.experiencePoints
+                            });
+
+                            userQuest.completed = true;
+                            userQuest.completedAt = new Date();
+                            
+                            // Award experience points for quest completion
+                            try {
+                                const experiencePoints = quest.experiencePoints || 0;
+                                if (experiencePoints > 0) {
+                                    logger.debug('Attempting to award experience:', {
+                                        questId: quest._id.toString(),
+                                        questTitle: quest.title,
+                                        experiencePoints,
+                                        userId: user._id.toString()
+                                    });
+
+                                    const experienceResult = await userService.awardExperience(user._id.toString(), experiencePoints);
+                                    
+                                    logger.debug('Experience award result:', {
+                                        success: experienceResult.success,
+                                        experienceGained: experienceResult.experienceGained,
+                                        leveledUp: experienceResult.leveledUp,
+                                        newLevel: experienceResult.newLevel
+                                    });
+
+                                    if (experienceResult.success) {
+                                        messageService.sendSuccessMessage(
+                                            user._id.toString(),
+                                            `Quest "${quest.title}" completed!\nYou gained ${experiencePoints} experience points!` +
+                                            (experienceResult.leveledUp ? `\nYou reached level ${experienceResult.newLevel}!` : '')
+                                        );
+                                    } else {
+                                        messageService.sendSuccessMessage(
+                                            user._id.toString(),
+                                            `Quest "${quest.title}" completed!`
+                                        );
+                                    }
+                                } else {
+                                    logger.debug('No experience points to award for quest:', {
+                                        questId: quest._id.toString(),
+                                        questTitle: quest.title
+                                    });
+                                }
+                            } catch (error) {
+                                logger.error('Error in experience award process:', error, {
+                                    questId: quest._id.toString(),
+                                    questTitle: quest.title,
+                                    experiencePoints: quest.experiencePoints,
+                                    userId: user._id.toString()
+                                });
+                            }
+
+                            questUpdates.push({
+                                type: 'quest_complete',
+                                questTitle: quest.title,
+                                experiencePoints: quest.experiencePoints || 0
+                            });
+                        } else {
+                            logger.debug('Next event is not an end event:', {
+                                eventId: nextEvent._id.toString(),
+                                isEnd: nextEvent.isEnd
+                            });
+                        }
+                    } else {
+                        logger.debug('No matching next event choice found in current event choices');
+                    }
+                }
+            } else {
+                logger.debug('No completion events to process');
+            }
 
             // Handle direct quest activation if specified
             if (questToActivate) {
@@ -121,86 +261,6 @@ class QuestService {
                             };
                         }
                     }
-                }
-            }
-
-            // First handle any completion events
-            if (completionEventIds && completionEventIds.length > 0) {
-                logger.debug('Processing completion events:', { 
-                    completionEventIds,
-                    userQuests: user.quests.map(q => ({
-                        questId: q.questId,
-                        currentEventId: q.currentEventId,
-                        completed: q.completed
-                    }))
-                });
-                
-                for (const userQuest of user.quests) {
-                    if (userQuest.completed) {
-                        logger.debug('Skipping completed quest:', {
-                            questId: userQuest.questId
-                        });
-                        continue;
-                    }
-
-                    const quest = allQuests.find(q => q._id.toString() === userQuest.questId);
-                    if (!quest) continue;
-
-                    // Find the current event
-                    const currentEvent = quest.events.find(e => 
-                        e._id.toString() === userQuest.currentEventId
-                    );
-                    
-                    if (!currentEvent) continue;
-
-                    // Check if current event has a choice leading to our completion event
-                    const nextEventChoice = currentEvent.choices?.find(choice => 
-                        completionEventIds.includes(choice.nextEventId.toString())
-                    );
-
-                    if (nextEventChoice) {
-                        logger.debug('Found matching next event choice:', {
-                            currentEventId: currentEvent._id.toString(),
-                            nextEventId: nextEventChoice.nextEventId.toString()
-                        });
-
-                        // Progress to the next event
-                        userQuest.completedEventIds.push(currentEvent._id.toString());
-                        userQuest.currentEventId = nextEventChoice.nextEventId.toString();
-
-                        // If this is an end event, complete the quest
-                        const nextEvent = quest.events.find(e => 
-                            e._id.toString() === nextEventChoice.nextEventId.toString()
-                        );
-
-                        if (nextEvent?.isEnd) {
-                            userQuest.completed = true;
-                            userQuest.completedAt = new Date();
-                            
-                            logger.debug('Completing quest:', {
-                                questId: quest._id.toString(),
-                                questTitle: quest.title
-                            });
-
-                            messageService.sendSuccessMessage(
-                                user._id.toString(),
-                                `Quest "${quest.title}" completed!`
-                            );
-
-                            questUpdates.push({
-                                type: 'quest_complete',
-                                questTitle: quest.title
-                            });
-                        }
-                    }
-                }
-
-                if (questUpdates.length > 0) {
-                    logger.debug('Saving quest updates:', {
-                        updates: questUpdates
-                    });
-                    await user.save();
-                    return questUpdates;
                 }
             }
 
@@ -259,10 +319,57 @@ class QuestService {
                     if (isComplete) {
                         userQuest.completed = true;
                         userQuest.completedAt = new Date();
-                        messageService.sendSuccessMessage(
-                            user._id.toString(),
-                            `Quest "${quest.title}" completed!`
-                        );
+
+                        // Add experience point handling here
+                        try {
+                            const experiencePoints = quest.experiencePoints || 0;
+                            if (experiencePoints > 0) {
+                                logger.debug('Awarding quest completion experience:', {
+                                    questId: quest._id.toString(),
+                                    questTitle: quest.title,
+                                    experiencePoints,
+                                    userId: user._id.toString()
+                                });
+
+                                const experienceResult = await userService.awardExperience(user._id.toString(), experiencePoints);
+                                
+                                logger.debug('Quest experience award result:', {
+                                    success: experienceResult.success,
+                                    experienceGained: experienceResult.experienceGained,
+                                    leveledUp: experienceResult.leveledUp,
+                                    newLevel: experienceResult.newLevel
+                                });
+
+                                if (experienceResult.success) {
+                                    messageService.sendSuccessMessage(
+                                        user._id.toString(),
+                                        `Quest "${quest.title}" completed!\nYou gained ${experiencePoints} experience points!` +
+                                        (experienceResult.leveledUp ? `\nYou reached level ${experienceResult.newLevel}!` : '')
+                                    );
+                                } else {
+                                    messageService.sendSuccessMessage(
+                                        user._id.toString(),
+                                        `Quest "${quest.title}" completed!`
+                                    );
+                                }
+                            } else {
+                                messageService.sendSuccessMessage(
+                                    user._id.toString(),
+                                    `Quest "${quest.title}" completed!`
+                                );
+                            }
+                        } catch (error) {
+                            logger.error('Error awarding quest experience points:', error, {
+                                questId: quest._id.toString(),
+                                questTitle: quest.title,
+                                experiencePoints: quest.experiencePoints,
+                                userId: user._id.toString()
+                            });
+                            messageService.sendSuccessMessage(
+                                user._id.toString(),
+                                `Quest "${quest.title}" completed!`
+                            );
+                        }
                     }
                     
                     await user.save();
@@ -275,14 +382,15 @@ class QuestService {
                     return {
                         type: 'quest_progress',
                         questTitle: quest.title,
-                        isComplete
+                        isComplete,
+                        experiencePoints: isComplete ? (quest.experiencePoints || 0) : 0
                     };
                 }
             }
 
             return null;
         } catch (error) {
-            logger.error('Error handling quest progression:', error, {
+            logger.error('Error in handleQuestProgression:', error, {
                 userId: user._id.toString(),
                 completionEventIds,
                 questToActivate

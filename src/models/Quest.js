@@ -10,6 +10,12 @@ const questSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    experiencePoints: {
+        type: Number,
+        required: true,
+        min: 0,
+        default: 0
+    },
     events: [{
         _id: {
             type: mongoose.Schema.Types.ObjectId,

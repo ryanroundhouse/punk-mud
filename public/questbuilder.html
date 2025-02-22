@@ -448,6 +448,22 @@
         .copy-tooltip.show {
             opacity: 1;
         }
+
+        .number-input {
+            width: 150px;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+        }
+
+        .number-input::-webkit-inner-spin-button,
+        .number-input::-webkit-outer-spin-button {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -477,6 +493,16 @@
                     <div class="form-group">
                         <label for="journalDescription">Journal Description:</label>
                         <textarea id="journalDescription" required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="experiencePoints">Experience Points:</label>
+                        <input type="number" 
+                               id="experiencePoints" 
+                               min="0" 
+                               value="0" 
+                               required 
+                               class="number-input">
                     </div>
 
                     <div class="form-group">
@@ -1029,6 +1055,7 @@
             
             document.getElementById('questTitle').value = quest.title;
             document.getElementById('journalDescription').value = quest.journalDescription;
+            document.getElementById('experiencePoints').value = quest.experiencePoints || 0;
             
             // Clear existing events
             eventsList.innerHTML = '';
@@ -1111,6 +1138,7 @@
             deleteQuestBtn.classList.add('hidden');
             document.getElementById('questTitle').value = '';
             document.getElementById('journalDescription').value = '';
+            document.getElementById('experiencePoints').value = '0';
             eventsList.innerHTML = '';
         });
 
@@ -1120,9 +1148,15 @@
                 // Validate form
                 const title = document.getElementById('questTitle').value;
                 const journalDescription = document.getElementById('journalDescription').value;
+                const experiencePoints = parseInt(document.getElementById('experiencePoints').value) || 0;
                 
                 if (!title || !journalDescription) {
                     alert('Please fill in all required fields');
+                    return;
+                }
+
+                if (experiencePoints < 0) {
+                    alert('Experience points cannot be negative');
                     return;
                 }
 
@@ -1172,6 +1206,7 @@
                     _id: document.getElementById('questForm').dataset.questId || undefined,
                     title,
                     journalDescription,
+                    experiencePoints,
                     events
                 };
 

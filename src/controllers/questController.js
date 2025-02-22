@@ -16,12 +16,20 @@ async function getQuests(req, res) {
 }
 
 async function createOrUpdateQuest(req, res) {
-    const { _id, title, journalDescription, events } = req.body;
+    const { _id, title, journalDescription, events, experiencePoints } = req.body;
     
     try {
         // Validate basic fields
         if (!title || !journalDescription || !events || !Array.isArray(events)) {
             return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        // Validate experience points
+        if (experiencePoints < 0) {
+            return res.status(400).json({ 
+                error: 'Invalid experience points',
+                details: 'Experience points cannot be negative'
+            });
         }
 
         // Validate each event
@@ -102,16 +110,16 @@ async function createOrUpdateQuest(req, res) {
             // Preserve existing event IDs or create new ones
             const updatedEvents = events.map(event => ({
                 ...event,
-                _id: event._id || new mongoose.Types.ObjectId() // Create new ObjectId if none exists
+                _id: event._id || new mongoose.Types.ObjectId()
             }));
 
             quest.title = title;
             quest.journalDescription = journalDescription;
+            quest.experiencePoints = experiencePoints;
             quest.events = updatedEvents;
             await quest.save();
         } else {
             // Create new quest
-            // Ensure each event has a unique _id
             const eventsWithIds = events.map(event => ({
                 ...event,
                 _id: new mongoose.Types.ObjectId()
@@ -120,6 +128,7 @@ async function createOrUpdateQuest(req, res) {
             quest = new Quest({
                 title,
                 journalDescription,
+                experiencePoints,
                 events: eventsWithIds
             });
             await quest.save();
