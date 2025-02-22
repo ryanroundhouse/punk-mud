@@ -388,12 +388,6 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
         stateService.clearUserCombatState(user._id.toString());
         
         const mobId = mobInstance._id || mobInstance.mobId;
-        logger.debug('Mob killed:', {
-            mobId,
-            mobName: mobInstance.name,
-            mobInstanceId: mobInstance.instanceId
-        });
-        
         const questUpdates = await questService.handleMobKill(user, mobId);
         mobService.clearUserMob(user._id.toString());
 

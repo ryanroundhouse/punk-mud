@@ -286,35 +286,43 @@ class QuestService {
                             );
 
                             if (!killProgress) {
-                                // Initialize kill progress
+                                // Initialize kill progress with quantity-1 since this kill counts
                                 if (!userQuest.killProgress) {
                                     userQuest.killProgress = [];
                                 }
                                 killProgress = {
                                     eventId: nextEvent._id.toString(),
-                                    remaining: nextEvent.quantity
+                                    remaining: nextEvent.quantity - 1
                                 };
                                 userQuest.killProgress.push(killProgress);
                                 user.markModified(`quests.${user.quests.indexOf(userQuest)}.killProgress`);
+                            } else {
+                                killProgress.remaining--;
+                                user.markModified(`quests.${user.quests.indexOf(userQuest)}.killProgress`);
                             }
 
-                            killProgress.remaining--;
-                            user.markModified(`quests.${user.quests.indexOf(userQuest)}.killProgress`);
+                            logger.debug('Updated kill progress:', {
+                                questTitle: quest.title,
+                                newRemaining: killProgress.remaining,
+                                killProgress
+                            });
 
                             if (killProgress.remaining <= 0) {
                                 // Kill requirement met
                                 userQuest.completedEventIds.push(currentEvent._id.toString());
                                 userQuest.currentEventId = nextEvent._id.toString();
                                 
+                                // Move this AFTER sending the message
+                                messageService.sendQuestsMessage(
+                                    user._id.toString(),
+                                    `Quest "${quest.title}" updated: Kill requirement complete!${nextEvent.message ? '\n\n' + nextEvent.message : ''}`
+                                );
+
+                                // Now clear the kill progress
                                 userQuest.killProgress = userQuest.killProgress.filter(kp => 
                                     kp.eventId !== nextEvent._id.toString()
                                 );
                                 user.markModified(`quests.${user.quests.indexOf(userQuest)}.killProgress`);
-
-                                messageService.sendQuestsMessage(
-                                    user._id.toString(),
-                                    `Quest "${quest.title}" updated: Kill requirement complete!\n\n${nextEvent.message}`
-                                );
 
                                 if (nextEvent.isEnd) {
                                     userQuest.completed = true;
