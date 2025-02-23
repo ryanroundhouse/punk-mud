@@ -43,6 +43,10 @@ async function createOrUpdateMob(req, res) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
+        if (stats && (stats.level < 1)) {
+            return res.status(400).json({ error: 'Level must be at least 1' });
+        }
+
         if (moves) {
             for (const moveRef of moves) {
                 if (!moveRef.move || !moveRef.usageChance) {
@@ -72,7 +76,10 @@ async function createOrUpdateMob(req, res) {
             name,
             description,
             image,
-            stats,
+            stats: {
+                ...stats,
+                level: stats.level || 1
+            },
             chatMessages,
             moves,
             intent,

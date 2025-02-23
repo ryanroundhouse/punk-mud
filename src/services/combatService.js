@@ -57,13 +57,15 @@ function calculateAttackResult(move, attacker, defender) {
     let damage = 0;
 
     if (success) {
-        // New damage calculation
-        const basePower = move.basePower || 3; // Default base power if not specified
-        const scalingFactor = move.scalingFactor || 0.6; // Default scaling if not specified
-        const weaponBonus = attacker.equipment?.weapon?.damage || 0;
-        const targetArmor = defender.equipment?.armor?.defense || 0;
+        // Get attacker's level, defaulting to 1 if not found
+        const attackerLevel = attacker.stats?.level || 1;
         
-        // Random factor (d6 roll by default)
+        // Base damage calculation
+        const basePower = move.basePower || 3;
+        const scalingFactor = move.scalingFactor || 0.6;
+        const levelScalingMultiplier = 0.1; // 10% increase per level
+        const weaponBonus = attacker.equipment?.weapon?.damage || 0;
+        const targetArmor = defender.stats?.armor || 0;
         const randomRoll = Math.floor(Math.random() * (move.damageDice || 6)) + 1;
         
         // Calculate raw damage
@@ -74,12 +76,13 @@ function calculateAttackResult(move, attacker, defender) {
             randomRoll
         ) - (targetArmor / 2);
 
-        // Apply delay-based multiplier (normalized around delay 5)
+        // Apply level scaling and delay multiplier
+        const levelMultiplier = 1 + (attackerLevel * levelScalingMultiplier);
         const delayMultiplier = move.delay / 5;
-        damage = Math.max(1, Math.floor(rawDamage * delayMultiplier));
+        damage = Math.max(1, Math.floor(rawDamage * levelMultiplier * delayMultiplier));
 
         // Calculate DPR for debugging
-        const dpr = damage / move.delay;
+        const dpr = damage / (move.delay || 1);
         
         messages.push(`The attack hits for ${damage} damage! (DPR: ${dpr.toFixed(2)})`);
 
@@ -92,6 +95,8 @@ function calculateAttackResult(move, attacker, defender) {
             randomRoll,
             targetArmor,
             rawDamage,
+            level: attackerLevel,
+            levelMultiplier,
             delayMultiplier,
             finalDamage: damage,
             dpr
@@ -236,7 +241,7 @@ async function handleCombatCommand(user, moveName) {
     }
 }
 
-// New function to process combat until player input is needed
+// Update processCombatUntilInput to properly handle move delays
 async function processCombatUntilInput(user, mobInstance) {
     while (true) {
         const playerDelay = stateService.getCombatDelay(user._id.toString());
@@ -247,7 +252,11 @@ async function processCombatUntilInput(user, mobInstance) {
             break;
         }
 
-        // Apply stun effects to current delays (now passing the moves)
+        // Get the actual move delays, defaulting to 1 if not found
+        const playerMoveDelay = playerDelay.move?.delay || 1;
+        const mobMoveDelay = mobDelay.move?.delay || 1;
+
+        // Apply stun effects to current delays
         const playerEffectiveDelay = applyStunEffect([], playerDelay.delay, mobDelay.move);
         const mobEffectiveDelay = applyStunEffect([], mobDelay.delay, playerDelay.move);
 
@@ -300,7 +309,7 @@ async function processCombatUntilInput(user, mobInstance) {
     }
 }
 
-// Helper function to select a random mob move based on chances
+// Update selectMobMove to properly handle move delays
 function selectMobMove(mobInstance) {
     const mobMoves = mobInstance.moves;
     const totalChance = mobMoves.reduce((sum, move) => sum + move.usageChance, 0);
@@ -309,10 +318,18 @@ function selectMobMove(mobInstance) {
     for (const move of mobMoves) {
         random -= move.usageChance;
         if (random <= 0) {
-            return move;
+            // Ensure the move has a delay value
+            return {
+                ...move,
+                delay: move.delay || 1
+            };
         }
     }
-    return mobMoves[0]; // Fallback to first move
+    // Ensure the fallback move has a delay value
+    return {
+        ...mobMoves[0],
+        delay: mobMoves[0]?.delay || 1
+    };
 }
 
 // New function to execute combat moves

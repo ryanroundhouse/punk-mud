@@ -73,7 +73,8 @@ const mobSchema = new mongoose.Schema({
         reflexes: { type: Number, default: 10 },
         agility: { type: Number, default: 10 },
         tech: { type: Number, default: 10 },
-        luck: { type: Number, default: 10 }
+        luck: { type: Number, default: 10 },
+        level: { type: Number, default: 1, min: 1 }
     },
     activeEffects: {
         type: [activeEffectSchema],

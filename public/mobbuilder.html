@@ -779,6 +779,10 @@
 
                             <div class="stats-grid">
                                 <div class="stat-group">
+                                    <label for="level">Level:</label>
+                                    <input type="number" id="level" required min="1" value="1">
+                                </div>
+                                <div class="stat-group">
                                     <label for="hitpoints">Hitpoints:</label>
                                     <input type="number" id="hitpoints" required min="1">
                                 </div>
@@ -1281,6 +1285,7 @@
             document.getElementById('mobIntent').value = mob.intent;
             document.getElementById('experiencePoints').value = mob.experiencePoints || 10;
             document.getElementById('description').value = mob.description;
+            document.getElementById('level').value = mob.stats.level || 1;
             document.getElementById('hitpoints').value = mob.stats.hitpoints;
             document.getElementById('armor').value = mob.stats.armor;
             document.getElementById('body').value = mob.stats.body;
