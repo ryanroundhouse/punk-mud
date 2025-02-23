@@ -16,7 +16,11 @@ const actorSchema = new mongoose.Schema({
         order: Number
     }]
 }, {
-    timestamps: true
+    timestamps: true,
+    strict: true // This ensures only defined fields are saved
 });
+
+// Remove any existing indexes that might be causing issues
+actorSchema.index({ name: 1 }); // Add useful index on name instead
 
 module.exports = mongoose.model('Actor', actorSchema); 

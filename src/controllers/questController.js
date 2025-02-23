@@ -7,7 +7,8 @@ async function getQuests(req, res) {
         const quests = await Quest.find()
             .sort({ title: 1 })
             .populate('events.mobId')
-            .populate('events.conversationId'); // Add population for conversation
+            .populate('events.conversationId')
+            .populate('events.rewards.value');
         res.json(quests);
     } catch (error) {
         logger.error('Error fetching quests:', error);
@@ -66,8 +67,31 @@ async function createOrUpdateQuest(req, res) {
             } else {
                 return res.status(400).json({ 
                     error: 'Invalid event type',
-                    details: 'Event type must be either "chat", "kill", or "conversation"'
+                    details: 'Event type must be "chat", "kill", or "conversation"'
                 });
+            }
+
+            // Validate rewards if they exist
+            if (event.rewards && event.rewards.length > 0) {
+                for (const reward of event.rewards) {
+                    if (!reward.type || !reward.value) {
+                        return res.status(400).json({
+                            error: 'Invalid reward data',
+                            details: 'Each reward must have a type and value'
+                        });
+                    }
+                    
+                    if (reward.type === 'gainClass') {
+                        // Verify the class exists
+                        const classExists = await mongoose.model('Class').exists({ _id: reward.value });
+                        if (!classExists) {
+                            return res.status(400).json({
+                                error: 'Invalid reward data',
+                                details: 'Specified class does not exist'
+                            });
+                        }
+                    }
+                }
             }
 
             // Validate choices if they exist

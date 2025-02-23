@@ -464,6 +464,37 @@
         .number-input::-webkit-outer-spin-button {
             opacity: 1;
         }
+
+        .rewards-container {
+            margin-top: 1rem;
+            padding: 1rem;
+            border: 1px dashed var(--neon-blue);
+            border-radius: 5px;
+        }
+
+        .reward-entry {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(0, 255, 249, 0.05);
+            border-radius: 3px;
+        }
+
+        .reward-entry select {
+            flex: 1;
+        }
+
+        .remove-reward {
+            color: var(--neon-pink);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .remove-reward:hover {
+            transform: scale(1.2);
+        }
     </style>
 </head>
 <body>
@@ -513,6 +544,7 @@
                                     <option value="chat">Chat Event</option>
                                     <option value="kill">Kill Event</option>
                                     <option value="conversation">Conversation Event</option>
+                                    <option value="gainClass">Gain Class Event</option>
                                 </select>
                                 
                                 <div class="input-group" id="actorSelection">
@@ -544,6 +576,13 @@
                                 <div id="conversationEventFields" style="display: none;">
                                     <select id="eventConversation">
                                         <!-- Will be populated with conversations -->
+                                    </select>
+                                </div>
+                                
+                                <!-- Gain Class Event Fields -->
+                                <div id="gainClassEventFields" style="display: none;">
+                                    <select id="eventClass">
+                                        <!-- Will be populated with classes -->
                                     </select>
                                 </div>
                                 
@@ -592,6 +631,7 @@
         let allActors = [];
         let allMobs = [];
         let allConversations = [];
+        let allClasses = [];
 
         // Check authentication
         window.onload = async () => {
@@ -616,6 +656,7 @@
                 await loadActors();
                 await loadMobs();
                 await loadConversations();
+                await loadClasses();
                 await loadQuests();
                 
                 // Trigger event type change handler to set initial state
@@ -721,6 +762,27 @@
             } catch (error) {
                 console.error('Error loading conversations:', error);
                 alert('Failed to load conversations. Please try refreshing the page.');
+            }
+        }
+
+        // Load classes
+        async function loadClasses() {
+            try {
+                const response = await fetch('/api/classes', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load classes - Status: ${response.status}`);
+                }
+                
+                allClasses = await response.json();
+                populateClassSelect();
+            } catch (error) {
+                console.error('Error loading classes:', error);
+                alert('Failed to load classes. Please try refreshing the page.');
             }
         }
 
@@ -831,6 +893,20 @@
                         conversationId
                     };
                     break;
+
+                case 'gainClass':
+                    const classId = document.getElementById('eventClass').value;
+
+                    if (!classId) {
+                        alert('Please select a class');
+                        return;
+                    }
+
+                    eventData = {
+                        ...eventData,
+                        classId
+                    };
+                    break;
             }
 
             const eventEntry = createEventEntry(eventData);
@@ -878,6 +954,21 @@
                     <button class="action-button add-choice-btn">Add Choice</button>
                 </div>
             `;
+
+            // Add rewards section before event-choices div
+            const rewardsHtml = `
+                <div class="rewards-container">
+                    <label>Rewards:</label>
+                    <div class="rewards-list">
+                        ${(eventData.rewards || []).map(reward => createRewardEntry(reward)).join('')}
+                    </div>
+                    <button class="action-button" onclick="addReward(this)">Add Reward</button>
+                </div>
+            `;
+
+            // Insert rewards section before event-choices
+            const eventChoices = eventEntry.querySelector('.event-choices');
+            eventChoices.insertAdjacentHTML('beforebegin', rewardsHtml);
 
             // Add event handlers
             addEventEntryHandlers(eventEntry);
@@ -929,6 +1020,19 @@
                                 ${allConversations.map(conv => `
                                     <option value="${conv._id}" ${conv._id === eventData.conversationId ? 'selected' : ''}>
                                         ${conv.title || conv._id}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                    `;
+                case 'gainClass':
+                    return `
+                        <div class="input-group">
+                            <label>Class:</label>
+                            <select class="event-class-select">
+                                ${allClasses.map(classObj => `
+                                    <option value="${classObj._id}" ${classObj._id === eventData.classId ? 'selected' : ''}>
+                                        ${classObj.name}
                                     </option>
                                 `).join('')}
                             </select>
@@ -1067,33 +1171,39 @@
                     eventType: event.eventType,
                     hint: event.hint,
                     isStart: event.isStart,
-                    isEnd: event.isEnd
+                    isEnd: event.isEnd,
+                    rewards: event.rewards || []
                 };
 
-                if (event.eventType === 'chat') {
-                    const actor = allActors.find(a => a._id === event.actorId);
-                    if (!actor) {
-                        console.error(`Actor not found for ID: ${event.actorId}`);
-                        return;
-                    }
-                    eventData = {
-                        ...eventData,
-                        actorId: event.actorId,
-                        message: event.message
-                    };
-                } else if (event.eventType === 'kill') {
-                    // Handle both populated and unpopulated mobId
-                    const mobId = event.mobId._id || event.mobId;
-                    const mob = allMobs.find(m => m._id === mobId);
-                    if (!mob) {
-                        console.error(`Mob not found for ID: ${mobId}`);
-                        return;
-                    }
-                    eventData = {
-                        ...eventData,
-                        mobId: mobId,
-                        quantity: event.quantity
-                    };
+                switch(event.eventType) {
+                    case 'chat':
+                        eventData = {
+                            ...eventData,
+                            actorId: event.actorId,
+                            message: event.message
+                        };
+                        break;
+                    case 'kill':
+                        // Handle both populated and unpopulated mobId
+                        const mobId = event.mobId._id || event.mobId;
+                        eventData = {
+                            ...eventData,
+                            mobId: mobId,
+                            quantity: event.quantity
+                        };
+                        break;
+                    case 'conversation':
+                        eventData = {
+                            ...eventData,
+                            conversationId: event.conversationId._id || event.conversationId
+                        };
+                        break;
+                    case 'gainClass':
+                        eventData = {
+                            ...eventData,
+                            classId: event.classId._id || event.classId
+                        };
+                        break;
                 }
 
                 const eventEntry = createEventEntry(eventData);
@@ -1171,7 +1281,13 @@
                                 nextEventId: choice.querySelector('.choice-target-select').value
                             })),
                         isStart: event.dataset.isStart === 'true',
-                        isEnd: event.dataset.isEnd === 'true'
+                        isEnd: event.dataset.isEnd === 'true',
+                        rewards: Array.from(event.querySelectorAll('.reward-entry'))
+                            .map(reward => ({
+                                type: reward.querySelector('.reward-type-select').value,
+                                value: reward.querySelector('.reward-value-select').value,
+                                valueRef: 'Class' // Currently hardcoded as we only have Class rewards
+                            }))
                     };
 
                     switch(eventType) {
@@ -1191,6 +1307,11 @@
                             return {
                                 ...baseEvent,
                                 conversationId: event.querySelector('.event-conversation-select').value
+                            };
+                        case 'gainClass':
+                            return {
+                                ...baseEvent,
+                                classId: event.querySelector('.event-class-select').value
                             };
                         default:
                             return baseEvent;
@@ -1302,13 +1423,15 @@
             const chatFields = document.getElementById('chatEventFields');
             const killFields = document.getElementById('killEventFields');
             const conversationFields = document.getElementById('conversationEventFields');
+            const gainClassFields = document.getElementById('gainClassEventFields');
             const actorSelection = document.getElementById('actorSelection');
             
             // Hide all fields first
             chatFields.style.display = 'none';
             killFields.style.display = 'none';
             conversationFields.style.display = 'none';
-            actorSelection.style.display = 'block';  // Show actor by default
+            gainClassFields.style.display = 'none';
+            actorSelection.style.display = 'block';
             
             switch(e.target.value) {
                 case 'chat':
@@ -1319,7 +1442,11 @@
                     break;
                 case 'conversation':
                     conversationFields.style.display = 'block';
-                    actorSelection.style.display = 'none';  // Hide actor for conversation events
+                    actorSelection.style.display = 'none';
+                    break;
+                case 'gainClass':
+                    gainClassFields.style.display = 'block';
+                    actorSelection.style.display = 'none';
                     break;
             }
         });
@@ -1352,6 +1479,11 @@
                         const convSelect = eventEntry.querySelector('.event-conversation-select');
                         const convName = convSelect.options[convSelect.selectedIndex].text;
                         confirmMessage = `Conversation: "${convName}"`;
+                        break;
+                    case 'gainClass':
+                        const classSelect = eventEntry.querySelector('.event-class-select');
+                        const className = classSelect.options[classSelect.selectedIndex].text;
+                        confirmMessage = `Gain class: ${className}`;
                         break;
                 }
                 
@@ -1396,6 +1528,11 @@
                     break;
                 case 'conversation':
                     eventEntry.querySelector('.event-conversation-select')?.addEventListener('change', () => {
+                        updateEventTargets();
+                    });
+                    break;
+                case 'gainClass':
+                    eventEntry.querySelector('.event-class-select')?.addEventListener('change', () => {
                         updateEventTargets();
                     });
                     break;
@@ -1456,6 +1593,17 @@
             });
         }
 
+        function populateClassSelect() {
+            const eventClass = document.getElementById('eventClass');
+            eventClass.innerHTML = '<option value="">Select Class</option>';
+            allClasses.forEach(classObj => {
+                const option = document.createElement('option');
+                option.value = classObj._id;
+                option.textContent = classObj.name;
+                eventClass.appendChild(option);
+            });
+        }
+
         // First, add this CSS to your existing styles section
         function addStyleToHead() {
             const style = document.createElement('style');
@@ -1499,6 +1647,36 @@
             document.head.appendChild(style);
         }
         addStyleToHead();
+
+        // Add these new functions
+        function createRewardEntry(reward = {}) {
+            return `
+                <div class="reward-entry">
+                    <select class="reward-type-select">
+                        <option value="gainClass" ${reward.type === 'gainClass' ? 'selected' : ''}>Gain Class</option>
+                    </select>
+                    <select class="reward-value-select">
+                        <option value="">Select value...</option>
+                        ${allClasses.map(c => `
+                            <option value="${c._id}" ${reward.value === c._id ? 'selected' : ''}>
+                                ${c.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                    <span class="remove-reward" onclick="removeReward(this)">×</span>
+                </div>
+            `;
+        }
+
+        function addReward(button) {
+            const rewardsList = button.previousElementSibling;
+            const rewardEntry = createRewardEntry();
+            rewardsList.insertAdjacentHTML('beforeend', rewardEntry);
+        }
+
+        function removeReward(button) {
+            button.closest('.reward-entry').remove();
+        }
     </script>
 </body>
 </html> 

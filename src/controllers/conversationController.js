@@ -16,6 +16,47 @@ async function getConversations(req, res) {
     }
 }
 
+async function validateNode(node) {
+    if (!node.prompt) {
+        throw new Error('Each node must have a prompt');
+    }
+
+    // Validate restrictions if present
+    if (node.restrictions) {
+        if (!Array.isArray(node.restrictions)) {
+            throw new Error('restrictions must be an array');
+        }
+        const validRestrictions = ['noClass', 'enforcerOnly'];
+        node.restrictions.forEach(restriction => {
+            if (!validRestrictions.includes(restriction)) {
+                throw new Error(`Invalid restriction: ${restriction}`);
+            }
+        });
+    }
+
+    // Validate questCompletionEvents if present
+    if (node.questCompletionEvents) {
+        if (!Array.isArray(node.questCompletionEvents)) {
+            throw new Error('questCompletionEvents must be an array');
+        }
+    }
+
+    if (node.choices) {
+        if (!Array.isArray(node.choices)) {
+            throw new Error('Choices must be an array');
+        }
+
+        node.choices.forEach(choice => {
+            if (!choice.text) {
+                throw new Error('Each choice must have text');
+            }
+            if (choice.nextNode) {
+                validateNode(choice.nextNode);
+            }
+        });
+    }
+}
+
 async function createOrUpdateConversation(req, res) {
     const { _id, title, actorId, rootNode } = req.body;
     
@@ -25,38 +66,9 @@ async function createOrUpdateConversation(req, res) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        // Validate the conversation tree structure
-        function validateNode(node) {
-            if (!node.prompt) {
-                throw new Error('Each node must have a prompt');
-            }
-
-            // Validate questCompletionEvents if present
-            if (node.questCompletionEvents) {
-                if (!Array.isArray(node.questCompletionEvents)) {
-                    throw new Error('questCompletionEvents must be an array');
-                }
-            }
-
-            if (node.choices) {
-                if (!Array.isArray(node.choices)) {
-                    throw new Error('Choices must be an array');
-                }
-
-                node.choices.forEach(choice => {
-                    if (!choice.text) {
-                        throw new Error('Each choice must have text');
-                    }
-                    if (choice.nextNode) {
-                        validateNode(choice.nextNode);
-                    }
-                });
-            }
-        }
-
         // Validate the entire conversation tree
         try {
-            validateNode(rootNode);
+            await validateNode(rootNode);
         } catch (error) {
             return res.status(400).json({ 
                 error: 'Invalid conversation structure',

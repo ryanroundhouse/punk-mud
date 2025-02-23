@@ -26,39 +26,39 @@ async function getPublicActors(req, res) {
 }
 
 async function createOrUpdateActor(req, res) {
-    const { id, name, description, image, location, chatMessages } = req.body;
-    
     try {
+        const { _id, name, description, image, location, chatMessages } = req.body;
+        
         if (!name || !description) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        if (id) {
-            const existingActor = await Actor.findById(id);
-            if (!existingActor) {
-                return res.status(404).json({ error: 'Actor not found' });
-            }
-
-            existingActor.name = name;
-            existingActor.description = description;
-            existingActor.image = image;
-            existingActor.location = location;
-            existingActor.chatMessages = chatMessages;
-            
-            await existingActor.save();
-            return res.json(existingActor);
-        }
-
-        const actor = new Actor({
+        const actorData = {
             name,
             description,
             image,
             location,
             chatMessages
-        });
+        };
+
+        let actor;
+        if (_id) {
+            // Update existing actor
+            actor = await Actor.findByIdAndUpdate(
+                _id,
+                actorData,
+                { new: true, runValidators: true }
+            );
+            if (!actor) {
+                return res.status(404).json({ error: 'Actor not found' });
+            }
+        } else {
+            // Create new actor
+            actor = new Actor(actorData);
+            await actor.save();
+        }
         
-        await actor.save();
-        res.status(201).json(actor);
+        res.json(actor);
     } catch (error) {
         logger.error('Error saving actor:', error);
         res.status(500).json({ error: 'Error saving actor' });

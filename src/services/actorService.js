@@ -28,8 +28,30 @@ class ActorService {
 
     async getActorChatMessage(actor, stateKey, currentIndex) {
         try {
+            logger.debug('Getting chat message for actor:', {
+                actorId: actor._id,
+                actorName: actor.name,
+                stateKey,
+                currentIndex,
+                chatMessagesCount: actor.chatMessages?.length || 0
+            });
+
             const sortedMessages = [...actor.chatMessages].sort((a, b) => a.order - b.order);
+            logger.debug('Sorted messages:', {
+                messagesCount: sortedMessages.length,
+                messages: sortedMessages.map(m => ({ order: m.order, message: m.message }))
+            });
+
             const message = sortedMessages[currentIndex];
+            logger.debug('Selected message:', {
+                currentIndex,
+                message: message ? {
+                    order: message.order,
+                    message: message.message,
+                    hasQuestEvents: message.questCompletionEvents?.length > 0
+                } : 'undefined'
+            });
+
             const nextIndex = (currentIndex + 1) % sortedMessages.length;
             
             if (message.questCompletionEvents && message.questCompletionEvents.length > 0) {
@@ -63,10 +85,19 @@ class ActorService {
                 }
             }
 
-            return {
-                message: message.message,
+            const result = {
+                message: message?.message,
                 nextIndex
             };
+            
+            logger.debug('Returning chat message result:', {
+                messageContent: result.message,
+                nextIndex: result.nextIndex,
+                isMessageDefined: result.message !== undefined,
+                messageType: typeof result.message
+            });
+            
+            return result;
         } catch (error) {
             logger.error('Error processing actor chat message:', error);
             throw error;

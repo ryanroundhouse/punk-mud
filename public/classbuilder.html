@@ -391,6 +391,17 @@
                         </div>
                     </div>
 
+                    <div class="form-group">
+                        <label>Move Growth:</label>
+                        <div class="growth-section">
+                            <h3>Level-based Moves</h3>
+                            <div id="moveGrowth">
+                                <!-- Move growth entries will be added here -->
+                            </div>
+                            <button type="button" class="action-button" onclick="addMoveGrowth()">Add Move</button>
+                        </div>
+                    </div>
+
                     <div class="form-actions">
                         <button class="action-button delete-button hidden" id="deleteClassBtn">Delete Class</button>
                         <button class="action-button" id="saveClassBtn">Save Class</button>
@@ -604,12 +615,14 @@
             // Load move growth
             const moveGrowthContainer = document.getElementById('moveGrowth');
             moveGrowthContainer.innerHTML = '';
-            cls.moveGrowth?.forEach(growth => {
-                addMoveGrowth();
-                const entry = moveGrowthContainer.lastElementChild;
-                entry.querySelector('.move-growth-level').value = growth.level;
-                entry.querySelector('.move-growth-move').value = growth.move._id;
-            });
+            if (cls.moveGrowth && cls.moveGrowth.length > 0) {
+                cls.moveGrowth.forEach(growth => {
+                    addMoveGrowth();
+                    const entry = moveGrowthContainer.lastElementChild;
+                    entry.querySelector('.move-growth-level').value = growth.level;
+                    entry.querySelector('.move-growth-move').value = growth.move._id || growth.move;
+                });
+            }
 
             // Highlight selected class
             document.querySelectorAll('.move-entry').forEach(entry => {
@@ -651,13 +664,20 @@
                 hpPerBod: parseFloat(document.getElementById('hpPerBod').value),
                 primaryStat: document.getElementById('primaryStat').value,
                 secondaryStats: Array.from(document.querySelectorAll('.secondary-stat-checkbox:checked')).map(cb => cb.value),
-                moveGrowth: Array.from(document.querySelectorAll('#moveGrowth .growth-entry')).map(entry => ({
+                moveGrowth: Array.from(document.querySelectorAll('.growth-entry')).map(entry => ({
                     level: parseInt(entry.querySelector('.move-growth-level').value),
                     move: entry.querySelector('.move-growth-move').value
                 }))
             };
 
             try {
+                // Validate move growth data
+                const levels = classData.moveGrowth.map(mg => mg.level);
+                const uniqueLevels = new Set(levels);
+                if (levels.length !== uniqueLevels.size) {
+                    throw new Error('Each level can only have one move growth entry');
+                }
+
                 const response = await fetch('/api/classes', {
                     method: 'POST',
                     headers: {
@@ -667,13 +687,13 @@
                     body: JSON.stringify(classData)
                 });
 
-                if (response.ok) {
-                    alert('Class saved successfully!');
-                    loadClasses();
-                } else {
+                if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.error || 'Failed to save class');
                 }
+
+                alert('Class saved successfully!');
+                await loadClasses();
             } catch (error) {
                 console.error('Error saving class:', error);
                 alert(error.message || 'Error saving class');

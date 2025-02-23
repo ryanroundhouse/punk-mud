@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema({
         unique: true,
         sparse: true
     },
+    class: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Class'
+    },
     description: String,
     image: String,
     authCode: {

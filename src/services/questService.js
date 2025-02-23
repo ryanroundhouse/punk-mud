@@ -3,6 +3,7 @@ const User = require('../models/User');
 const logger = require('../config/logger');
 const messageService = require('./messageService');
 const userService = require('./userService');
+const Class = require('../models/Class');
 
 class QuestService {
     async getActiveQuests(userId) {
@@ -60,8 +61,15 @@ class QuestService {
 
     async handleQuestProgression(user, actorId, completionEventIds = [], questToActivate = null) {
         try {
+            // Add validation at the start
+            if (!user) {
+                logger.error('handleQuestProgression called with undefined user');
+                return null;
+            }
+
             logger.debug('handleQuestProgression called with:', {
-                userId: user._id.toString(),
+                hasUser: !!user,
+                userId: user._id?.toString(),
                 actorId,
                 completionEventIds,
                 questToActivate,
@@ -142,75 +150,88 @@ class QuestService {
                             e._id.toString() === nextEventChoice.nextEventId.toString()
                         );
 
-                        if (nextEvent?.isEnd) {
-                            logger.debug('Found end event:', {
-                                eventId: nextEvent._id.toString(),
-                                questId: quest._id.toString(),
-                                questTitle: quest.title,
-                                hasExperiencePoints: !!quest.experiencePoints,
-                                experiencePoints: quest.experiencePoints
-                            });
+                        if (nextEvent) {
+                            // Add reward handling here
+                            await this.handleEventRewards(user, nextEvent);
 
-                            userQuest.completed = true;
-                            userQuest.completedAt = new Date();
-                            
-                            // Award experience points for quest completion
-                            try {
-                                const experiencePoints = quest.experiencePoints || 0;
-                                if (experiencePoints > 0) {
-                                    logger.debug('Attempting to award experience:', {
-                                        questId: quest._id.toString(),
-                                        questTitle: quest.title,
-                                        experiencePoints,
-                                        userId: user._id.toString()
-                                    });
-
-                                    const experienceResult = await userService.awardExperience(user._id.toString(), experiencePoints);
-                                    
-                                    logger.debug('Experience award result:', {
-                                        success: experienceResult.success,
-                                        experienceGained: experienceResult.experienceGained,
-                                        leveledUp: experienceResult.leveledUp,
-                                        newLevel: experienceResult.newLevel
-                                    });
-
-                                    if (experienceResult.success) {
-                                        messageService.sendSuccessMessage(
-                                            user._id.toString(),
-                                            `Quest "${quest.title}" completed!\nYou gained ${experiencePoints} experience points!` +
-                                            (experienceResult.leveledUp ? `\nYou reached level ${experienceResult.newLevel}!` : '')
-                                        );
-                                    } else {
-                                        messageService.sendSuccessMessage(
-                                            user._id.toString(),
-                                            `Quest "${quest.title}" completed!`
-                                        );
-                                    }
-                                } else {
-                                    logger.debug('No experience points to award for quest:', {
-                                        questId: quest._id.toString(),
-                                        questTitle: quest.title
-                                    });
-                                }
-                            } catch (error) {
-                                logger.error('Error in experience award process:', error, {
+                            if (nextEvent.isEnd) {
+                                logger.debug('Found end event:', {
+                                    eventId: nextEvent._id.toString(),
                                     questId: quest._id.toString(),
                                     questTitle: quest.title,
-                                    experiencePoints: quest.experiencePoints,
-                                    userId: user._id.toString()
+                                    hasExperiencePoints: !!quest.experiencePoints,
+                                    experiencePoints: quest.experiencePoints
+                                });
+
+                                userQuest.completed = true;
+                                userQuest.completedAt = new Date();
+                                
+                                // Make sure to save the user object after updating the quest
+                                await user.save();
+
+                                // Always send completion message first
+                                messageService.sendSuccessMessage(
+                                    user._id.toString(),
+                                    `Quest "${quest.title}" completed!`
+                                );
+
+                                // Award experience points for quest completion
+                                try {
+                                    const experiencePoints = quest.experiencePoints || 0;
+                                    if (experiencePoints > 0) {
+                                        logger.debug('Attempting to award experience:', {
+                                            questId: quest._id.toString(),
+                                            questTitle: quest.title,
+                                            experiencePoints,
+                                            userId: user._id.toString()
+                                        });
+
+                                        const experienceResult = await userService.awardExperience(user._id.toString(), experiencePoints);
+                                        
+                                        logger.debug('Experience award result:', {
+                                            success: experienceResult.success,
+                                            experienceGained: experienceResult.experienceGained,
+                                            leveledUp: experienceResult.leveledUp,
+                                            newLevel: experienceResult.newLevel
+                                        });
+
+                                        if (experienceResult.success && experienceResult.leveledUp) {
+                                            messageService.sendSuccessMessage(
+                                                user._id.toString(),
+                                                `You gained ${experiencePoints} experience points!\nYou reached level ${experienceResult.newLevel}!`
+                                            );
+                                        }
+                                    } else {
+                                        logger.debug('No experience points to award for quest:', {
+                                            questId: quest._id.toString(),
+                                            questTitle: quest.title
+                                        });
+                                    }
+                                } catch (error) {
+                                    logger.error('Error in experience award process:', error);
+                                }
+
+                                questUpdates.push({
+                                    type: 'quest_complete',
+                                    questTitle: quest.title,
+                                    experiencePoints: quest.experiencePoints || 0
+                                });
+
+                                // Add debug logging for quest completion
+                                logger.debug('Quest completed and saved:', {
+                                    questId: quest._id.toString(),
+                                    questTitle: quest.title,
+                                    userId: user._id.toString(),
+                                    userQuestStatus: userQuest
+                                });
+
+                                return questUpdates;
+                            } else {
+                                logger.debug('Next event is not an end event:', {
+                                    eventId: nextEvent._id.toString(),
+                                    isEnd: nextEvent.isEnd
                                 });
                             }
-
-                            questUpdates.push({
-                                type: 'quest_complete',
-                                questTitle: quest.title,
-                                experiencePoints: quest.experiencePoints || 0
-                            });
-                        } else {
-                            logger.debug('Next event is not an end event:', {
-                                eventId: nextEvent._id.toString(),
-                                isEnd: nextEvent.isEnd
-                            });
                         }
                     } else {
                         logger.debug('No matching next event choice found in current event choices');
@@ -240,6 +261,10 @@ class QuestService {
                                 completedEventIds: [],
                                 startedAt: new Date()
                             });
+
+                            // Add reward handling for start event
+                            await this.handleEventRewards(user, startEvent);
+                            
                             await user.save();
                             
                             // Only send the quest start message if there's a message to send
@@ -466,7 +491,9 @@ class QuestService {
                                 userQuest.completedEventIds.push(currentEvent._id.toString());
                                 userQuest.currentEventId = nextEvent._id.toString();
                                 
-                                // Move this AFTER sending the message
+                                // Add reward handling before sending messages
+                                await this.handleEventRewards(user, nextEvent);
+
                                 messageService.sendQuestsMessage(
                                     user._id.toString(),
                                     `Quest "${quest.title}" updated: Kill requirement complete!${nextEvent.message ? '\n\n' + nextEvent.message : ''}`
@@ -518,6 +545,48 @@ class QuestService {
         } catch (error) {
             logger.error('Error handling mob kill for quests:', error);
             return null;
+        }
+    }
+
+    async handleEventRewards(user, event) {
+        if (!event.rewards || event.rewards.length === 0) {
+            return;
+        }
+
+        for (const reward of event.rewards) {
+            if (reward.type === 'gainClass') {
+                try {
+                    // Verify the class exists
+                    const classDoc = await Class.findById(reward.value);
+                    if (!classDoc) {
+                        logger.error('Class not found for reward:', {
+                            classId: reward.value,
+                            userId: user._id
+                        });
+                        continue;
+                    }
+
+                    // Use the new setUserClass method
+                    const result = await userService.setUserClass(user._id, classDoc._id);
+                    
+                    if (result.success) {
+                        messageService.sendSuccessMessage(
+                            user._id.toString(),
+                            `You have gained the ${result.className} class!\n` +
+                            `Your hitpoints are now ${result.stats.hitpoints}.\n` +
+                            `You have gained ${result.moveCount} class moves!`
+                        );
+
+                        logger.debug('Class reward granted:', {
+                            userId: user._id,
+                            className: result.className,
+                            stats: result.stats
+                        });
+                    }
+                } catch (error) {
+                    logger.error('Error handling class reward:', error);
+                }
+            }
         }
     }
 }

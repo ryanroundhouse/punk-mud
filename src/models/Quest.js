@@ -24,7 +24,7 @@ const questSchema = new mongoose.Schema({
         eventType: {
             type: String,
             required: true,
-            enum: ['chat', 'kill', 'conversation'],  // Added 'conversation' event type
+            enum: ['chat', 'kill', 'conversation'],  // Removed 'gainClass'
             default: 'chat'
         },
         // Common fields for all event types
@@ -46,10 +46,30 @@ const questSchema = new mongoose.Schema({
             type: Boolean,
             default: false
         },
+        // Event rewards
+        rewards: [{
+            type: {
+                type: String,
+                required: true,
+                enum: ['gainClass'],
+                default: 'gainClass'
+            },
+            value: {
+                type: mongoose.Schema.Types.ObjectId,
+                required: true,
+                refPath: 'events.rewards.valueRef'
+            },
+            valueRef: {
+                type: String,
+                required: true,
+                enum: ['Class'],
+                default: 'Class'
+            }
+        }],
         // Chat event specific fields
         actorId: {
             type: String,
-            required: function() { return this.eventType === 'chat'; }, // Removed conversation requirement
+            required: function() { return this.eventType === 'chat'; },
             ref: 'Actor'
         },
         message: {

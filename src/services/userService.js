@@ -4,6 +4,7 @@ const logger = require('../config/logger');
 const socketService = require('./socketService');
 const stateService = require('./stateService');
 const messageService = require('./messageService');
+const Class = require('../models/Class');
 
 class UserService {
     async getUser(userId) {
@@ -151,6 +152,78 @@ flee.............Attempt to escape combat
             };
         } catch (error) {
             logger.error('Error awarding experience:', error);
+            throw error;
+        }
+    }
+
+    async setUserClass(userId, classId) {
+        try {
+            const user = await User.findById(userId);
+            if (!user) {
+                throw new Error('User not found');
+            }
+
+            const classDoc = await Class.findById(classId).populate('moveGrowth.move');
+            if (!classDoc) {
+                throw new Error('Class not found');
+            }
+
+            // Store the class
+            user.class = classDoc._id;
+
+            // Reset all stats to 1 first
+            const stats = ['body', 'reflexes', 'agility', 'tech', 'luck', 'charisma'];
+            stats.forEach(stat => {
+                user.stats[stat] = 1;
+            });
+
+            // Calculate level-based stat bonuses
+            const level = user.stats.level;
+            stats.forEach(stat => {
+                let bonus = level; // Base +1 per level for all stats
+
+                if (stat === classDoc.primaryStat) {
+                    bonus += level * 2; // Additional +2 for primary stat (+3 total)
+                } else if (classDoc.secondaryStats.includes(stat)) {
+                    bonus += level; // Additional +1 for secondary stats (+2 total)
+                }
+
+                user.stats[stat] += bonus;
+            });
+
+            // Calculate hitpoints
+            const baseHP = classDoc.baseHitpoints;
+            const levelBonus = classDoc.hpPerLevel * level;
+            const bodyBonus = Math.ceil(classDoc.hpPerBod * user.stats.body);
+            user.stats.hitpoints = baseHP + levelBonus + bodyBonus;
+            user.stats.currentHitpoints = user.stats.hitpoints;
+
+            // Set moves based on level
+            const availableMoves = classDoc.moveGrowth
+                .filter(mg => mg.level <= level)
+                .map(mg => mg.move._id);
+            user.moves = availableMoves;
+
+            await user.save();
+
+            logger.debug('User class set successfully:', {
+                userId: user._id,
+                className: classDoc.name,
+                level: level,
+                hitpoints: user.stats.hitpoints,
+                primaryStat: classDoc.primaryStat,
+                secondaryStats: classDoc.secondaryStats,
+                moveCount: availableMoves.length
+            });
+
+            return {
+                success: true,
+                className: classDoc.name,
+                stats: user.stats,
+                moveCount: availableMoves.length
+            };
+        } catch (error) {
+            logger.error('Error setting user class:', error);
             throw error;
         }
     }

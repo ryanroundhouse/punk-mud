@@ -68,4 +68,16 @@ classSchema.pre('save', function(next) {
     next();
 });
 
+// Add validation to ensure unique levels in moveGrowth
+classSchema.pre('save', function(next) {
+    // Check for duplicate levels
+    const levels = this.moveGrowth.map(mg => mg.level);
+    const uniqueLevels = new Set(levels);
+    if (levels.length !== uniqueLevels.size) {
+        next(new Error('Duplicate levels in move growth are not allowed'));
+        return;
+    }
+    next();
+});
+
 module.exports = mongoose.model('Class', classSchema); 

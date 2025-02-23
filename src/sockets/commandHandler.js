@@ -240,8 +240,19 @@ async function handleChatCommand(socket, user, target) {
 
     if (actor) {
         // Try to start a conversation
+        logger.debug('Attempting to start conversation:', {
+            userId: user._id,
+            actorId: actor._id,
+            actorName: actor.name
+        });
+        
         const conversationResult = await conversationService.handleActorChat(user, actor);
         
+        logger.debug('Conversation result:', {
+            hasResult: !!conversationResult,
+            message: conversationResult?.message
+        });
+
         if (conversationResult) {
             socket.emit('console response', {
                 type: 'chat',
@@ -251,6 +262,7 @@ async function handleChatCommand(socket, user, target) {
         }
 
         // Fall back to quest progression if no conversation available
+        logger.debug('Checking quest progression');
         const questResponse = await questService.handleQuestProgression(user, actor.id);
 
         if (questResponse) {
@@ -268,9 +280,17 @@ async function handleChatCommand(socket, user, target) {
         }
 
         // Regular actor chat
+        logger.debug('Falling back to regular actor chat');
         const stateKey = `${socket.user.userId}-${actor.id}`;
         let currentIndex = stateService.actorChatStates.get(stateKey) || 0;
-        const chatResult = actorService.getActorChatMessage(actor, stateKey, currentIndex);
+        const chatResult = await actorService.getActorChatMessage(actor, stateKey, currentIndex);
+        
+        logger.debug('Regular chat result:', {
+            stateKey,
+            currentIndex,
+            chatResult
+        });
+
         stateService.actorChatStates.set(stateKey, chatResult.nextIndex);
 
         socket.emit('console response', {

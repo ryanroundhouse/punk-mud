@@ -6,6 +6,12 @@ const conversationNodeSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    // Replace the restrictedToNoClass with an array of restrictions
+    restrictions: [{
+        type: String,
+        enum: ['noClass', 'enforcerOnly'],
+        trim: true
+    }],
     // Optional quest that must be active to see this option
     requiredQuestId: {
         type: mongoose.Schema.Types.ObjectId,

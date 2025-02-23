@@ -93,6 +93,13 @@ class ConversationService {
         try {
             const rootNode = conversation.rootNode;
             
+            logger.debug('Starting conversation:', {
+                userId,
+                conversationId: conversation._id,
+                hasActivateQuest: !!rootNode.activateQuestId,
+                activateQuestId: rootNode.activateQuestId?._id?.toString()
+            });
+
             // Store conversation state using stateService
             stateService.setActiveConversation(
                 userId, 
@@ -103,7 +110,26 @@ class ConversationService {
 
             // Handle quest activation if specified
             if (rootNode.activateQuestId) {
-                await questService.handleQuestProgression(userId, rootNode.activateQuestId);
+                // Get the user object first
+                const user = await User.findById(userId);
+                if (!user) {
+                    logger.error('User not found when starting conversation:', { userId });
+                    return null;
+                }
+                
+                logger.debug('Activating quest from conversation:', {
+                    userId: user._id.toString(),
+                    questId: rootNode.activateQuestId._id.toString(),
+                    questTitle: rootNode.activateQuestId.title
+                });
+
+                // Pass the correct parameters
+                await questService.handleQuestProgression(
+                    user,
+                    conversation.actorId,
+                    [],  // No completion events
+                    rootNode.activateQuestId._id  // Pass the actual quest ID
+                );
             }
 
             // Handle quest completion events
@@ -146,20 +172,35 @@ class ConversationService {
             }
 
             // Get user data to check quests
-            const user = await User.findById(userId);
+            let user = await User.findById(userId);
             
             // Filter choices first
             const validChoices = currentNode.choices
                 .map((choice, index) => ({ choice, originalIndex: index }))
                 .filter(({ choice }) => {
-                    if (!choice.nextNode?.activateQuestId) return true;
-                    
-                    // Check if user already has this quest
-                    const hasQuest = user.quests?.some(userQuest => 
-                        userQuest.questId.toString() === choice.nextNode.activateQuestId.toString()
-                    );
-                    
-                    return !hasQuest;
+                    // Check quest activation restriction
+                    if (choice.nextNode?.activateQuestId) {
+                        const hasQuest = user.quests?.some(userQuest => 
+                            userQuest.questId.toString() === choice.nextNode.activateQuestId.toString()
+                        );
+                        if (hasQuest) return false;
+                    }
+
+                    // Check node restrictions
+                    if (choice.nextNode?.restrictions?.length > 0) {
+                        for (const restriction of choice.nextNode.restrictions) {
+                            // 'noClass' restriction - only show if user has no class
+                            if (restriction === 'noClass' && user.class) {
+                                return false;
+                            }
+                            // 'enforcerOnly' restriction - only show if user is enforcer class
+                            if (restriction === 'enforcerOnly' && (!user.class || user.class.name !== 'Enforcer')) {
+                                return false;
+                            }
+                        }
+                    }
+
+                    return true;
                 });
 
             // End conversation if no valid choices remain
@@ -180,23 +221,46 @@ class ConversationService {
             }
 
             const selectedChoice = validChoices[selectedIndex].choice;
+            
             logger.debug('Selected choice:', {
                 text: selectedChoice.text,
                 hasNextNode: !!selectedChoice.nextNode,
-                hasActivateQuest: !!selectedChoice.nextNode?.activateQuestId
+                hasActivateQuest: !!selectedChoice.nextNode?.activateQuestId,
+                hasQuestCompletionEvents: !!selectedChoice.nextNode?.questCompletionEvents?.length
             });
+
+            // Process quest completion events BEFORE updating state or ending conversation
+            if (selectedChoice.nextNode?.questCompletionEvents?.length > 0) {
+                logger.debug('Processing quest completion events:', {
+                    events: selectedChoice.nextNode.questCompletionEvents,
+                    userId: user._id.toString()
+                });
+
+                const result = await questService.handleQuestProgression(
+                    user,
+                    activeConv.actorId,
+                    selectedChoice.nextNode.questCompletionEvents
+                );
+
+                // Refresh user after quest progression
+                user = await User.findById(userId);
+                
+                logger.debug('Quest completion result:', { result });
+            }
 
             // Handle quest activation if specified in the choice's next node
             if (selectedChoice.nextNode?.activateQuestId) {
-                const user = await User.findById(userId);
-                if (user) {
-                    await questService.handleQuestProgression(
-                        user,
-                        activeConv.actorId,
-                        [],  // No completion events
-                        selectedChoice.nextNode.activateQuestId // Pass the quest to activate
-                    );
+                if (!user) {
+                    logger.error('User not found for quest activation:', { userId });
+                    return null;
                 }
+
+                await questService.handleQuestProgression(
+                    user,
+                    activeConv.actorId,
+                    [],  // No completion events
+                    selectedChoice.nextNode.activateQuestId // Pass the quest to activate
+                );
             }
 
             if (!selectedChoice.nextNode) {
@@ -217,37 +281,10 @@ class ConversationService {
                 activeConv.actorId
             );
 
-            // Handle quest completion events
-            if (selectedChoice.nextNode.questCompletionEvents?.length > 0) {
-                const user = await User.findById(userId);
-                if (user) {
-                    logger.debug('Processing conversation quest completion events:', {
-                        userId: user._id.toString(),
-                        events: selectedChoice.nextNode.questCompletionEvents,
-                        userQuests: user.quests.map(q => ({
-                            questId: q.questId,
-                            currentEventId: q.currentEventId,
-                            completed: q.completed
-                        }))
-                    });
-                    
-                    const result = await questService.handleQuestProgression(
-                        user, 
-                        activeConv.actorId,
-                        selectedChoice.nextNode.questCompletionEvents
-                    );
-
-                    logger.debug('Quest progression result:', {
-                        result,
-                        conversationId: activeConv.conversationId
-                    });
-                }
-            }
-
-            // Update the formatConversationResponse call to include userId
+            // Return the formatted response
             return await this.formatConversationResponse(selectedChoice.nextNode, userId);
         } catch (error) {
-            logger.error('Error handling conversation choice:', error);
+            logger.error('Error in handleConversationChoice:', error);
             return null;
         }
     }
@@ -256,21 +293,36 @@ class ConversationService {
         let response = node.prompt + '\n\n';
         
         if (node.choices && node.choices.length > 0) {
-            // Get user data to check quests
+            // Get user data to check quests and class
             const user = await User.findById(userId);
             
-            // Filter choices
+            // Filter choices based on restrictions and quests
             const validChoices = node.choices
                 .map((choice, index) => ({ choice, originalIndex: index }))
                 .filter(({ choice }) => {
-                    if (!choice.nextNode?.activateQuestId) return true;
-                    
-                    // Check if user already has this quest
-                    const hasQuest = user.quests?.some(userQuest => 
-                        userQuest.questId.toString() === choice.nextNode.activateQuestId.toString()
-                    );
-                    
-                    return !hasQuest;
+                    // Check quest activation restriction
+                    if (choice.nextNode?.activateQuestId) {
+                        const hasQuest = user.quests?.some(userQuest => 
+                            userQuest.questId.toString() === choice.nextNode.activateQuestId.toString()
+                        );
+                        if (hasQuest) return false;
+                    }
+
+                    // Check node restrictions
+                    if (choice.nextNode?.restrictions?.length > 0) {
+                        for (const restriction of choice.nextNode.restrictions) {
+                            // 'noClass' restriction - only show if user has no class
+                            if (restriction === 'noClass' && user.class) {
+                                return false;
+                            }
+                            // 'enforcerOnly' restriction - only show if user is enforcer class
+                            if (restriction === 'enforcerOnly' && (!user.class || user.class.name !== 'Enforcer')) {
+                                return false;
+                            }
+                        }
+                    }
+
+                    return true;
                 });
 
             if (validChoices.length > 0) {

@@ -303,6 +303,24 @@
         .node-prompt {
             min-height: 80px;
         }
+
+        .restrictions-container {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--terminal-green);
+        }
+
+        .restriction-checkbox {
+            width: auto;
+            margin: 0;
+        }
     </style>
 </head>
 <body>
@@ -342,6 +360,17 @@
                                 <div class="form-group">
                                     <label>Initial Prompt:</label>
                                     <textarea class="node-prompt" required></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>Restrictions:</label>
+                                    <div class="restrictions-container">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" class="restriction-checkbox" value="noClass"> No Class Only
+                                        </label>
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" class="restriction-checkbox" value="enforcerOnly"> Enforcer Only
+                                        </label>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label>Required Quest:</label>
@@ -529,6 +558,19 @@
                     <textarea class="node-prompt" required>${nodeData.prompt || ''}</textarea>
                 </div>
                 <div class="form-group">
+                    <label>Restrictions:</label>
+                    <div class="restrictions-container">
+                        <label class="checkbox-label">
+                            <input type="checkbox" class="restriction-checkbox" value="noClass"
+                                ${nodeData.restrictions?.includes('noClass') ? 'checked' : ''}> No Class Only
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" class="restriction-checkbox" value="enforcerOnly"
+                                ${nodeData.restrictions?.includes('enforcerOnly') ? 'checked' : ''}> Enforcer Only
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
                     <label>Required Quest:</label>
                     <select class="quest-select">
                         <option value="">No Quest Required</option>
@@ -649,6 +691,19 @@
                         <textarea class="node-prompt" required></textarea>
                     </div>
                     <div class="form-group">
+                        <label>Restrictions:</label>
+                        <div class="restrictions-container">
+                            <label class="checkbox-label">
+                                <input type="checkbox" class="restriction-checkbox" value="noClass"
+                                    ${conversation.rootNode.restrictions?.includes('noClass') ? 'checked' : ''}> No Class Only
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" class="restriction-checkbox" value="enforcerOnly"
+                                    ${conversation.rootNode.restrictions?.includes('enforcerOnly') ? 'checked' : ''}> Enforcer Only
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
                         <label>Required Quest:</label>
                         <select class="quest-select">
                             <option value="">No Quest Required</option>
@@ -700,6 +755,17 @@
                         <textarea class="node-prompt" required></textarea>
                     </div>
                     <div class="form-group">
+                        <label>Restrictions:</label>
+                        <div class="restrictions-container">
+                            <label class="checkbox-label">
+                                <input type="checkbox" class="restriction-checkbox" value="noClass"> No Class Only
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" class="restriction-checkbox" value="enforcerOnly"> Enforcer Only
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
                         <label>Required Quest:</label>
                         <select class="quest-select">
                             <option value="">No Quest Required</option>
@@ -740,9 +806,13 @@
                 const form = document.getElementById('conversationForm');
                 
                 function getNodeData(nodeElement) {
+                    const restrictions = Array.from(nodeElement.querySelectorAll('.restriction-checkbox:checked'))
+                        .map(checkbox => checkbox.value);
+
                     const questSelects = nodeElement.querySelectorAll('.quest-select');
                     const nodeData = {
                         prompt: nodeElement.querySelector('.node-prompt').value,
+                        restrictions: restrictions.length > 0 ? restrictions : undefined,
                         requiredQuestId: questSelects[0]?.value || undefined,
                         activateQuestId: questSelects[1]?.value || undefined,
                         questCompletionEvents: nodeElement.querySelector('.quest-events').value
@@ -752,7 +822,8 @@
                         choices: []
                     };
 
-                    // Remove undefined quest IDs
+                    // Remove undefined fields
+                    if (!nodeData.restrictions) delete nodeData.restrictions;
                     if (!nodeData.requiredQuestId) delete nodeData.requiredQuestId;
                     if (!nodeData.activateQuestId) delete nodeData.activateQuestId;
                     if (nodeData.questCompletionEvents.length === 0) delete nodeData.questCompletionEvents;
@@ -836,6 +907,12 @@
         function loadNodeData(nodeElement, nodeData) {
             nodeElement.querySelector('.node-prompt').value = nodeData.prompt || '';
             
+            // Handle restrictions
+            const restrictionCheckboxes = nodeElement.querySelectorAll('.restriction-checkbox');
+            restrictionCheckboxes.forEach(checkbox => {
+                checkbox.checked = nodeData.restrictions?.includes(checkbox.value) || false;
+            });
+
             // Handle quest selects more carefully
             const questSelects = nodeElement.querySelectorAll('.quest-select');
             if (questSelects[0]) {
