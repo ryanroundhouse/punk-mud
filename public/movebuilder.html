@@ -301,6 +301,28 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="basePower">Base Power:</label>
+                        <input type="number" 
+                               id="basePower" 
+                               min="1" 
+                               value="5" 
+                               required>
+                        <small style="color: var(--neon-blue)">Raw damage potential before scaling (e.g. 4 for quick moves, 10 for heavy moves)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="scalingFactor">Scaling Factor:</label>
+                        <input type="number" 
+                               id="scalingFactor" 
+                               min="0" 
+                               max="2" 
+                               step="0.1" 
+                               value="0.8" 
+                               required>
+                        <small style="color: var(--neon-blue)">Percentage-based modifier to attack stat (e.g. 0.6 for fast moves, 0.9 for heavy moves)</small>
+                    </div>
+
+                    <div class="form-group">
                         <label for="attackStat">Attack Stat:</label>
                         <select id="attackStat" required>
                             <option value="body">Body</option>
@@ -488,6 +510,8 @@
             document.getElementById('moveName').value = move.name;
             document.getElementById('helpDescription').value = move.helpDescription || '';
             document.getElementById('moveDelay').value = move.delay || 1;
+            document.getElementById('basePower').value = move.basePower || 5;
+            document.getElementById('scalingFactor').value = move.scalingFactor || 0.8;
             
             document.getElementById('attackStat').value = move.attackStat;
             document.getElementById('defenceStat').value = move.defenceStat;
@@ -512,6 +536,8 @@
             document.getElementById('moveName').value = '';
             document.getElementById('helpDescription').value = '';
             document.getElementById('moveDelay').value = '1';
+            document.getElementById('basePower').value = '5';
+            document.getElementById('scalingFactor').value = '0.8';
             
             document.getElementById('attackStat').value = 'body';
             document.getElementById('defenceStat').value = 'body';
@@ -522,20 +548,27 @@
 
         // Save move
         saveMoveBtn.addEventListener('click', async () => {
+            const moveId = document.getElementById('moveForm').dataset.moveId;
             const moveData = {
-                _id: document.getElementById('moveForm').dataset.moveId || undefined,
                 name: document.getElementById('moveName').value,
                 helpDescription: document.getElementById('helpDescription').value,
                 delay: parseInt(document.getElementById('moveDelay').value),
+                basePower: parseFloat(document.getElementById('basePower').value),
+                scalingFactor: parseFloat(document.getElementById('scalingFactor').value),
                 attackStat: document.getElementById('attackStat').value,
                 defenceStat: document.getElementById('defenceStat').value,
                 success: getEffectsData('success'),
                 failure: getEffectsData('failure')
             };
 
+            // If we have an ID, include it in the data
+            if (moveId) {
+                moveData._id = moveId;
+            }
+
             try {
                 const response = await fetch('/api/moves', {
-                    method: 'POST',
+                    method: moveId ? 'PUT' : 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -544,8 +577,13 @@
                 });
 
                 if (response.ok) {
+                    const savedMove = await response.json();
                     alert('Move saved successfully!');
-                    loadMoves();
+                    await loadMoves();
+                    
+                    // Update the form with the saved move's ID
+                    document.getElementById('moveForm').dataset.moveId = savedMove._id;
+                    deleteMoveBtn.classList.remove('hidden');
                 } else {
                     throw new Error('Failed to save move');
                 }

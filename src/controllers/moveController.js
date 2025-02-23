@@ -31,7 +31,9 @@ async function createOrUpdateMove(req, res) {
             attackStat,
             defenceStat,
             success,
-            failure
+            failure,
+            basePower,
+            scalingFactor
         } = req.body;
 
         if (!name) {
@@ -45,23 +47,27 @@ async function createOrUpdateMove(req, res) {
             attackStat,
             defenceStat,
             success,
-            failure
+            failure,
+            basePower: basePower || 5,
+            scalingFactor: scalingFactor || 0.8
         };
 
+        let savedMove;
         if (_id) {
-            const existingMove = await Move.findById(_id);
-            if (!existingMove) {
+            savedMove = await Move.findByIdAndUpdate(
+                _id,
+                moveData,
+                { new: true, runValidators: true }
+            );
+            if (!savedMove) {
                 return res.status(404).json({ error: 'Move not found' });
             }
-
-            Object.assign(existingMove, moveData);
-            const savedMove = await existingMove.save();
-            return res.json(savedMove);
+        } else {
+            const move = new Move(moveData);
+            savedMove = await move.save();
         }
 
-        const move = new Move(moveData);
-        const savedMove = await move.save();
-        res.status(201).json(savedMove);
+        res.json(savedMove);
 
     } catch (error) {
         logger.error('Error saving move:', error);

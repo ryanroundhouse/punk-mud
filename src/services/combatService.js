@@ -57,9 +57,45 @@ function calculateAttackResult(move, attacker, defender) {
     let damage = 0;
 
     if (success) {
-        // Set base damage
-        damage = 5;
-        messages.push('The attack succeeds and deals 5 damage!');
+        // New damage calculation
+        const basePower = move.basePower || 3; // Default base power if not specified
+        const scalingFactor = move.scalingFactor || 0.6; // Default scaling if not specified
+        const weaponBonus = attacker.equipment?.weapon?.damage || 0;
+        const targetArmor = defender.equipment?.armor?.defense || 0;
+        
+        // Random factor (d6 roll by default)
+        const randomRoll = Math.floor(Math.random() * (move.damageDice || 6)) + 1;
+        
+        // Calculate raw damage
+        const rawDamage = (
+            basePower + 
+            (attackerStatValue * scalingFactor) + 
+            weaponBonus + 
+            randomRoll
+        ) - (targetArmor / 2);
+
+        // Apply delay-based multiplier (normalized around delay 5)
+        const delayMultiplier = move.delay / 5;
+        damage = Math.max(1, Math.floor(rawDamage * delayMultiplier));
+
+        // Calculate DPR for debugging
+        const dpr = damage / move.delay;
+        
+        messages.push(`The attack hits for ${damage} damage! (DPR: ${dpr.toFixed(2)})`);
+
+        // Debug log for damage calculation
+        logger.debug('Damage calculation:', {
+            basePower,
+            attackerStat: attackerStatValue,
+            scalingFactor,
+            weaponBonus,
+            randomRoll,
+            targetArmor,
+            rawDamage,
+            delayMultiplier,
+            finalDamage: damage,
+            dpr
+        });
 
         // Add any success effects from the move
         if (move.success && Array.isArray(move.success)) {
@@ -215,43 +251,12 @@ async function processCombatUntilInput(user, mobInstance) {
         const playerEffectiveDelay = applyStunEffect([], playerDelay.delay, mobDelay.move);
         const mobEffectiveDelay = applyStunEffect([], mobDelay.delay, playerDelay.move);
 
-        // Debug log delays
-        logger.debug('Combat delays:', {
-            player: {
-                name: user.avatarName,
-                move: playerDelay.move.name,
-                baseDelay: playerDelay.delay,
-                effectiveDelay: playerEffectiveDelay,
-                stunned: playerEffectiveDelay > playerDelay.delay
-            },
-            mob: {
-                name: mobInstance.name,
-                move: mobDelay.move.name,
-                baseDelay: mobDelay.delay,
-                effectiveDelay: mobEffectiveDelay,
-                stunned: mobEffectiveDelay > mobDelay.delay
-            },
-            minDelay: Math.min(playerEffectiveDelay, mobEffectiveDelay)
-        });
-
         // Find the minimum delay to process
         const minDelay = Math.min(playerEffectiveDelay, mobEffectiveDelay);
 
         // Reduce delays by the minimum amount
         playerDelay.delay = Math.max(0, playerEffectiveDelay - minDelay);
         mobDelay.delay = Math.max(0, mobEffectiveDelay - minDelay);
-
-        // Debug log updated delays
-        logger.debug('Updated delays:', {
-            player: {
-                name: user.avatarName,
-                remainingDelay: playerDelay.delay
-            },
-            mob: {
-                name: mobInstance.name,
-                remainingDelay: mobDelay.delay
-            }
-        });
 
         // Get any moves that are ready to execute
         const readyMoves = [];

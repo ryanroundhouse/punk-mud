@@ -48,6 +48,19 @@ const moveSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    basePower: {
+        type: Number,
+        required: true,
+        min: 1,
+        default: 5
+    },
+    scalingFactor: {
+        type: Number,
+        required: true,
+        min: 0,
+        max: 2,
+        default: 0.8
+    },
     delay: {
         type: Number,
         required: true,
