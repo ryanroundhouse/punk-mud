@@ -428,7 +428,6 @@
         .menu-content a:hover {
             background: rgba(0, 255, 249, 0.1);
             color: var(--neon-blue);
-            transform: translateX(5px);
         }
 
         .menu-content a + a {
@@ -441,11 +440,14 @@
     <div class="hamburger-menu">
         <button class="hamburger-button">☰</button>
         <div class="menu-content">
-            <a href="/nodebuilder.html">Node Builder</a>
+            <a href="/game.html">Return to Game</a>
             <a href="/actorbuilder.html">Actor Builder</a>
             <a href="/mobbuilder.html">Mob Builder</a>
             <a href="/movebuilder.html">Move Builder</a>
+            <a href="/nodebuilder.html">Node Builder</a>
             <a href="/questbuilder.html">Quest Builder</a>
+            <a href="/classbuilder.html">Class Builder</a>
+            <a href="/conversationbuilder.html">Conversation Builder</a>
         </div>
     </div>
 
@@ -735,9 +737,15 @@
         // Load existing actors
         async function loadActors() {
             try {
-                const response = await fetch('/api/actors', {  // Changed from /api/actors/public to /api/actors
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    window.location.href = '/';
+                    return;
+                }
+
+                const response = await fetch('/api/actors', {
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Authorization': `Bearer ${token}`
                     }
                 });
                 
@@ -949,6 +957,17 @@
                 link.style.color = 'var(--neon-pink)';
             }
         });
+
+        // Add this near the end of your script section
+        window.onload = () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+            loadActors();
+            loadNodes();
+        };
     </script>
 </body>
 </html> 
