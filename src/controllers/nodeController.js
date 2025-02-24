@@ -36,11 +36,15 @@ async function createOrUpdateNode(req, res) {
 
         // Validate events array
         if (events) {
-            events.forEach(event => {
-                if (!event.name || !event.mobId || typeof event.chance !== 'number') {
-                    throw new Error('Invalid event format');
+            for (const event of events) {
+                // Check if it's either a named event or a mob event
+                if ((!event.name && !event.mobId) || (event.name && event.mobId)) {
+                    throw new Error('Event must have either name OR mobId, not both or neither');
                 }
-            });
+                if (typeof event.chance !== 'number' || event.chance < 0 || event.chance > 100) {
+                    throw new Error('Event chance must be a number between 0 and 100');
+                }
+            }
         }
 
         if (id) {
@@ -75,7 +79,7 @@ async function createOrUpdateNode(req, res) {
         res.status(201).json(node);
     } catch (error) {
         logger.error('Error saving node:', error);
-        res.status(500).json({ error: 'Error saving node' });
+        res.status(500).json({ error: error.message });
     }
 }
 

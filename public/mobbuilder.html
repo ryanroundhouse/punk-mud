@@ -1223,53 +1223,35 @@
                     return;
                 }
 
-                // Validate required fields
-                const name = document.getElementById('mobName').value.trim();
-                const description = document.getElementById('description').value.trim();
-                
-                if (!name || !description) {
-                    alert('Name and description are required');
-                    return;
-                }
-
-                // Only validate moves if there are any
-                const hasMoves = document.querySelectorAll('.move-entry').length > 0;
-                if (hasMoves && !validateTotalUsage()) {
-                    if (!confirm('Total move usage percentage is not 100%. Save anyway?')) {
-                        return;
-                    }
-                }
-
-                // Validate stats are numbers
-                const stats = {
-                    hitpoints: parseInt(document.getElementById('hitpoints').value) || 10,
-                    armor: parseInt(document.getElementById('armor').value) || 0,
-                    body: parseInt(document.getElementById('body').value) || 10,
-                    reflexes: parseInt(document.getElementById('reflexes').value) || 10,
-                    agility: parseInt(document.getElementById('agility').value) || 10,
-                    tech: parseInt(document.getElementById('tech').value) || 10,
-                    luck: parseInt(document.getElementById('luck').value) || 10,
-                    charisma: parseInt(document.getElementById('charisma').value) || 10
-                };
-
-                const moves = Array.from(document.querySelectorAll('.move-entry')).map(entry => ({
-                    move: entry.querySelector('.move-id').value,
-                    usageChance: parseInt(entry.querySelector('.move-usage-chance').value)
-                }));
+                // Get the mob ID from the form's dataset
+                const mobId = document.getElementById('mobForm').dataset.mobId;
 
                 const mobData = {
-                    _id: document.getElementById('mobForm').dataset.mobId || undefined,
-                    name,
+                    _id: mobId, // Include the ID when updating
+                    name: document.getElementById('mobName').value.trim(),
                     intent: document.getElementById('mobIntent').value,
                     experiencePoints: parseInt(document.getElementById('experiencePoints').value) || 10,
-                    description,
+                    description: document.getElementById('description').value.trim(),
                     image: document.getElementById('imagePath').value,
-                    stats,
+                    stats: {
+                        level: parseInt(document.getElementById('level').value) || 1,
+                        hitpoints: parseInt(document.getElementById('hitpoints').value) || 10,
+                        armor: parseInt(document.getElementById('armor').value) || 0,
+                        body: parseInt(document.getElementById('body').value) || 10,
+                        reflexes: parseInt(document.getElementById('reflexes').value) || 10,
+                        agility: parseInt(document.getElementById('agility').value) || 10,
+                        tech: parseInt(document.getElementById('tech').value) || 10,
+                        luck: parseInt(document.getElementById('luck').value) || 10,
+                        charisma: parseInt(document.getElementById('charisma').value) || 10
+                    },
                     chatMessages: Array.from(document.querySelectorAll('.chat-message-entry')).map((msg, index) => ({
                         message: msg.querySelector('.message-text').textContent,
                         order: index
                     })),
-                    moves
+                    moves: Array.from(document.querySelectorAll('.move-entry')).map(entry => ({
+                        move: entry.querySelector('.move-id').value,
+                        usageChance: parseInt(entry.querySelector('.move-usage-chance').value)
+                    }))
                 };
 
                 const response = await fetch('/api/mobs', {

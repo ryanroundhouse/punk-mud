@@ -743,55 +743,6 @@
             exitsContainer.insertBefore(exitEntry, document.querySelector('.exit-controls'));
         });
 
-        // Add event handler
-        addEventBtn.addEventListener('click', () => {
-            const name = document.getElementById('eventName').value;
-            const mobSelect = document.getElementById('eventMob');
-            const mobId = mobSelect.value; // This should now be the MongoDB _id
-            const mobName = mobSelect.options[mobSelect.selectedIndex].text;
-            const chance = parseInt(document.getElementById('eventChance').value);
-            const validationError = document.getElementById('eventValidationError');
-
-            if (!name || !mobId || isNaN(chance)) {
-                validationError.textContent = 'Please fill in all event fields';
-                return;
-            }
-
-            // Calculate total chance percentage
-            const currentTotal = Array.from(document.querySelectorAll('.event-entry'))
-                .reduce((sum, entry) => sum + parseInt(entry.querySelector('.event-chance').textContent), 0);
-            
-            if (currentTotal + chance > 100) {
-                validationError.textContent = `Total chance percentage cannot exceed 100%. Current total: ${currentTotal}%`;
-                return;
-            }
-
-            validationError.textContent = ''; // Clear any previous error
-
-            const eventEntry = document.createElement('div');
-            eventEntry.className = 'event-entry';
-            eventEntry.innerHTML = `
-                <span class="event-name">${name}</span>
-                <span class="event-mob" data-mob-id="${mobId}">${mobName}</span>
-                <span class="event-chance">${chance}%</span>
-                <span class="remove-event">×</span>
-            `;
-
-            eventEntry.querySelector('.remove-event').addEventListener('click', () => {
-                eventEntry.remove();
-                validateTotalChance();
-            });
-
-            document.getElementById('eventsList').appendChild(eventEntry);
-
-            // Clear inputs
-            document.getElementById('eventName').value = '';
-            document.getElementById('eventMob').value = '';
-            document.getElementById('eventChance').value = '100';
-
-            validateTotalChance();
-        });
-
         // Add validation function
         function validateTotalChance() {
             const total = Array.from(document.querySelectorAll('.event-entry'))
@@ -812,6 +763,68 @@
             return total === 100;
         }
 
+        // Complete the event handler code
+        addEventBtn.addEventListener('click', () => {
+            const name = document.getElementById('eventName').value;
+            const mobSelect = document.getElementById('eventMob');
+            const mobId = mobSelect.value;
+            const mobName = mobSelect.options[mobSelect.selectedIndex].text;
+            const chance = parseInt(document.getElementById('eventChance').value);
+            const validationError = document.getElementById('eventValidationError');
+
+            // Ensure either name or mob is selected, but not both
+            if ((!name && !mobId) || (name && mobId)) {
+                validationError.textContent = 'Please provide either an event name OR select a mob, not both';
+                return;
+            }
+
+            if (isNaN(chance)) {
+                validationError.textContent = 'Please provide a valid chance percentage';
+                return;
+            }
+
+            // Calculate total chance percentage
+            const currentTotal = Array.from(document.querySelectorAll('.event-entry'))
+                .reduce((sum, entry) => sum + parseInt(entry.querySelector('.event-chance').textContent), 0);
+            
+            if (currentTotal + chance > 100) {
+                validationError.textContent = `Total chance percentage cannot exceed 100%. Current total: ${currentTotal}%`;
+                return;
+            }
+
+            validationError.textContent = ''; // Clear any previous error
+
+            const eventEntry = document.createElement('div');
+            eventEntry.className = 'event-entry';
+            
+            // Create content based on whether it's a named event or mob event
+            const eventContent = name 
+                ? `<span class="event-name">${name}</span>
+                   <span class="event-mob" style="display:none" data-mob-id=""></span>`
+                : `<span class="event-name" style="display:none"></span>
+                   <span class="event-mob" data-mob-id="${mobId}">${mobName}</span>`;
+            
+            eventEntry.innerHTML = `
+                ${eventContent}
+                <span class="event-chance">${chance}%</span>
+                <span class="remove-event">×</span>
+            `;
+
+            eventEntry.querySelector('.remove-event').addEventListener('click', () => {
+                eventEntry.remove();
+                validateTotalChance();
+            });
+
+            document.getElementById('eventsList').appendChild(eventEntry);
+
+            // Clear inputs
+            document.getElementById('eventName').value = '';
+            document.getElementById('eventMob').value = '';
+            document.getElementById('eventChance').value = '100';
+
+            validateTotalChance();
+        });
+
         // Save node
         saveNodeBtn.addEventListener('click', async () => {
             if (!validateTotalChance()) {
@@ -823,11 +836,28 @@
             // Get node ID if we're editing an existing node
             const nodeId = document.getElementById('nodeForm').dataset.nodeId;
 
-            const events = Array.from(document.querySelectorAll('.event-entry')).map(entry => ({
-                name: entry.querySelector('.event-name').textContent,
-                mobId: entry.querySelector('.event-mob').dataset.mobId,
-                chance: parseInt(entry.querySelector('.event-chance').textContent)
-            }));
+            const events = Array.from(document.querySelectorAll('.event-entry')).map(entry => {
+                const nameElement = entry.querySelector('.event-name');
+                const mobElement = entry.querySelector('.event-mob');
+                const chance = parseInt(entry.querySelector('.event-chance').textContent);
+                
+                // If the name element is visible, it's a named event
+                if (nameElement && nameElement.style.display !== 'none') {
+                    return {
+                        name: nameElement.textContent,
+                        mobId: null,
+                        chance: chance
+                    };
+                }
+                // Otherwise it's a mob event
+                else {
+                    return {
+                        name: null,
+                        mobId: mobElement.dataset.mobId,
+                        chance: chance
+                    };
+                }
+            });
 
             const nodeData = {
                 id: nodeId,
@@ -968,17 +998,23 @@
             const eventsList = document.getElementById('eventsList');
             eventsList.innerHTML = '';
 
-            // Add existing events - now using MongoDB _id
+            // Add existing events
             if (node.events && Array.isArray(node.events)) {
                 node.events.forEach(event => {
-                    const mob = allMobs.find(m => m._id === event.mobId);
-                    const mobName = mob ? mob.name : 'Unknown Mob';
+                    const mob = event.mobId ? allMobs.find(m => m._id === event.mobId) : null;
                     
                     const eventEntry = document.createElement('div');
                     eventEntry.className = 'event-entry';
+                    
+                    // Create content based on whether it's a named event or mob event
+                    const eventContent = event.name 
+                        ? `<span class="event-name">${event.name}</span>
+                           <span class="event-mob" style="display:none" data-mob-id=""></span>`
+                        : `<span class="event-name" style="display:none"></span>
+                           <span class="event-mob" data-mob-id="${event.mobId}">${mob ? mob.name : 'Unknown Mob'}</span>`;
+                    
                     eventEntry.innerHTML = `
-                        <span class="event-name">${event.name}</span>
-                        <span class="event-mob" data-mob-id="${event.mobId}">${mobName}</span>
+                        ${eventContent}
                         <span class="event-chance">${event.chance}%</span>
                         <span class="remove-event">×</span>
                     `;

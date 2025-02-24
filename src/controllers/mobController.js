@@ -89,25 +89,19 @@ async function createOrUpdateMob(req, res) {
 
         let savedMob;
         
+        const nameConflict = await Mob.findOne({ 
+            name: { $regex: new RegExp(`^${name}$`, 'i') },
+            ..._id ? { _id: { $ne: _id } } : {}
+        });
+
+        if (nameConflict) {
+            return res.status(400).json({ 
+                error: 'A mob with this name already exists',
+                code: 'DUPLICATE_NAME'
+            });
+        }
+
         if (_id) {
-            const existingMob = await Mob.findById(_id);
-            if (!existingMob) {
-                return res.status(404).json({ error: 'Mob not found' });
-            }
-
-            if (name !== existingMob.name) {
-                const nameConflict = await Mob.findOne({ 
-                    name, 
-                    _id: { $ne: _id } 
-                });
-                if (nameConflict) {
-                    return res.status(400).json({ 
-                        error: 'A mob with this name already exists',
-                        code: 'DUPLICATE_NAME'
-                    });
-                }
-            }
-
             savedMob = await Mob.findByIdAndUpdate(
                 _id,
                 mobData,
@@ -116,15 +110,11 @@ async function createOrUpdateMob(req, res) {
                     runValidators: true
                 }
             );
-        } else {
-            const nameConflict = await Mob.findOne({ name });
-            if (nameConflict) {
-                return res.status(400).json({ 
-                    error: 'A mob with this name already exists',
-                    code: 'DUPLICATE_NAME'
-                });
-            }
             
+            if (!savedMob) {
+                return res.status(404).json({ error: 'Mob not found' });
+            }
+        } else {
             const mob = new Mob(mobData);
             savedMob = await mob.save();
         }
