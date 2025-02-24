@@ -5,6 +5,8 @@ const socketService = require('./socketService');
 const stateService = require('./stateService');
 const messageService = require('./messageService');
 const Class = require('../models/Class');
+const nodeService = require('./nodeService');
+const mobService = require('./mobService');
 
 class UserService {
     async getUser(userId) {
@@ -73,11 +75,67 @@ flee.............Attempt to escape combat
         return user && user.avatarName && user.currentNode;
     }
 
+    async handlePlayerDeath(userId) {
+        try {
+            const user = await User.findById(userId);
+            if (!user) {
+                throw new Error('User not found');
+            }
+
+            // Heal the player
+            user.stats.currentHitpoints = user.stats.hitpoints;
+
+            // Move player to Neon Plaza
+            const oldNode = user.currentNode;
+            user.currentNode = '122.124.10.10';
+
+            await user.save();
+
+            // Handle node subscriptions
+            if (oldNode) {
+                stateService.removeUserFromNode(userId, oldNode);
+                await socketService.unsubscribeFromNodeChat(oldNode);
+            }
+            stateService.addUserToNode(userId, user.currentNode);
+            await socketService.subscribeToNodeChat(user.currentNode);
+
+            // Clear ALL combat-related states
+            stateService.clearUserCombatState(userId);
+            stateService.clearCombatDelay(userId);
+            stateService.clearCombatantEffects(userId);
+            mobService.clearUserMob(userId);
+
+            // Send the player death event through the message service
+            messageService.sendConsoleResponse(userId, {
+                type: 'player death',
+                newLocation: user.currentNode
+            });
+
+            return {
+                success: true,
+                newLocation: user.currentNode,
+                playerDied: true
+            };
+        } catch (error) {
+            logger.error('Error handling player death:', error);
+            throw error;
+        }
+    }
+
     async awardExperience(userId, amount) {
         try {
             const user = await User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
+            }
+
+            // Check if player is dead
+            if (user.stats.currentHitpoints <= 0) {
+                await this.handlePlayerDeath(userId);
+                return {
+                    success: false,
+                    message: 'Player was defeated'
+                };
             }
 
             const oldLevel = user.stats.level;

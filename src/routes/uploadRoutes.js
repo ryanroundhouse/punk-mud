@@ -3,35 +3,32 @@ const router = express.Router();
 const { verifyBuilderAccess } = require('../middlewares/auth');
 const { createUploadMiddleware } = require('../services/uploadService');
 
-// Create upload middlewares for different types
-const zoneUpload = createUploadMiddleware('zone');
-const characterUpload = createUploadMiddleware('character');
-const actorUpload = createUploadMiddleware('actor');
-const mobUpload = createUploadMiddleware('mob');
+// Create a single upload middleware
+const upload = createUploadMiddleware();
 
 // Upload routes
-router.post('/zone', verifyBuilderAccess, zoneUpload.single('image'), (req, res) => {
+router.post('/zone', verifyBuilderAccess, upload.single('image'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
     res.json({ path: '/assets/zones/' + req.file.filename });
 });
 
-router.post('/character', verifyBuilderAccess, characterUpload.single('image'), (req, res) => {
+router.post('/character', verifyBuilderAccess, upload.single('image'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
     res.json({ path: '/assets/characters/' + req.file.filename });
 });
 
-router.post('/actor', verifyBuilderAccess, actorUpload.single('image'), (req, res) => {
+router.post('/actor', verifyBuilderAccess, upload.single('image'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
     res.json({ path: '/assets/actors/' + req.file.filename });
 });
 
-router.post('/mob', verifyBuilderAccess, mobUpload.single('image'), (req, res) => {
+router.post('/mob', verifyBuilderAccess, upload.single('image'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }

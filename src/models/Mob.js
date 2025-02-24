@@ -49,7 +49,8 @@ const activeEffectSchema = new mongoose.Schema({
 const mobSchema = new mongoose.Schema({
     name: {
         type: String,
-        required: true
+        required: true,
+        unique: true
     },
     description: {
         type: String,
@@ -74,6 +75,7 @@ const mobSchema = new mongoose.Schema({
         agility: { type: Number, default: 10 },
         tech: { type: Number, default: 10 },
         luck: { type: Number, default: 10 },
+        charisma: { type: Number, default: 10 },
         level: { type: Number, default: 1, min: 1 }
     },
     activeEffects: {
@@ -98,7 +100,19 @@ const mobSchema = new mongoose.Schema({
         }
     }]
 }, {
-    timestamps: true
+    timestamps: true,
+    _id: true,
+    id: false
+});
+
+mobSchema.index({ name: 1 });
+mobSchema.set('toJSON', {
+    virtuals: true,
+    versionKey: false,
+    transform: function (doc, ret) {
+        delete ret.id;
+        return ret;
+    }
 });
 
 module.exports = mongoose.model('Mob', mobSchema); 

@@ -14,6 +14,7 @@ router.get('/public', authenticateToken, getPublicMoves);
 // Builder-only routes
 router.get('/', verifyBuilderAccess, getMoves);
 router.post('/', verifyBuilderAccess, createOrUpdateMove);
+router.put('/', verifyBuilderAccess, createOrUpdateMove);
 router.delete('/:id', verifyBuilderAccess, deleteMove);
 
 module.exports = router; 

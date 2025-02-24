@@ -37,7 +37,8 @@ async function loadMobFromEvent(event) {
             reflexes: mob.stats.reflexes,
             agility: mob.stats.agility,
             tech: mob.stats.tech,
-            luck: mob.stats.luck
+            luck: mob.stats.luck,
+            charisma: mob.stats.charisma
         },
         instanceId: `${mob._id}-${Date.now()}`,
         chatMessages: mob.chatMessages,

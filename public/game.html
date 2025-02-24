@@ -971,6 +971,17 @@
                         break;
                     case 'combat':
                         responseLine.style.color = 'var(--neon-pink)';
+                        // Check for death message and style it differently
+                        if (data.message.includes('*** YOU HAVE BEEN DEFEATED ***')) {
+                            const parts = data.message.split('\n\n');
+                            responseLine.innerHTML = `${parts[0]}\n\n` +
+                                `<span style="color: var(--neon-red); text-align: center; display: block; font-weight: bold;">` +
+                                `${parts[1]}\n${parts[2]}</span>`;
+                            // Refresh location after death message
+                            setTimeout(() => loadNode(), 100);
+                        } else {
+                            responseLine.textContent = data.message;
+                        }
                         break;
                     default:
                         responseLine.style.color = 'var(--terminal-green)';
@@ -1031,6 +1042,29 @@
 
             // Add this to the initializeChat function after socket initialization
             loadStoredChatMessages();
+
+            // Add this inside the initializeChat function after other socket.on handlers
+            socket.on('player death', (data) => {
+                // Refresh the location immediately
+                loadNode();
+                
+                // Clear any combat-related UI elements or states
+                const terminalOutput = document.getElementById('terminalOutput');
+                const inputLine = document.getElementById('terminalInput').parentElement;
+                
+                // Add a visual separator
+                const separator = document.createElement('div');
+                separator.style.color = 'var(--neon-red)';
+                separator.style.textAlign = 'center';
+                separator.textContent = '*** YOU HAVE DIED ***';
+                terminalOutput.insertBefore(separator, inputLine);
+                
+                // Ensure the input line is visible
+                inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                
+                // Focus the terminal input
+                document.getElementById('terminalInput').focus();
+            });
         }
 
         function storeChatMessage(messageData) {

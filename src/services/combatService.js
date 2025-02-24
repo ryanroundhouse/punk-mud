@@ -334,6 +334,22 @@ function selectMobMove(mobInstance) {
 
 // New function to execute combat moves
 async function executeCombatMoves(readyMoves, user, mobInstance) {
+    let deathHandled = false;  // Add this at the start of the function
+
+    // Add initial health logging
+    logger.debug('Combat starting health levels:', {
+        player: {
+            name: user.avatarName,
+            currentHP: user.stats.currentHitpoints,
+            maxHP: user.stats.hitpoints
+        },
+        mob: {
+            name: mobInstance.name,
+            currentHP: mobInstance.stats.currentHitpoints,
+            maxHP: mobInstance.stats.hitpoints
+        }
+    });
+
     // Initialize results with default values
     let playerResult = {
         success: false,
@@ -357,9 +373,59 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
 
     // Execute each ready move
     for (const moveInfo of readyMoves) {
+        // Check if either combatant is already dead before processing move
+        if (user.stats.currentHitpoints <= 0) {
+            logger.debug('Skipping move execution - player is already dead', {
+                playerHP: user.stats.currentHitpoints,
+                skippedMove: moveInfo.move.name
+            });
+            
+            // If player just died from the previous move, handle death
+            if (!deathHandled) {
+                deathHandled = true;
+                
+                // Clear ALL combat states immediately
+                stateService.clearUserCombatState(user._id.toString());
+                stateService.clearCombatDelay(user._id.toString());
+                stateService.clearCombatantEffects(user._id.toString());
+                mobService.clearUserMob(user._id.toString());
+
+                // First handle death (teleport and heal)
+                await userService.handlePlayerDeath(user._id.toString());
+
+                // Send the complete death sequence message
+                messageService.sendCombatMessage(
+                    user._id.toString(),
+                    `${mobInstance.name} uses ${mobResult.move.name}! ${mobResult.message}\n\n` +
+                    `*** YOU HAVE BEEN DEFEATED ***\n` +
+                    `Everything goes dark...\n\n` +
+                    `You wake up in Neon Plaza with a splitting headache, unsure how you got here. ` +
+                    `Your wounds have been treated, but the memory of your defeat lingers.`
+                );
+            }
+            return; // Exit immediately after death
+        }
+        if (mobInstance.stats.currentHitpoints <= 0) {
+            logger.debug('Skipping move execution - mob is already dead', {
+                mobHP: mobInstance.stats.currentHitpoints,
+                skippedMove: moveInfo.move.name
+            });
+            break;
+        }
+
         if (moveInfo.type === 'player') {
             playerResult = calculateAttackResult(moveInfo.move, user, mobInstance);
             playerResult.move = moveInfo.move;
+            
+            // Log player attack
+            logger.debug('Player attack result:', {
+                moveName: moveInfo.move.name,
+                success: playerResult.success,
+                damage: playerResult.damage,
+                mobHPBefore: mobInstance.stats.currentHitpoints,
+                mobHPAfter: Math.max(0, mobInstance.stats.currentHitpoints - playerResult.damage)
+            });
+
             // Apply effects and damage from player's move
             for (const effect of playerResult.effects) {
                 await applyEffect(effect, user, mobInstance);
@@ -370,12 +436,34 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
         } else if (moveInfo.type === 'mob') {
             mobResult = calculateAttackResult(moveInfo.move, mobInstance, user);
             mobResult.move = moveInfo.move;
+
+            // Log mob attack
+            logger.debug('Mob attack result:', {
+                moveName: moveInfo.move.name,
+                success: mobResult.success,
+                damage: mobResult.damage,
+                playerHPBefore: user.stats.currentHitpoints,
+                playerHPAfter: Math.max(0, user.stats.currentHitpoints - mobResult.damage)
+            });
+
             // Apply effects and damage from mob's move
             for (const effect of mobResult.effects) {
                 await applyEffect(effect, user, mobInstance);
             }
             if (mobResult.damage > 0) {
                 user.stats.currentHitpoints -= mobResult.damage;
+                // Check for player death immediately after taking damage
+                if (user.stats.currentHitpoints <= 0) {
+                    logger.debug('Player died from mob attack', {
+                        finalPlayerHP: user.stats.currentHitpoints,
+                        killingMove: moveInfo.move.name,
+                        killingDamage: mobResult.damage
+                    });
+                    await User.findByIdAndUpdate(user._id, {
+                        'stats.currentHitpoints': user.stats.currentHitpoints
+                    });
+                    break; // Stop processing any further moves
+                }
                 await User.findByIdAndUpdate(user._id, {
                     'stats.currentHitpoints': user.stats.currentHitpoints
                 });
@@ -383,13 +471,27 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
         }
     }
 
+    // Log final health status
+    logger.debug('Combat ending health levels:', {
+        player: {
+            name: user.avatarName,
+            finalHP: user.stats.currentHitpoints,
+            maxHP: user.stats.hitpoints
+        },
+        mob: {
+            name: mobInstance.name,
+            finalHP: mobInstance.stats.currentHitpoints,
+            maxHP: mobInstance.stats.hitpoints
+        }
+    });
+
     // Process mob's action if they're still alive
     if (mobInstance.stats.currentHitpoints <= 0) {
         mobResult.message += ` ${mobInstance.name} has been defeated!`;
         
         // Award experience points
         try {
-            const experiencePoints = mobInstance.experiencePoints || 10; // Default to 10 if not set
+            const experiencePoints = mobInstance.experiencePoints || 10;
             const experienceResult = await userService.awardExperience(user._id.toString(), experiencePoints);
             if (experienceResult.success) {
                 mobResult.message += `\nYou gained ${experiencePoints} experience points!`;
@@ -406,6 +508,7 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
     const userCurrentHP = user.stats.currentHitpoints;
     const mobCurrentHP = mobInstance.stats.currentHitpoints;
 
+    // Handle victory/defeat conditions
     if (mobCurrentHP <= 0) {
         stateService.clearUserCombatState(user._id.toString());
         
@@ -440,27 +543,49 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
             `${user.avatarName} has defeated ${mobInstance.name}!`
         );
         return;
+    } else if (userCurrentHP <= 0) {
+        logger.debug('Combat ended - Player defeated', {
+            finalPlayerHP: userCurrentHP,
+            finalMobHP: mobCurrentHP
+        });
+
+        // First handle death
+        await userService.handlePlayerDeath(user._id.toString());
+
+        // Send the complete death sequence message
+        messageService.sendCombatMessage(
+            user._id.toString(),
+            `${mobInstance.name} uses ${mobResult.move.name}! ${mobResult.message}\n\n` +
+            `*** YOU HAVE BEEN DEFEATED ***\n` +
+            `Everything goes dark...\n\n` +
+            `You wake up in Neon Plaza with a splitting headache, unsure how you got here. ` +
+            `Your wounds have been treated, but the memory of your defeat lingers.`
+        );
+        return; // Exit before sending regular combat message
     }
 
-    // Construct combat message
-    let combatMessage = '';
-    if (playerResult.move) {
-        combatMessage += `You use ${playerResult.move.name}! ${playerResult.message}\n`;
-        
-        // Only show status after player moves
-        combatMessage += `\nStatus:\n` +
-                        `${user.avatarName}: ${userCurrentHP} HP\n` +
-                        `${mobInstance.name}: ${mobCurrentHP} HP`;
-    }
-    if (mobResult.move) {
-        // If there was also a player move, add a newline
+    // Only construct and send combat message if player is still alive
+    if (userCurrentHP > 0) {
+        // Construct combat message
+        let combatMessage = '';
         if (playerResult.move) {
-            combatMessage += '\n\n';
+            combatMessage += `You use ${playerResult.move.name}! ${playerResult.message}\n`;
+            
+            // Only show status after player moves
+            combatMessage += `\nStatus:\n` +
+                            `${user.avatarName}: ${userCurrentHP} HP\n` +
+                            `${mobInstance.name}: ${mobCurrentHP} HP`;
         }
-        combatMessage += `${mobInstance.name} uses ${mobResult.move.name}! ${mobResult.message}`;
-    }
+        if (mobResult.move) {
+            // If there was also a player move, add a newline
+            if (playerResult.move) {
+                combatMessage += '\n\n';
+            }
+            combatMessage += `${mobInstance.name} uses ${mobResult.move.name}! ${mobResult.message}`;
+        }
 
-    messageService.sendCombatMessage(user._id.toString(), combatMessage);
+        messageService.sendCombatMessage(user._id.toString(), combatMessage);
+    }
 }
 
 async function handleFleeCommand(user) {

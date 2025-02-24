@@ -78,10 +78,11 @@ async function createOrUpdateMob(req, res) {
             image,
             stats: {
                 ...stats,
-                level: stats.level || 1
+                level: stats.level || 1,
+                charisma: stats.charisma || 10
             },
             chatMessages,
-            moves,
+            moves: moves || [],
             intent,
             experiencePoints
         };
