@@ -285,6 +285,19 @@ flee.............Attempt to escape combat
             throw error;
         }
     }
+
+    async getUserLevel(userId) {
+        try {
+            const user = await User.findById(userId);
+            if (!user) {
+                throw new Error('User not found');
+            }
+            return user.stats.level;
+        } catch (error) {
+            logger.error('Error getting user level:', error);
+            throw error;
+        }
+    }
 }
 
 const userService = new UserService();

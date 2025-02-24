@@ -181,15 +181,20 @@ async function handleListCommand(socket, user, target) {
             message: `Character "${target}" not found in this location.`
         });
     } else {
-        let mobNames = [];
+        let enemies = [];
         if (mobInstance) {
-            mobNames.push(mobInstance.name);
+            enemies.push({
+                name: mobInstance.name,
+                level: mobInstance.level
+            });
         }
+        
         socket.emit('console response', {
             type: 'list',
             users: nodeUsers,
             actors: actorNames,
-            enemies: mobNames
+            enemies: enemies,
+            playerLevel: user.stats.level
         });
     }
 }

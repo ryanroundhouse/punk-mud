@@ -29,6 +29,7 @@ async function loadMobFromEvent(event) {
         name: mob.name,
         description: mob.description,
         image: mob.image,
+        level: mob.stats.level,
         stats: {
             hitpoints: mob.stats.hitpoints,
             currentHitpoints: mob.stats.hitpoints,
@@ -70,26 +71,52 @@ async function spawnMobForUser(userId, node) {
         return null;
     }
 
-    const eligibleEvents = node.events.filter(event => {
+    // Calculate total spawn chance
+    const totalChance = node.events.reduce((sum, event) => sum + event.chance, 0);
+    
+    if (totalChance === 100) {
+        // When total chance is 100%, ensure one mob spawns
         const roll = Math.random() * 100;
-        logger.debug(`Event ${event.mobId} - Rolled ${roll} against chance ${event.chance}`);
-        return roll < event.chance;
-    });
-    
-    if (eligibleEvents.length === 0) {
-        logger.debug('No eligible events passed chance check');
-        return null;
-    }
+        let chanceSum = 0;
+        
+        // Find which mob should spawn based on the single roll
+        for (const event of node.events) {
+            chanceSum += event.chance;
+            if (roll < chanceSum) {
+                logger.debug(`Event ${event.mobId} selected with roll ${roll} in cumulative range ${chanceSum}`);
+                const mobInstance = await loadMobFromEvent(event);
+                
+                if (mobInstance) {
+                    logger.debug(`Spawning mob instance ${mobInstance.instanceId} (${mobInstance.name}) for user ${userId}`);
+                    stateService.playerMobs.set(userId, mobInstance);
+                }
+                
+                return mobInstance;
+            }
+        }
+    } else {
+        // For non-100% total chance, keep existing behavior
+        const eligibleEvents = node.events.filter(event => {
+            const roll = Math.random() * 100;
+            logger.debug(`Event ${event.mobId} - Rolled ${roll} against chance ${event.chance}`);
+            return roll < event.chance;
+        });
+        
+        if (eligibleEvents.length === 0) {
+            logger.debug('No eligible events passed chance check');
+            return null;
+        }
 
-    const selectedEvent = eligibleEvents[Math.floor(Math.random() * eligibleEvents.length)];
-    const mobInstance = await loadMobFromEvent(selectedEvent);
-    
-    if (mobInstance) {
-        logger.debug(`Spawning mob instance ${mobInstance.instanceId} (${mobInstance.name}) for user ${userId}`);
-        stateService.playerMobs.set(userId, mobInstance);
-    }
+        const selectedEvent = eligibleEvents[Math.floor(Math.random() * eligibleEvents.length)];
+        const mobInstance = await loadMobFromEvent(selectedEvent);
+        
+        if (mobInstance) {
+            logger.debug(`Spawning mob instance ${mobInstance.instanceId} (${mobInstance.name}) for user ${userId}`);
+            stateService.playerMobs.set(userId, mobInstance);
+        }
 
-    return mobInstance;
+        return mobInstance;
+    }
 }
 
 function clearUserMob(userId) {

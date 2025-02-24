@@ -1010,9 +1010,28 @@
                         if (data.enemies && data.enemies.length > 0) {
                             if (output) output += '\n';
                             output += `Enemies here:\n` +
-                                data.enemies.map(enemy => `- ${enemy}`).join('\n');
+                                data.enemies.map(enemy => {
+                                    let color = 'var(--terminal-green)'; // same level (default)
+                                    const levelDiff = enemy.level - data.playerLevel;
+                                    let prefix = '- ';
+                                    
+                                    if (levelDiff >= 3) {
+                                        color = 'var(--neon-red)'; // 3+ levels higher
+                                        prefix = '- 💀 '; // Add skull emoji
+                                    } else if (levelDiff >= 2) {
+                                        color = 'var(--neon-red)'; // 2 levels higher
+                                    } else if (levelDiff === 1) {
+                                        color = 'var(--neon-pink)'; // 1 level higher
+                                    } else if (levelDiff === -1) {
+                                        color = 'var(--neon-blue)'; // 1 level lower
+                                    } else if (levelDiff <= -2) {
+                                        color = '#666666'; // 2+ levels lower (grey)
+                                    }
+                                    
+                                    return `${prefix}<span style="color: ${color}">${enemy.name}</span>`;
+                                }).join('\n');
                         }
-                        responseLine.textContent = output;
+                        responseLine.innerHTML = output;
                     }
                 } else if (data.type === 'quests') {
                     responseLine.style.whiteSpace = 'pre-wrap';
