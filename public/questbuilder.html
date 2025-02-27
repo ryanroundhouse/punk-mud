@@ -380,6 +380,113 @@
             left: 0.5rem;
         }
 
+        .node-override-section {
+            margin-top: 1rem;
+            padding: 1rem;
+            border: 1px dashed var(--neon-pink);
+            border-radius: 5px;
+            background: rgba(255, 0, 140, 0.05);
+        }
+
+        .node-override-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .node-override-title {
+            color: var(--neon-pink);
+            font-weight: bold;
+        }
+
+        .add-node-override {
+            color: var(--neon-pink);
+            cursor: pointer;
+            font-size: 1.2em;
+            transition: all 0.3s ease;
+        }
+
+        .add-node-override:hover {
+            transform: scale(1.2);
+            text-shadow: 0 0 5px var(--neon-pink);
+        }
+
+        .node-override-item {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            border: 1px solid var(--neon-pink);
+            border-radius: 5px;
+            position: relative;
+        }
+
+        .remove-node-override {
+            color: var(--neon-pink);
+            cursor: pointer;
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            font-size: 1.2em;
+            transition: all 0.3s ease;
+        }
+
+        .remove-node-override:hover {
+            transform: scale(1.2);
+            text-shadow: 0 0 5px var(--neon-pink);
+        }
+
+        .node-event-list {
+            margin-top: 0.5rem;
+        }
+
+        .node-event-item {
+            display: flex;
+            align-items: center;
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            border: 1px solid rgba(255, 0, 140, 0.3);
+            border-radius: 5px;
+            position: relative;
+            width: 100%;
+            box-sizing: border-box;
+            gap: 10px;
+        }
+
+        .node-event-item select {
+            flex: 1;
+        }
+
+        .node-event-item .input-group {
+            width: auto;
+            white-space: nowrap;
+        }
+
+        .remove-node-event {
+            color: var(--neon-pink);
+            cursor: pointer;
+            margin-left: 0.5rem;
+            font-size: 1.2em;
+            transition: all 0.3s ease;
+        }
+
+        .remove-node-event:hover {
+            transform: scale(1.2);
+            text-shadow: 0 0 5px var(--neon-pink);
+        }
+
+        .add-node-event {
+            color: var(--neon-pink);
+            cursor: pointer;
+            margin-top: 0.5rem;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        .add-node-event:hover {
+            transform: scale(1.1);
+            text-shadow: 0 0 5px var(--neon-pink);
+        }
+
         .quest-entry {
             border: 1px solid var(--neon-blue);
             margin: 0.5rem 0;
@@ -494,6 +601,63 @@
 
         .remove-reward:hover {
             transform: scale(1.2);
+        }
+
+        .node-address-select {
+            width: 100%;
+            background-color: #2c2c2c;
+            border: 1px solid #444;
+            padding: 8px 12px;
+            border-radius: 4px;
+            color: #ddd;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin: 5px 0;
+            appearance: auto; /* Show the dropdown arrow */
+        }
+        
+        .node-address-select:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.5);
+        }
+        
+        .node-address-select option {
+            background-color: #2c2c2c;
+            color: #ddd;
+        }
+
+        .quest-entry {
+            border: 1px solid var(--neon-blue);
+            margin: 0.5rem 0;
+            padding: 1rem;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .node-event-chance-input {
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            color: var(--terminal-green);
+            padding: 0.5rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            width: 70px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .node-event-chance-input:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .node-event-chance-input::-webkit-inner-spin-button,
+        .node-event-chance-input::-webkit-outer-spin-button {
+            opacity: 1;
+            height: 20px;
+            background: var(--neon-pink);
+            cursor: pointer;
         }
     </style>
 </head>
@@ -634,6 +798,7 @@
         let allMobs = [];
         let allConversations = [];
         let allClasses = [];
+        let allNodes = [];
 
         // Check authentication
         window.onload = async () => {
@@ -660,6 +825,7 @@
                 await loadConversations();
                 await loadClasses();
                 await loadQuests();
+                await loadNodes();
                 
                 // Trigger event type change handler to set initial state
                 const eventTypeSelect = document.getElementById('eventType');
@@ -811,6 +977,27 @@
                     token: localStorage.getItem('token') ? 'Token exists' : 'No token'
                 });
                 alert('Failed to load quests. Please try refreshing the page.');
+            }
+        }
+
+        // Load nodes
+        async function loadNodes() {
+            try {
+                const response = await fetch('/api/nodes/public', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load nodes - Status: ${response.status}`);
+                }
+                
+                allNodes = await response.json();
+                populateNodeSelect();
+            } catch (error) {
+                console.error('Error loading nodes:', error);
+                alert('Failed to load nodes. Please try refreshing the page.');
             }
         }
 
@@ -968,9 +1155,25 @@
                 </div>
             `;
 
+            // Add node event overrides section before event-choices div
+            const nodeOverridesHtml = `
+                <div class="node-override-section">
+                    <div class="node-override-header">
+                        <div class="node-override-title">Node Event Overrides</div>
+                        <div class="add-node-override" onclick="addNodeOverride(this)">+</div>
+                    </div>
+                    <div class="node-override-list">
+                        ${(eventData.nodeEventOverrides || []).map(override => createNodeOverrideEntry(override)).join('')}
+                    </div>
+                </div>
+            `;
+
             // Insert rewards section before event-choices
             const eventChoices = eventEntry.querySelector('.event-choices');
             eventChoices.insertAdjacentHTML('beforebegin', rewardsHtml);
+            
+            // Insert node overrides section before event-choices
+            eventChoices.insertAdjacentHTML('beforebegin', nodeOverridesHtml);
 
             // Add event handlers
             addEventEntryHandlers(eventEntry);
@@ -1174,7 +1377,8 @@
                     hint: event.hint,
                     isStart: event.isStart,
                     isEnd: event.isEnd,
-                    rewards: event.rewards || []
+                    rewards: event.rewards || [],
+                    nodeEventOverrides: event.nodeEventOverrides || []
                 };
 
                 switch(event.eventType) {
@@ -1229,6 +1433,32 @@
                         });
 
                         choicesContainer.appendChild(choiceEntry);
+                    });
+                }
+
+                // Add node event overrides if they exist
+                if (event.nodeEventOverrides && event.nodeEventOverrides.length > 0) {
+                    const nodeOverrideList = eventEntry.querySelector('.node-override-list');
+                    nodeOverrideList.innerHTML = '';
+                    
+                    event.nodeEventOverrides.forEach(override => {
+                        const overrideEntry = document.createElement('div');
+                        overrideEntry.className = 'node-override-item';
+                        overrideEntry.innerHTML = createNodeOverrideEntry(override).trim();
+                        nodeOverrideList.appendChild(overrideEntry);
+                        
+                        // Add node events if they exist
+                        if (override.events && override.events.length > 0) {
+                            const nodeEventList = overrideEntry.querySelector('.node-event-list');
+                            nodeEventList.innerHTML = '';
+                            
+                            override.events.forEach(nodeEvent => {
+                                const nodeEventEntry = document.createElement('div');
+                                nodeEventEntry.className = 'node-event-item';
+                                nodeEventEntry.innerHTML = createNodeEventEntry(nodeEvent).trim();
+                                nodeEventList.appendChild(nodeEventEntry);
+                            });
+                        }
                     });
                 }
             });
@@ -1289,7 +1519,30 @@
                                 type: reward.querySelector('.reward-type-select').value,
                                 value: reward.querySelector('.reward-value-select').value,
                                 valueRef: 'Class' // Currently hardcoded as we only have Class rewards
-                            }))
+                            })),
+                        nodeEventOverrides: Array.from(event.querySelectorAll('.node-override-item'))
+                            .map(override => {
+                                const nodeAddress = override.querySelector('.node-address-select').value;
+                                if (!nodeAddress) return null; // Skip empty node addresses
+                                
+                                return {
+                                    nodeAddress,
+                                    events: Array.from(override.querySelectorAll('.node-event-item'))
+                                        .map(nodeEvent => {
+                                            const mobId = nodeEvent.querySelector('.node-event-mob-select').value;
+                                            const chance = parseInt(nodeEvent.querySelector('.node-event-chance-input').value) || 100;
+                                            
+                                            if (!mobId) return null; // Skip empty mob selections
+                                            
+                                            return {
+                                                mobId,
+                                                chance
+                                            };
+                                        })
+                                        .filter(Boolean) // Remove null entries
+                                };
+                            })
+                            .filter(Boolean) // Remove null entries
                     };
 
                     switch(eventType) {
@@ -1678,6 +1931,98 @@
 
         function removeReward(button) {
             button.closest('.reward-entry').remove();
+        }
+
+        // Node event override functions
+        function createNodeOverrideEntry(override = {}) {
+            return `
+                <div class="node-override-item">
+                    <div class="input-group">
+                        <label>Node Address:</label>
+                        <select class="node-address-select">
+                            <option value="">Select Node</option>
+                            ${allNodes.map(node => `
+                                <option value="${node.address}" ${node.address === override.nodeAddress ? 'selected' : ''} title="${node.description || 'No description available'}">
+                                    ${node.name} (${node.address})${node.isRestPoint ? ' [Rest]' : ''}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div class="node-event-list">
+                        ${(override.events || []).map(event => createNodeEventEntry(event)).join('')}
+                    </div>
+                    <div class="add-node-event" onclick="addNodeEvent(this)">+ Add Mob Event</div>
+                    <span class="remove-node-override" onclick="removeNodeOverride(this)">×</span>
+                </div>
+            `;
+        }
+
+        function createNodeEventEntry(event = {}) {
+            // Extract the mob ID correctly, handling both string and object formats
+            const mobIdValue = event.mobId?._id || event.mobId;
+            
+            return `
+                <div class="node-event-item">
+                    <select class="node-event-mob-select">
+                        <option value="">Select Mob</option>
+                        ${allMobs.map(mob => `
+                            <option value="${mob._id}" ${mobIdValue === mob._id ? 'selected' : ''}>
+                                ${mob.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                    <div class="input-group">
+                        <label>Chance (%):</label>
+                        <input type="number" class="node-event-chance-input" min="0" max="100" value="${event.chance || 100}" style="width: 70px;">
+                    </div>
+                    <span class="remove-node-event" onclick="removeNodeEvent(this)">×</span>
+                </div>
+            `;
+        }
+
+        function addNodeOverride(button) {
+            const nodeOverrideList = button.closest('.node-override-section').querySelector('.node-override-list');
+            const nodeOverrideEntry = createNodeOverrideEntry();
+            nodeOverrideList.insertAdjacentHTML('beforeend', nodeOverrideEntry);
+            
+            // Ensure the newly added node select has options
+            const newNodeSelect = nodeOverrideList.lastElementChild.querySelector('.node-address-select');
+            populateNodeSelect(newNodeSelect);
+        }
+
+        function removeNodeOverride(button) {
+            button.closest('.node-override-item').remove();
+        }
+
+        function addNodeEvent(button) {
+            const nodeEventList = button.previousElementSibling;
+            const nodeEventEntry = createNodeEventEntry();
+            nodeEventList.insertAdjacentHTML('beforeend', nodeEventEntry);
+        }
+
+        function removeNodeEvent(button) {
+            button.closest('.node-event-item').remove();
+        }
+
+        function populateNodeSelect(specificSelect = null) {
+            const options = `
+                <option value="">Select Node</option>
+                ${allNodes.map(node => `
+                    <option value="${node.address}" title="${node.description || 'No description available'}">
+                        ${node.name} (${node.address})${node.isRestPoint ? ' [Rest]' : ''}
+                    </option>
+                `).join('')}
+            `;
+
+            if (specificSelect) {
+                specificSelect.innerHTML = options;
+            } else {
+                document.querySelectorAll('.node-address-select').forEach(select => {
+                    const currentValue = select.value;
+                    select.innerHTML = options;
+                    select.value = currentValue; // Preserve selected value
+                });
+            }
         }
     </script>
 </body>

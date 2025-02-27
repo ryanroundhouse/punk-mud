@@ -66,6 +66,28 @@ const questSchema = new mongoose.Schema({
                 default: 'Class'
             }
         }],
+        // Node event overrides - new field
+        nodeEventOverrides: [{
+            nodeAddress: {
+                type: String,
+                required: true,
+                ref: 'Node'
+            },
+            events: [{
+                mobId: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    required: true,
+                    ref: 'Mob'
+                },
+                chance: {
+                    type: Number,
+                    required: true,
+                    min: 0,
+                    max: 100,
+                    default: 100
+                }
+            }]
+        }],
         // Chat event specific fields
         actorId: {
             type: String,

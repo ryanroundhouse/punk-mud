@@ -3,6 +3,7 @@ const User = require('../models/User');
 const logger = require('../config/logger');
 const stateService = require('./stateService');
 const mobService = require('./mobService');
+const questService = require('./questService');
 const { publishSystemMessage } = require('./chatService');
 
 async function moveUser(userId, direction) {
@@ -66,20 +67,110 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
         throw new Error('Node not found');
     }
 
+    logger.debug('handlePlayerNodeConnection called', {
+        userId,
+        nodeAddress,
+        inCombat: stateService.isUserInCombat(userId),
+        nodeEvents: node.events?.length || 0
+    });
+
     // Only clear and spawn new mobs if not in combat
     if (!stateService.isUserInCombat(userId)) {
         mobService.clearUserMob(userId);
-        const mobSpawn = await mobService.spawnMobForUser(userId, node);
         
-        if (mobSpawn) {
-            await publishSystemMessage(
+        // Check for quest-specific node event overrides
+        const questNodeEvents = await questService.getQuestNodeEventOverrides(userId, nodeAddress);
+        
+        logger.debug('Quest node event override check result', {
+            userId,
+            nodeAddress,
+            hasQuestOverrides: !!questNodeEvents,
+            questEventCount: questNodeEvents?.length || 0,
+            originalNodeEventCount: node.events?.length || 0
+        });
+        
+        let mobSpawn;
+        if (questNodeEvents && questNodeEvents.length > 0) {
+            // Use quest-specific node events instead of the default ones
+            logger.debug('Using quest-specific node events for spawn', {
+                userId,
                 nodeAddress,
-                `A ${mobSpawn.name} appears!`,
-                `A ${mobSpawn.name} appears!`,
-                userId
-            );
+                questNodeEvents: JSON.stringify(questNodeEvents)
+            });
+            
+            // Create a temporary node object with the quest-specific events
+            const questNode = {
+                ...node.toObject(),
+                events: questNodeEvents
+            };
+            
+            logger.debug('Created temporary quest node for spawn', {
+                userId,
+                nodeAddress,
+                originalEvents: node.events?.length || 0,
+                questNodeEvents: questNode.events?.length || 0
+            });
+            
+            mobSpawn = await mobService.spawnMobForUser(userId, questNode);
+            
+            logger.debug('Mob spawn result from quest events', {
+                userId,
+                nodeAddress,
+                mobSpawned: !!mobSpawn,
+                mobDetails: mobSpawn ? {
+                    id: mobSpawn._id,
+                    name: mobSpawn.name
+                } : null
+            });
+            
+            if (mobSpawn) {
+                await publishSystemMessage(
+                    nodeAddress,
+                    `A ${mobSpawn.name} appears!`,
+                    `A ${mobSpawn.name} appears!`,
+                    userId
+                );
+            }
+        } else {
+            // Use default node events
+            logger.debug('Using default node events for spawn', {
+                userId,
+                nodeAddress,
+                nodeEvents: node.events?.length || 0,
+                nodeEventsDetails: node.events?.map(e => ({
+                    mobId: e.mobId,
+                    chance: e.chance
+                })) || []
+            });
+            
+            mobSpawn = await mobService.spawnMobForUser(userId, node);
+            
+            logger.debug('Mob spawn result from default events', {
+                userId,
+                nodeAddress,
+                mobSpawned: !!mobSpawn,
+                mobDetails: mobSpawn ? {
+                    id: mobSpawn._id,
+                    name: mobSpawn.name
+                } : null
+            });
+            
+            if (mobSpawn) {
+                await publishSystemMessage(
+                    nodeAddress,
+                    `A ${mobSpawn.name} appears!`,
+                    `A ${mobSpawn.name} appears!`,
+                    userId
+                );
+            }
         }
+        
         return mobSpawn;
+    } else {
+        logger.debug('Skipping mob spawn because user is in combat', {
+            userId,
+            nodeAddress
+        });
     }
     
     return null;
@@ -90,7 +181,44 @@ async function getNode(address) {
     if (!node) {
         throw new Error('Node not found');
     }
+    
+    // Add debug logging to see what's being returned
+    logger.debug('getNode returning node data:', {
+        address,
+        hasEvents: !!node.events,
+        eventCount: node.events?.length || 0
+    });
+    
     return node;
+}
+
+// Add a new method to get node with quest overrides if applicable
+async function getNodeWithOverrides(address, userId) {
+    const node = await Node.findOne({ address });
+    if (!node) {
+        throw new Error('Node not found');
+    }
+    
+    // Check for quest-specific node event overrides
+    const questNodeEvents = await questService.getQuestNodeEventOverrides(userId, address);
+    
+    // Create a copy of the node to avoid modifying the database object
+    const nodeData = node.toObject();
+    
+    // If there are quest overrides, include them in the node data
+    if (questNodeEvents && questNodeEvents.length > 0) {
+        logger.debug('Including quest event overrides in node data:', {
+            address,
+            userId,
+            originalEvents: nodeData.events?.length || 0,
+            questEventCount: questNodeEvents.length
+        });
+        
+        // Add the quest events to the node data
+        nodeData.events = questNodeEvents;
+    }
+    
+    return nodeData;
 }
 
 async function isRestPoint(nodeAddress) {
@@ -105,5 +233,6 @@ module.exports = {
     moveUser,
     handlePlayerNodeConnection,
     getNode,
+    getNodeWithOverrides,
     isRestPoint
 }; 

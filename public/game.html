@@ -630,6 +630,16 @@
                     node = await response.json();
                 }
 
+                // Add detailed logging about the node data
+                console.log('Node data received:', {
+                    name: node.name,
+                    address: node.address,
+                    hasEvents: !!node.events,
+                    eventsLength: node.events?.length || 0,
+                    eventsDetails: node.events ? JSON.stringify(node.events) : 'No events',
+                    isRestPoint: node.isRestPoint
+                });
+
                 // Update node display
                 document.getElementById('nodeName').textContent = node.name;
 
@@ -659,18 +669,36 @@
                     let borderColor = 'var(--neon-blue)'; // default
                     let shadowColor = 'var(--neon-blue)';
                     
+                    // Add detailed logging about the border color decision
+                    console.log('Deciding border color:', {
+                        hasEvents: !!node.events,
+                        eventsLength: node.events?.length || 0,
+                        isRestPoint: node.isRestPoint
+                    });
+                    
                     if (node.events && node.events.length > 0) {
+                        console.log('Setting RED border due to events:', node.events);
                         borderColor = 'var(--neon-red)';
                         shadowColor = 'var(--neon-red)';
                     } else if (node.isRestPoint) {
+                        console.log('Setting GREEN border due to rest point');
                         borderColor = 'var(--terminal-green)';
                         shadowColor = 'var(--terminal-green)';
+                    } else {
+                        console.log('Setting default BLUE border');
                     }
                     
                     nodeImage.style.borderColor = borderColor;
                     nodeImage.style.boxShadow = `0 0 15px ${shadowColor}`;
+                    
+                    // Log the final border color
+                    console.log('Final border color set:', {
+                        borderColor,
+                        shadowColor
+                    });
                 } else {
                     nodeImage.style.display = 'none';
+                    console.log('No image to display for this node');
                 }
 
                 // Display exits with target node names

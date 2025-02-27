@@ -255,6 +255,31 @@ class StateService {
         return this.activeConversations.has(userId);
     }
 
+    // Add these methods to the StateService class
+
+    setPlayerMob(userId, mobInstance) {
+        logger.debug('Setting player mob:', { 
+            userId, 
+            mobId: mobInstance.mobId,
+            instanceId: mobInstance.instanceId,
+            mobName: mobInstance.name
+        });
+        this.playerMobs.set(userId, mobInstance);
+    }
+
+    getPlayerMob(userId) {
+        return this.playerMobs.get(userId);
+    }
+
+    clearPlayerMob(userId) {
+        logger.debug('Clearing player mob:', { userId });
+        this.playerMobs.delete(userId);
+    }
+
+    hasPlayerMob(userId) {
+        return this.playerMobs.has(userId);
+    }
+
     // ... Add other state management methods as needed
 }
 

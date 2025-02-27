@@ -8,7 +8,8 @@ async function getQuests(req, res) {
             .sort({ title: 1 })
             .populate('events.mobId')
             .populate('events.conversationId')
-            .populate('events.rewards.value');
+            .populate('events.rewards.value')
+            .populate('events.nodeEventOverrides.events.mobId');
         res.json(quests);
     } catch (error) {
         logger.error('Error fetching quests:', error);
@@ -69,6 +70,59 @@ async function createOrUpdateQuest(req, res) {
                     error: 'Invalid event type',
                     details: 'Event type must be "chat", "kill", or "conversation"'
                 });
+            }
+
+            // Validate node event overrides if they exist
+            if (event.nodeEventOverrides && event.nodeEventOverrides.length > 0) {
+                for (const override of event.nodeEventOverrides) {
+                    if (!override.nodeAddress) {
+                        return res.status(400).json({
+                            error: 'Invalid node event override',
+                            details: 'Node address is required for node event overrides'
+                        });
+                    }
+
+                    // Verify the node exists
+                    const nodeExists = await mongoose.model('Node').exists({ address: override.nodeAddress });
+                    if (!nodeExists) {
+                        return res.status(400).json({
+                            error: 'Invalid node event override',
+                            details: `Node with address "${override.nodeAddress}" does not exist`
+                        });
+                    }
+
+                    if (!override.events || !Array.isArray(override.events) || override.events.length === 0) {
+                        return res.status(400).json({
+                            error: 'Invalid node event override',
+                            details: 'Node event overrides must have at least one event'
+                        });
+                    }
+
+                    for (const nodeEvent of override.events) {
+                        if (!nodeEvent.mobId) {
+                            return res.status(400).json({
+                                error: 'Invalid node event override',
+                                details: 'Each node event must have a mobId'
+                            });
+                        }
+
+                        // Verify the mob exists
+                        const mobExists = await mongoose.model('Mob').exists({ _id: nodeEvent.mobId });
+                        if (!mobExists) {
+                            return res.status(400).json({
+                                error: 'Invalid node event override',
+                                details: `Mob with ID "${nodeEvent.mobId}" does not exist`
+                            });
+                        }
+
+                        if (nodeEvent.chance < 0 || nodeEvent.chance > 100) {
+                            return res.status(400).json({
+                                error: 'Invalid node event override',
+                                details: 'Event chance must be between 0 and 100'
+                            });
+                        }
+                    }
+                }
             }
 
             // Validate rewards if they exist
@@ -168,7 +222,8 @@ async function createOrUpdateQuest(req, res) {
 async function getQuestById(req, res) {
     try {
         const quest = await Quest.findById(req.params.id)
-            .populate('events.mobId');
+            .populate('events.mobId')
+            .populate('events.nodeEventOverrides.events.mobId');
         
         if (!quest) {
             return res.status(404).json({ error: 'Quest not found' });

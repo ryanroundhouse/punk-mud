@@ -59,6 +59,169 @@ class QuestService {
         }
     }
 
+    async getQuestNodeEventOverrides(userId, nodeAddress) {
+        try {
+            logger.debug('getQuestNodeEventOverrides called', {
+                userId,
+                nodeAddress
+            });
+
+            const user = await User.findById(userId);
+            if (!user || !user.quests || user.quests.length === 0) {
+                logger.debug('No quests found for user', {
+                    userId,
+                    hasUser: !!user,
+                    questCount: user?.quests?.length || 0
+                });
+                return null;
+            }
+
+            // Get all active quests for the user
+            const activeUserQuests = user.quests.filter(userQuest => !userQuest.completed);
+            if (activeUserQuests.length === 0) {
+                logger.debug('No active quests found for user', {
+                    userId,
+                    totalQuests: user.quests.length,
+                    activeQuests: 0
+                });
+                return null;
+            }
+
+            logger.debug('Found active quests for user', {
+                userId,
+                activeQuestCount: activeUserQuests.length,
+                questIds: activeUserQuests.map(q => q.questId)
+            });
+
+            // Get all quest details
+            const questIds = activeUserQuests.map(uq => uq.questId);
+            const quests = await Quest.find({ _id: { $in: questIds } })
+                .populate('events.nodeEventOverrides.events.mobId');
+
+            logger.debug('Retrieved quest details', {
+                userId,
+                requestedQuestIds: questIds.length,
+                retrievedQuests: quests.length
+            });
+
+            // Collect all node event overrides for the specified node
+            let nodeEventOverrides = [];
+
+            for (const userQuest of activeUserQuests) {
+                const quest = quests.find(q => q._id.toString() === userQuest.questId);
+                if (!quest) {
+                    logger.debug('Quest not found in database', {
+                        userId,
+                        questId: userQuest.questId
+                    });
+                    continue;
+                }
+
+                logger.debug('Processing quest for node overrides', {
+                    userId,
+                    questId: quest._id,
+                    questTitle: quest.title,
+                    currentEventId: userQuest.currentEventId
+                });
+
+                // Find the current event for this quest
+                const currentEvent = quest.events.find(e => 
+                    e._id.toString() === userQuest.currentEventId
+                );
+
+                if (!currentEvent) {
+                    logger.debug('Current event not found for quest', {
+                        userId,
+                        questId: quest._id,
+                        questTitle: quest.title,
+                        currentEventId: userQuest.currentEventId
+                    });
+                    continue;
+                }
+
+                logger.debug('Found current event for quest', {
+                    userId,
+                    questId: quest._id,
+                    eventId: currentEvent._id,
+                    hasNodeOverrides: !!currentEvent.nodeEventOverrides,
+                    nodeOverrideCount: currentEvent.nodeEventOverrides?.length || 0
+                });
+
+                if (!currentEvent.nodeEventOverrides) {
+                    continue;
+                }
+
+                // Check if this event has overrides for the specified node
+                const nodeOverride = currentEvent.nodeEventOverrides.find(
+                    override => override.nodeAddress === nodeAddress
+                );
+
+                if (nodeOverride) {
+                    logger.debug('Found node override for address', {
+                        userId,
+                        questId: quest._id,
+                        questTitle: quest.title,
+                        nodeAddress,
+                        hasEvents: !!nodeOverride.events,
+                        eventCount: nodeOverride.events?.length || 0
+                    });
+
+                    if (nodeOverride.events && nodeOverride.events.length > 0) {
+                        // Convert the events to the format expected by mobService
+                        const formattedEvents = nodeOverride.events.map(event => {
+                            const mobId = event.mobId && (event.mobId._id || event.mobId);
+                            return {
+                                mobId: mobId,
+                                chance: event.chance
+                            };
+                        });
+
+                        logger.debug('Formatted node override events', {
+                            userId,
+                            questId: quest._id,
+                            questTitle: quest.title,
+                            nodeAddress,
+                            formattedEvents: JSON.stringify(formattedEvents)
+                        });
+
+                        nodeEventOverrides.push(...formattedEvents);
+                    } else {
+                        logger.debug('Node override has no events', {
+                            userId,
+                            questId: quest._id,
+                            questTitle: quest.title,
+                            nodeAddress
+                        });
+                    }
+                } else {
+                    logger.debug('No node override found for address', {
+                        userId,
+                        questId: quest._id,
+                        questTitle: quest.title,
+                        nodeAddress,
+                        availableOverrideAddresses: currentEvent.nodeEventOverrides.map(o => o.nodeAddress)
+                    });
+                }
+            }
+
+            logger.debug('Final node event overrides result', {
+                userId,
+                nodeAddress,
+                overrideCount: nodeEventOverrides.length,
+                hasOverrides: nodeEventOverrides.length > 0,
+                overrides: nodeEventOverrides.length > 0 ? JSON.stringify(nodeEventOverrides) : null
+            });
+
+            return nodeEventOverrides.length > 0 ? nodeEventOverrides : null;
+        } catch (error) {
+            logger.error('Error getting quest node event overrides:', error, {
+                userId,
+                nodeAddress
+            });
+            return null;
+        }
+    }
+
     async handleQuestProgression(user, actorId, completionEventIds = [], questToActivate = null) {
         try {
             // Add validation at the start
@@ -595,5 +758,6 @@ const questService = new QuestService();
 module.exports = {
     getActiveQuests: questService.getActiveQuests.bind(questService),
     handleQuestProgression: questService.handleQuestProgression.bind(questService),
-    handleMobKill: questService.handleMobKill.bind(questService)
+    handleMobKill: questService.handleMobKill.bind(questService),
+    getQuestNodeEventOverrides: questService.getQuestNodeEventOverrides.bind(questService)
 }; 

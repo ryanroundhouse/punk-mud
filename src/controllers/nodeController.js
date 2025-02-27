@@ -18,7 +18,7 @@ async function getNodes(req, res) {
 
 async function getPublicNodes(req, res) {
     try {
-        const nodes = await Node.find({}, 'address name');
+        const nodes = await Node.find({}, 'address name description isRestPoint');
         res.json(nodes);
     } catch (error) {
         logger.error('Error fetching public nodes:', error);
@@ -119,7 +119,27 @@ async function getCurrentNode(req, res) {
             await socketService.subscribeToNodeChat(node.address);
         }
 
-        res.json(node);
+        // Check for quest-specific node event overrides
+        const questService = require('../services/questService');
+        const questNodeEvents = await questService.getQuestNodeEventOverrides(user._id.toString(), user.currentNode);
+        
+        // Create a copy of the node to avoid modifying the database object
+        const nodeData = node.toObject();
+        
+        // If there are quest overrides, include them in the node data
+        if (questNodeEvents && questNodeEvents.length > 0) {
+            logger.debug('Including quest event overrides in node data for frontend:', {
+                address: user.currentNode,
+                userId: user._id.toString(),
+                originalEvents: nodeData.events?.length || 0,
+                questEventCount: questNodeEvents.length
+            });
+            
+            // Add the quest events to the node data
+            nodeData.events = questNodeEvents;
+        }
+
+        res.json(nodeData);
     } catch (error) {
         logger.error('Error fetching current node:', error);
         res.status(500).json({ error: 'Error fetching node' });
