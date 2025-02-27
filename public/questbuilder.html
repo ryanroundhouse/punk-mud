@@ -1276,12 +1276,14 @@
         function updateEventTargets(specificSelect = null) {
             const events = Array.from(eventsList.querySelectorAll('.quest-event'));
             const options = events.map(event => {
-                const actorName = event.querySelector('.event-content').children[0].textContent;
+                // Get the hint text from the event
+                const hintText = event.querySelector('.event-hint-input').value || 'No hint';
                 const eventId = event.dataset.eventId;
                 
+                // Create a descriptive option with hint text and ID
                 return `
                     <option value="${eventId}">
-                        ${actorName} - ${eventId}
+                        ${hintText.substring(0, 40)}${hintText.length > 40 ? '...' : ''} - ${eventId}
                     </option>
                 `;
             }).join('');
