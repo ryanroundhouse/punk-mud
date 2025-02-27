@@ -584,6 +584,9 @@
         let commandHistory = [];
         let currentHistoryIndex = -1;
         let tempInput = '';
+        // Add new constants for terminal history
+        const TERMINAL_HISTORY_KEY = 'terminalHistory';
+        const MAX_TERMINAL_HISTORY = 20;
 
         // Add function to get user's current location
         async function getCurrentLocation() {
@@ -779,6 +782,10 @@
 
                 // Initialize chat and load current location
                 initializeChat();
+                
+                // Load terminal history before loading the current node
+                loadTerminalHistory();
+                
                 loadNode();
 
                 // Check if user is in combat
@@ -855,6 +862,9 @@
 
                 // Focus terminal input
                 terminalInput.focus();
+
+                // Ensure input line is visible after everything is loaded
+                ensureInputLineVisible();
 
             } catch (error) {
                 console.error('Authentication error:', error);
@@ -953,6 +963,11 @@
                 
                 const inputLine = terminalInput.parentElement;
                 const responseLine = document.createElement('div');
+                
+                // Store the last command and its response
+                const lastCommand = commandHistory.length > 0 ? 
+                    commandHistory[commandHistory.length - 1] : '';
+                storeTerminalHistory(lastCommand, data);
                 
                 // Check if this is a movement response or successful flee
                 if ((data.message && data.message.startsWith('You move ')) || 
@@ -1057,6 +1072,9 @@
                 terminalOutput.insertBefore(responseLine, inputLine);
                 inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 terminalInput.focus();
+
+                // Ensure input line is visible after response is displayed
+                ensureInputLineVisible();
             });
 
             // Add this to the initializeChat function after socket initialization
@@ -1266,6 +1284,9 @@
                 // Replace scrollTop with scrollIntoView
                 inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 terminalInput.focus();
+
+                // Ensure input line is visible after command is processed
+                ensureInputLineVisible();
             }
         });
 
@@ -1409,6 +1430,190 @@
                 document.getElementById('terminalInput').focus();
             }
         });
+
+        // Add function to store terminal history
+        function storeTerminalHistory(command, response) {
+            let history = JSON.parse(localStorage.getItem(TERMINAL_HISTORY_KEY) || '[]');
+            
+            // Create a storable version of the response
+            let storableResponse = response;
+            
+            // Handle special response types like list command
+            if (response && response.type === 'list' && !response.redirect) {
+                // Create a text representation of the list response with HTML for styling
+                let textResponse = '';
+                
+                if (response.users && response.users.length > 0) {
+                    textResponse += `Players here:\n` + 
+                        response.users.map(user => `- ${user}`).join('\n');
+                }
+                
+                if (response.actors && response.actors.length > 0) {
+                    if (textResponse) textResponse += '\n';
+                    textResponse += `NPCs here:\n` + 
+                        response.actors.map(actor => `- ${actor}`).join('\n');
+                }
+                
+                if (response.enemies && response.enemies.length > 0) {
+                    if (textResponse) textResponse += '\n';
+                    textResponse += `Enemies here:\n` + 
+                        response.enemies.map(enemy => {
+                            let color = 'var(--terminal-green)'; // same level (default)
+                            const levelDiff = enemy.level - response.playerLevel;
+                            let prefix = '- ';
+                            
+                            if (levelDiff >= 3) {
+                                color = 'var(--neon-red)'; // 3+ levels higher
+                                prefix = '- 💀 '; // Add skull emoji
+                            } else if (levelDiff >= 2) {
+                                color = 'var(--neon-red)'; // 2 levels higher
+                            } else if (levelDiff === 1) {
+                                color = 'var(--neon-pink)'; // 1 level higher
+                            } else if (levelDiff === -1) {
+                                color = 'var(--neon-blue)'; // 1 level lower
+                            } else if (levelDiff <= -2) {
+                                color = '#666666'; // 2+ levels lower (grey)
+                            }
+                            
+                            // Store the styling information with the enemy
+                            return `${prefix}<enemy data-color="${color}">${enemy.name}</enemy>`;
+                        }).join('\n');
+                }
+                
+                // Store a version with our custom markup
+                storableResponse = {
+                    type: 'list',
+                    message: textResponse,
+                    hasEnemyMarkup: true
+                };
+            }
+            
+            // Don't store redirects (character profiles, actor modals)
+            if (response && response.redirect) {
+                return;
+            }
+            
+            // Check if this is a combat response that should be merged with previous combat responses
+            if (response && response.type === 'combat') {
+                // Get the last entry in history
+                const lastEntry = history.length > 0 ? history[history.length - 1] : null;
+                
+                // If the last entry was also a combat response and from the same command, merge them
+                if (lastEntry && 
+                    lastEntry.response && 
+                    lastEntry.response.type === 'combat' && 
+                    lastEntry.command === command) {
+                    
+                    // Merge the messages
+                    lastEntry.response.message += '\n' + response.message;
+                    
+                    // Update the history with the merged entry
+                    localStorage.setItem(TERMINAL_HISTORY_KEY, JSON.stringify(history));
+                    return;
+                }
+            }
+            
+            // Add as a new entry if not merged
+            history.push({ 
+                command, 
+                response: storableResponse, 
+                timestamp: new Date().toISOString() 
+            });
+            
+            // Keep only the last MAX_TERMINAL_HISTORY entries
+            if (history.length > MAX_TERMINAL_HISTORY) {
+                history = history.slice(history.length - MAX_TERMINAL_HISTORY);
+            }
+            
+            localStorage.setItem(TERMINAL_HISTORY_KEY, JSON.stringify(history));
+        }
+
+        // Update the loadTerminalHistory function to improve scrolling
+        function loadTerminalHistory() {
+            const history = JSON.parse(localStorage.getItem(TERMINAL_HISTORY_KEY) || '[]');
+            const inputLine = terminalInput.parentElement;
+            
+            // Add each history item to the terminal
+            history.forEach(item => {
+                // Add command line
+                const commandLine = document.createElement('div');
+                commandLine.style.color = 'var(--terminal-green)';
+                commandLine.textContent = `> ${item.command}`;
+                terminalOutput.insertBefore(commandLine, inputLine);
+                
+                // Add response line with appropriate styling
+                const responseLine = document.createElement('div');
+                
+                // Apply styling based on response type if available
+                if (typeof item.response === 'object') {
+                    switch(item.response.type) {
+                        case 'error':
+                            responseLine.style.color = 'var(--neon-red)';
+                            break;
+                        case 'success':
+                            responseLine.style.color = 'var(--neon-blue)';
+                            break;
+                        case 'combat':
+                            responseLine.style.color = 'var(--neon-pink)';
+                            break;
+                        default:
+                            responseLine.style.color = 'var(--terminal-green)';
+                    }
+                    
+                    // Check if this is a list response with enemy markup
+                    if (item.response.type === 'list' && item.response.hasEnemyMarkup) {
+                        // Process the custom enemy markup
+                        let processedText = item.response.message.replace(
+                            /<enemy data-color="([^"]+)">([^<]+)<\/enemy>/g, 
+                            '<span style="color: $1">$2</span>'
+                        );
+                        responseLine.innerHTML = processedText;
+                    } else {
+                        responseLine.textContent = item.response.message || '';
+                    }
+                } else {
+                    // If response is just a string
+                    responseLine.style.color = 'var(--terminal-green)';
+                    responseLine.textContent = item.response || '';
+                }
+                
+                responseLine.style.fontFamily = 'monospace';
+                responseLine.style.whiteSpace = 'pre-wrap';
+                terminalOutput.insertBefore(responseLine, inputLine);
+            });
+            
+            // Use a more reliable method to ensure the input line is fully visible
+            ensureInputLineVisible();
+        }
+
+        // Add a new function to ensure the input line is fully visible
+        function ensureInputLineVisible() {
+            // Use setTimeout to ensure this runs after the DOM has updated
+            setTimeout(() => {
+                const inputLine = terminalInput.parentElement;
+                const terminalContainer = document.getElementById('terminalOutput');
+                
+                // Calculate if the input line is fully visible
+                const containerRect = terminalContainer.getBoundingClientRect();
+                const inputRect = inputLine.getBoundingClientRect();
+                
+                // Check if the input line is fully visible
+                const isFullyVisible = 
+                    inputRect.top >= containerRect.top && 
+                    inputRect.bottom <= containerRect.bottom;
+                
+                if (!isFullyVisible) {
+                    // Scroll to ensure the input line is fully visible with some padding
+                    inputLine.scrollIntoView({ block: 'end', behavior: 'auto' });
+                    
+                    // Add some extra scroll to ensure it's fully visible
+                    terminalContainer.scrollTop += 20;
+                }
+                
+                // Focus the input
+                terminalInput.focus();
+            }, 100);
+        }
     </script>
 
     <div id="imageModal" class="image-modal" style="display: none;">
