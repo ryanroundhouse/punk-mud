@@ -148,6 +148,19 @@ async function handleCommand(socket, data) {
                                 type: 'error',
                                 message: result.message
                             });
+                            // Re-display the current conversation state
+                            const activeConv = stateService.getActiveConversation(socket.user.userId);
+                            if (activeConv && activeConv.currentNode) {
+                                const currentState = await conversationService.formatConversationResponse(
+                                    activeConv.currentNode,
+                                    socket.user.userId
+                                );
+                                socket.emit('console response', {
+                                    type: 'story',
+                                    message: currentState.message,
+                                    isEndOfStory: false
+                                });
+                            }
                         } else {
                             socket.emit('console response', {
                                 type: 'story',

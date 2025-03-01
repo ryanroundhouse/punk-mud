@@ -172,15 +172,17 @@ class ConversationService {
             }
 
             // If we get a non-numeric input in a conversation with choices, 
-            // clear the conversation and return null to allow a new one to start
+            // return an error message instead of clearing the conversation
             if (isNaN(parseInt(choice)) && currentNode.choices.length > 0) {
-                logger.debug('Non-numeric input received, ending conversation', {
+                logger.debug('Non-numeric input received, prompting for valid choice', {
                     userId,
                     input: choice,
                     isStoryEvent: activeConv.isStoryEvent
                 });
-                stateService.clearActiveConversation(userId);
-                return null;
+                return {
+                    error: true,
+                    message: `Please enter a number between 1 and ${currentNode.choices.length} to choose your response.`
+                };
             }
 
             // Get user data to check quests

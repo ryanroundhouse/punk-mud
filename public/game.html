@@ -665,39 +665,32 @@
                     nodeImage.src = node.image;
                     nodeImage.style.display = 'block';
                     
-                    // Set border color based on node status
-                    let borderColor = 'var(--neon-blue)'; // default
-                    let shadowColor = 'var(--neon-blue)';
-                    
-                    // Add detailed logging about the border color decision
-                    console.log('Deciding border color:', {
-                        hasEvents: !!node.events,
-                        eventsLength: node.events?.length || 0,
-                        isRestPoint: node.isRestPoint,
-                        hasMob: node.events?.some(event => event.mobId)
+                    // Check for actual mob presence by making an ls request
+                    const lsResponse = await fetch(`/api/nodes/${node.address}/list`, {
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
                     });
                     
-                    // Check specifically for mob events
-                    if (node.events?.some(event => event.mobId)) {
-                        console.log('Setting RED border due to mob presence');
-                        borderColor = 'var(--neon-red)';
-                        shadowColor = 'var(--neon-red)';
-                    } else if (node.isRestPoint) {
-                        console.log('Setting GREEN border due to rest point');
-                        borderColor = 'var(--terminal-green)';
-                        shadowColor = 'var(--terminal-green)';
-                    } else {
-                        console.log('Setting default BLUE border');
+                    if (lsResponse.ok) {
+                        const lsData = await lsResponse.json();
+                        console.log('List data for border color:', lsData);
+                        
+                        // Check if there are actual enemies present
+                        if (lsData.enemies && lsData.enemies.length > 0) {
+                            console.log('Setting RED border due to actual mob presence:', lsData.enemies);
+                            nodeImage.style.borderColor = 'var(--neon-red)';
+                            nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
+                        } else if (node.isRestPoint) {
+                            console.log('Setting GREEN border due to rest point');
+                            nodeImage.style.borderColor = 'var(--terminal-green)';
+                            nodeImage.style.boxShadow = '0 0 15px var(--terminal-green)';
+                        } else {
+                            console.log('Setting default BLUE border - no enemies present');
+                            nodeImage.style.borderColor = 'var(--neon-blue)';
+                            nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
+                        }
                     }
-                    
-                    nodeImage.style.borderColor = borderColor;
-                    nodeImage.style.boxShadow = `0 0 15px ${shadowColor}`;
-                    
-                    // Log the final border color
-                    console.log('Final border color set:', {
-                        borderColor,
-                        shadowColor
-                    });
                 } else {
                     nodeImage.style.display = 'none';
                     console.log('No image to display for this node');
