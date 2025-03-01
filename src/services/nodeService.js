@@ -5,6 +5,8 @@ const stateService = require('./stateService');
 const mobService = require('./mobService');
 const questService = require('./questService');
 const { publishSystemMessage } = require('./chatService');
+const Event = require('../models/Event');
+const conversationService = require('./conversationService');
 
 async function moveUser(userId, direction) {
     const user = await User.findById(userId);
@@ -46,13 +48,14 @@ async function moveUser(userId, direction) {
 
     // Clear any existing mob and check for new spawn
     mobService.clearUserMob(userId);
-    const mobSpawn = await mobService.spawnMobForUser(userId, targetNode);
+    const result = await handlePlayerNodeConnection(userId, targetNode.address);
     
     return {
         success: true,
         message: `You move ${direction} to ${targetNode.name}`,
         node: targetNode,
-        mobSpawn
+        mobSpawn: result.mobSpawn,
+        storyEvent: result.storyEvent
     };
 }
 
@@ -74,7 +77,7 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
         nodeEvents: node.events?.length || 0
     });
 
-    // Only clear and spawn new mobs if not in combat
+    // Only process events if not in combat
     if (!stateService.isUserInCombat(userId)) {
         mobService.clearUserMob(userId);
         
@@ -89,91 +92,136 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
             originalNodeEventCount: node.events?.length || 0
         });
         
-        let mobSpawn;
-        if (questNodeEvents && questNodeEvents.length > 0) {
-            // Use quest-specific node events instead of the default ones
-            logger.debug('Using quest-specific node events for spawn', {
-                userId,
-                nodeAddress,
-                questNodeEvents: JSON.stringify(questNodeEvents)
-            });
+        let result = { mobSpawn: null, storyEvent: null };
+
+        // Determine which events to use
+        const eventsToUse = questNodeEvents && questNodeEvents.length > 0 ? 
+            questNodeEvents : 
+            node.events || [];
+
+        // Calculate total spawn chance
+        const totalChance = eventsToUse.reduce((sum, event) => sum + event.chance, 0);
+        
+        if (totalChance === 100) {
+            // When total chance is 100%, ensure one event triggers
+            const roll = Math.random() * 100;
+            let chanceSum = 0;
             
-            // Create a temporary node object with the quest-specific events
-            const questNode = {
-                ...node.toObject(),
-                events: questNodeEvents
-            };
-            
-            logger.debug('Created temporary quest node for spawn', {
-                userId,
-                nodeAddress,
-                originalEvents: node.events?.length || 0,
-                questNodeEvents: questNode.events?.length || 0
-            });
-            
-            mobSpawn = await mobService.spawnMobForUser(userId, questNode);
-            
-            logger.debug('Mob spawn result from quest events', {
-                userId,
-                nodeAddress,
-                mobSpawned: !!mobSpawn,
-                mobDetails: mobSpawn ? {
-                    id: mobSpawn._id,
-                    name: mobSpawn.name
-                } : null
-            });
-            
-            if (mobSpawn) {
-                await publishSystemMessage(
-                    nodeAddress,
-                    `A ${mobSpawn.name} appears!`,
-                    `A ${mobSpawn.name} appears!`,
-                    userId
-                );
+            // Find which event should trigger based on the roll
+            for (const event of eventsToUse) {
+                chanceSum += event.chance;
+                if (roll < chanceSum) {
+                    if (event.mobId) {
+                        // Handle mob spawn
+                        const mobInstance = await mobService.loadMobFromEvent(event);
+                        if (mobInstance) {
+                            logger.debug(`Spawning mob instance ${mobInstance.instanceId} (${mobInstance.name}) for user ${userId}`);
+                            stateService.playerMobs.set(userId, mobInstance);
+                            result.mobSpawn = mobInstance;
+                            await publishSystemMessage(
+                                nodeAddress,
+                                `A ${mobInstance.name} appears!`,
+                                `A ${mobInstance.name} appears!`,
+                                userId
+                            );
+                        }
+                    } else if (event.eventId) {
+                        // Handle story event
+                        const storyEvent = await Event.findById(event.eventId);
+                        if (storyEvent) {
+                            logger.debug(`Starting story event ${storyEvent._id} (${storyEvent.title}) for user ${userId}`);
+                            // Set the story event as an active conversation
+                            stateService.setActiveConversation(
+                                userId,
+                                storyEvent._id,
+                                storyEvent.rootNode,
+                                null, // No actor for story events
+                                true // Mark as story event
+                            );
+                            result.storyEvent = storyEvent;
+
+                            // Get the socket for this user to send initial prompt
+                            const socket = stateService.getClient(userId);
+                            if (socket) {
+                                // Format and send initial story prompt
+                                const formattedResponse = await conversationService.formatConversationResponse(storyEvent.rootNode, userId);
+                                socket.emit('console response', {
+                                    type: 'story',
+                                    message: formattedResponse.message,
+                                    isEndOfStory: formattedResponse.isEnd
+                                });
+                            }
+                        }
+                    }
+                    break;
+                }
             }
         } else {
-            // Use default node events
-            logger.debug('Using default node events for spawn', {
-                userId,
-                nodeAddress,
-                nodeEvents: node.events?.length || 0,
-                nodeEventsDetails: node.events?.map(e => ({
-                    mobId: e.mobId,
-                    chance: e.chance
-                })) || []
+            // For non-100% total chance, check each event individually
+            const eligibleEvents = eventsToUse.filter(event => {
+                const roll = Math.random() * 100;
+                logger.debug(`Event ${event.mobId || event.eventId} - Rolled ${roll} against chance ${event.chance}`);
+                return roll < event.chance;
             });
             
-            mobSpawn = await mobService.spawnMobForUser(userId, node);
-            
-            logger.debug('Mob spawn result from default events', {
-                userId,
-                nodeAddress,
-                mobSpawned: !!mobSpawn,
-                mobDetails: mobSpawn ? {
-                    id: mobSpawn._id,
-                    name: mobSpawn.name
-                } : null
-            });
-            
-            if (mobSpawn) {
-                await publishSystemMessage(
-                    nodeAddress,
-                    `A ${mobSpawn.name} appears!`,
-                    `A ${mobSpawn.name} appears!`,
-                    userId
-                );
+            if (eligibleEvents.length > 0) {
+                // Randomly select one event from eligible events
+                const selectedEvent = eligibleEvents[Math.floor(Math.random() * eligibleEvents.length)];
+                
+                if (selectedEvent.mobId) {
+                    // Handle mob spawn
+                    const mobInstance = await mobService.loadMobFromEvent(selectedEvent);
+                    if (mobInstance) {
+                        logger.debug(`Spawning mob instance ${mobInstance.instanceId} (${mobInstance.name}) for user ${userId}`);
+                        stateService.playerMobs.set(userId, mobInstance);
+                        result.mobSpawn = mobInstance;
+                        await publishSystemMessage(
+                            nodeAddress,
+                            `A ${mobInstance.name} appears!`,
+                            `A ${mobInstance.name} appears!`,
+                            userId
+                        );
+                    }
+                } else if (selectedEvent.eventId) {
+                    // Handle story event
+                    const storyEvent = await Event.findById(selectedEvent.eventId);
+                    if (storyEvent) {
+                        logger.debug(`Starting story event ${storyEvent._id} (${storyEvent.title}) for user ${userId}`);
+                        // Set the story event as an active conversation
+                        stateService.setActiveConversation(
+                            userId,
+                            storyEvent._id,
+                            storyEvent.rootNode,
+                            null, // No actor for story events
+                            true // Mark as story event
+                        );
+                        result.storyEvent = storyEvent;
+
+                        // Get the socket for this user to send initial prompt
+                        const socket = stateService.getClient(userId);
+                        if (socket) {
+                            // Format and send initial story prompt
+                            const formattedResponse = await conversationService.formatConversationResponse(storyEvent.rootNode, userId);
+                            socket.emit('console response', {
+                                type: 'story',
+                                message: formattedResponse.message,
+                                isEndOfStory: formattedResponse.isEnd
+                            });
+                        }
+                    }
+                }
             }
         }
         
-        return mobSpawn;
+        return result;
     } else {
-        logger.debug('Skipping mob spawn because user is in combat', {
+        logger.debug('Skipping event processing because user is in combat', {
             userId,
             nodeAddress
         });
     }
     
-    return null;
+    return { mobSpawn: null, storyEvent: null };
 }
 
 async function getNode(address) {

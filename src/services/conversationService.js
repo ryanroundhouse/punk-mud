@@ -151,14 +151,22 @@ class ConversationService {
             logger.debug('handleConversationChoice called:', {
                 userId,
                 choice,
-                activeConv
+                activeConv: {
+                    conversationId: activeConv.conversationId,
+                    hasCurrentNode: !!activeConv.currentNode,
+                    actorId: activeConv.actorId,
+                    isStoryEvent: activeConv.isStoryEvent
+                }
             });
 
             const currentNode = activeConv.currentNode;
 
             // If no choices available, end conversation and allow new one to start
             if (!currentNode.choices || currentNode.choices.length === 0) {
-                logger.debug('No choices available, ending conversation');
+                logger.debug('No choices available, ending conversation', {
+                    userId,
+                    isStoryEvent: activeConv.isStoryEvent
+                });
                 stateService.clearActiveConversation(userId);
                 return null;
             }
@@ -166,7 +174,11 @@ class ConversationService {
             // If we get a non-numeric input in a conversation with choices, 
             // clear the conversation and return null to allow a new one to start
             if (isNaN(parseInt(choice)) && currentNode.choices.length > 0) {
-                logger.debug('Non-numeric input received, ending conversation');
+                logger.debug('Non-numeric input received, ending conversation', {
+                    userId,
+                    input: choice,
+                    isStoryEvent: activeConv.isStoryEvent
+                });
                 stateService.clearActiveConversation(userId);
                 return null;
             }
@@ -203,9 +215,19 @@ class ConversationService {
                     return true;
                 });
 
+            logger.debug('Filtered choices:', {
+                userId,
+                totalChoices: currentNode.choices.length,
+                validChoices: validChoices.length,
+                isStoryEvent: activeConv.isStoryEvent
+            });
+
             // End conversation if no valid choices remain
             if (validChoices.length === 0) {
-                logger.debug('No valid choices available after filtering, ending conversation');
+                logger.debug('No valid choices available after filtering, ending conversation', {
+                    userId,
+                    isStoryEvent: activeConv.isStoryEvent
+                });
                 stateService.clearActiveConversation(userId);
                 return null;
             }
@@ -213,7 +235,12 @@ class ConversationService {
             // Now validate the choice against valid choices
             const selectedIndex = parseInt(choice) - 1;
             if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= validChoices.length) {
-                logger.debug('Invalid choice provided');
+                logger.debug('Invalid choice provided', {
+                    userId,
+                    choice,
+                    validChoiceRange: `1-${validChoices.length}`,
+                    isStoryEvent: activeConv.isStoryEvent
+                });
                 return {
                     error: true,
                     message: `Invalid choice. Please choose 1-${validChoices.length}.`
@@ -223,17 +250,20 @@ class ConversationService {
             const selectedChoice = validChoices[selectedIndex].choice;
             
             logger.debug('Selected choice:', {
+                userId,
                 text: selectedChoice.text,
                 hasNextNode: !!selectedChoice.nextNode,
                 hasActivateQuest: !!selectedChoice.nextNode?.activateQuestId,
-                hasQuestCompletionEvents: !!selectedChoice.nextNode?.questCompletionEvents?.length
+                hasQuestCompletionEvents: !!selectedChoice.nextNode?.questCompletionEvents?.length,
+                isStoryEvent: activeConv.isStoryEvent
             });
 
             // Process quest completion events BEFORE updating state or ending conversation
             if (selectedChoice.nextNode?.questCompletionEvents?.length > 0) {
                 logger.debug('Processing quest completion events:', {
                     events: selectedChoice.nextNode.questCompletionEvents,
-                    userId: user._id.toString()
+                    userId: user._id.toString(),
+                    isStoryEvent: activeConv.isStoryEvent
                 });
 
                 const result = await questService.handleQuestProgression(
@@ -264,7 +294,10 @@ class ConversationService {
             }
 
             if (!selectedChoice.nextNode) {
-                logger.debug('End of conversation branch reached');
+                logger.debug('End of conversation branch reached', {
+                    userId,
+                    isStoryEvent: activeConv.isStoryEvent
+                });
                 stateService.clearActiveConversation(userId);
                 return {
                     message: selectedChoice.text,
@@ -273,16 +306,46 @@ class ConversationService {
             }
 
             // Update conversation state
-            logger.debug('Updating conversation state with next node');
+            logger.debug('Updating conversation state with next node', {
+                userId,
+                isStoryEvent: activeConv.isStoryEvent,
+                nextNodePrompt: selectedChoice.nextNode.prompt,
+                nextNodeChoices: selectedChoice.nextNode.choices?.length || 0
+            });
+
             stateService.setActiveConversation(
                 userId, 
                 activeConv.conversationId, 
                 selectedChoice.nextNode,
-                activeConv.actorId
+                activeConv.actorId,
+                activeConv.isStoryEvent
             );
 
             // Return the formatted response
-            return await this.formatConversationResponse(selectedChoice.nextNode, userId);
+            const response = await this.formatConversationResponse(selectedChoice.nextNode, userId);
+            logger.debug('Formatted response:', {
+                userId,
+                message: response.message,
+                hasChoices: response.hasChoices,
+                isEnd: response.isEnd,
+                isStoryEvent: activeConv.isStoryEvent
+            });
+
+            // Clear conversation state if there are no more choices
+            if (!response.hasChoices) {
+                logger.debug('No more choices available, ending conversation', {
+                    userId,
+                    isStoryEvent: activeConv.isStoryEvent
+                });
+                stateService.clearActiveConversation(userId);
+            }
+
+            return {
+                message: response.message,
+                hasChoices: response.hasChoices,
+                isEnd: response.isEnd,
+                error: false
+            };
         } catch (error) {
             logger.error('Error in handleConversationChoice:', error);
             return null;

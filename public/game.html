@@ -673,11 +673,13 @@
                     console.log('Deciding border color:', {
                         hasEvents: !!node.events,
                         eventsLength: node.events?.length || 0,
-                        isRestPoint: node.isRestPoint
+                        isRestPoint: node.isRestPoint,
+                        hasMob: node.events?.some(event => event.mobId)
                     });
                     
-                    if (node.events && node.events.length > 0) {
-                        console.log('Setting RED border due to events:', node.events);
+                    // Check specifically for mob events
+                    if (node.events?.some(event => event.mobId)) {
+                        console.log('Setting RED border due to mob presence');
                         borderColor = 'var(--neon-red)';
                         shadowColor = 'var(--neon-red)';
                     } else if (node.isRestPoint) {
@@ -1213,8 +1215,7 @@
                 // If input is a number and we're in a conversation, treat it as a conversation choice
                 if (/^\d+$/.test(fullCommand)) {
                     socket.emit('console command', { 
-                        command: 'chat',
-                        target: fullCommand
+                        command: fullCommand
                     });
                     inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
                     terminalInput.focus();

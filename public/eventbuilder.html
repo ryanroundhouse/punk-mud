@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUNK MUD - Event Builder</title>
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+            --terminal-green: #00ff00;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .builder-container {
+            width: 95%;
+            height: 90vh;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-pink),
+                       0 0 40px rgba(255, 46, 136, 0.3);
+            position: relative;
+        }
+
+        .layout-container {
+            display: flex;
+            gap: 2rem;
+            height: 100%;
+        }
+
+        .left-panel {
+            flex: 1;
+            height: 100%;
+            position: relative;
+        }
+
+        .event-form {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            height: calc(100% - 5rem);
+            box-sizing: border-box;
+            position: relative;
+            margin-top: 5rem;
+            overflow-y: auto;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--neon-blue);
+        }
+
+        input[type="text"],
+        textarea,
+        select {
+            width: 100%;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .branch-container {
+            border: 1px solid var(--neon-blue);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 5px;
+            background: rgba(0, 255, 249, 0.05);
+        }
+
+        .choice-container {
+            margin-left: 2rem;
+            padding: 1rem;
+            border-left: 2px solid var(--neon-pink);
+            margin-top: 1rem;
+            background: rgba(255, 46, 136, 0.05);
+        }
+
+        .action-button {
+            background: transparent;
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            transition: all 0.3s ease;
+            border-radius: 5px;
+        }
+
+        .action-button:hover {
+            background: rgba(0, 255, 249, 0.1);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .delete-button {
+            border-color: var(--neon-pink);
+            color: var(--neon-pink);
+        }
+
+        .delete-button:hover {
+            background: rgba(255, 46, 136, 0.1);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .right-panel {
+            width: 300px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--terminal-green);
+            border-radius: 5px;
+            padding: 1rem;
+            height: calc(100% - 2rem);
+            overflow-y: auto;
+        }
+
+        .event-entry {
+            border: 1px solid var(--neon-blue);
+            margin: 0.5rem 0;
+            padding: 1rem;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .event-entry:hover {
+            background: rgba(0, 255, 249, 0.1);
+            transform: translateX(5px);
+        }
+
+        .event-title {
+            color: var(--neon-blue);
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .remove-branch, 
+        .remove-choice {
+            color: var(--neon-pink);
+            cursor: pointer;
+            float: right;
+            font-size: 1.2em;
+            transition: all 0.3s ease;
+        }
+
+        .remove-branch:hover,
+        .remove-choice:hover {
+            transform: scale(1.2);
+            text-shadow: 0 0 5px var(--neon-pink);
+        }
+
+        /* Hamburger menu styles */
+        .hamburger-menu {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+        }
+
+        .hamburger-button {
+            background: transparent;
+            border: none;
+            color: var(--neon-pink);
+            font-size: 2rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .hamburger-button:hover {
+            color: var(--neon-blue);
+            transform: scale(1.1);
+        }
+
+        .menu-content {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: rgba(10, 10, 15, 0.95);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 0.5rem;
+            display: none;
+            min-width: 200px;
+            box-shadow: 0 0 20px rgba(0, 255, 249, 0.3);
+        }
+
+        .menu-content.show {
+            display: block;
+        }
+
+        .menu-content a {
+            display: block;
+            color: var(--terminal-green);
+            text-decoration: none;
+            padding: 0.8rem 1rem;
+            transition: all 0.3s ease;
+            border-radius: 3px;
+        }
+
+        .menu-content a:hover {
+            background: rgba(0, 255, 249, 0.1);
+            color: var(--neon-blue);
+            transform: translateX(5px);
+        }
+
+        .menu-content a + a {
+            margin-top: 0.2rem;
+        }
+
+        /* Scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--neon-blue);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--neon-pink);
+        }
+
+        .event-node {
+            border: 1px solid var(--neon-blue);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 5px;
+            background: rgba(0, 255, 249, 0.05);
+        }
+
+        .node-choices {
+            margin-left: 1rem;
+            padding-left: 1rem;
+            border-left: 2px solid var(--neon-blue);
+        }
+
+        .add-subchoice-btn {
+            margin-top: 1rem;
+            background: rgba(255, 46, 136, 0.1);
+        }
+
+        .choice-text {
+            min-height: 60px;
+        }
+
+        .node-prompt {
+            min-height: 80px;
+        }
+    </style>
+</head>
+<body>
+    <div class="hamburger-menu">
+        <button class="hamburger-button">☰</button>
+        <div class="menu-content">
+            <a href="/game.html">Return to Game</a>
+            <a href="/actorbuilder.html">Actor Builder</a>
+            <a href="/mobbuilder.html">Mob Builder</a>
+            <a href="/movebuilder.html">Move Builder</a>
+            <a href="/nodebuilder.html">Node Builder</a>
+            <a href="/questbuilder.html">Quest Builder</a>
+            <a href="/classbuilder.html">Class Builder</a>
+            <a href="/conversationbuilder.html">Conversation Builder</a>
+            <a href="/eventbuilder.html">Event Builder</a>
+        </div>
+    </div>
+
+    <div class="builder-container">
+        <div class="layout-container">
+            <div class="left-panel">
+                <button class="action-button" id="newEventBtn">Add New Event</button>
+                <div class="event-form" id="eventForm">
+                    <div class="form-group">
+                        <label for="eventTitle">Event Title:</label>
+                        <input type="text" id="eventTitle" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Event Tree:</label>
+                        <div id="eventTree">
+                            <div class="event-node root-node">
+                                <div class="form-group">
+                                    <label>Initial Prompt:</label>
+                                    <textarea class="node-prompt" required></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>Required Quest:</label>
+                                    <select class="quest-select">
+                                        <option value="">No Quest Required</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Activate Quest:</label>
+                                    <select class="quest-select">
+                                        <option value="">No Quest to Activate</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Complete Quest Events (comma-separated IDs):</label>
+                                    <input type="text" class="quest-events" placeholder="Quest event IDs...">
+                                </div>
+                                <div class="node-choices"></div>
+                                <button class="action-button add-choice-btn">Add Choice</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button class="action-button delete-button hidden" id="deleteEventBtn">Delete Event</button>
+                        <button class="action-button" id="saveEventBtn">Save Event</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="filter-container">
+                    <input type="text" 
+                           id="eventFilter" 
+                           placeholder="Filter events..."
+                           class="chat-input">
+                </div>
+                <div class="events-list" id="eventsListPanel">
+                    <!-- Events will be listed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize variables
+        let allEvents = [];
+        let allQuests = [];
+
+        // Check authentication and load data
+        window.onload = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/auth/verify-token', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                await Promise.all([
+                    loadQuests(),
+                    loadEvents()
+                ]);
+                
+                newEventBtn.click();
+            } catch (error) {
+                console.error('Authentication error:', error);
+                window.location.href = '/';
+            }
+        };
+
+        // Load quests
+        async function loadQuests() {
+            try {
+                const response = await fetch('/api/quests', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load quests');
+                }
+
+                allQuests = await response.json();
+                updateQuestSelects();
+            } catch (error) {
+                console.error('Error loading quests:', error);
+                alert('Failed to load quests');
+            }
+        }
+
+        // Update all quest select elements
+        function updateQuestSelects() {
+            document.querySelectorAll('.quest-select').forEach(select => {
+                const currentValue = select.value;
+                select.innerHTML = `
+                    <option value="">No Quest</option>
+                    ${allQuests.map(quest => `
+                        <option value="${quest._id}" ${quest._id === currentValue ? 'selected' : ''}>
+                            ${quest.title}
+                        </option>
+                    `).join('')}
+                `;
+            });
+        }
+
+        // Load events
+        async function loadEvents() {
+            try {
+                const response = await fetch('/api/events', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load events');
+                }
+
+                allEvents = await response.json();
+                filterAndDisplayEvents();
+            } catch (error) {
+                console.error('Error loading events:', error);
+                alert('Failed to load events');
+            }
+        }
+
+        // Create event node
+        function createEventNode(nodeData = {}) {
+            const nodeContainer = document.createElement('div');
+            nodeContainer.className = 'event-node';
+            nodeContainer.innerHTML = `
+                <div class="form-group">
+                    <label>Response Prompt:</label>
+                    <textarea class="node-prompt" required>${nodeData.prompt || ''}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Required Quest:</label>
+                    <select class="quest-select">
+                        <option value="">No Quest Required</option>
+                        ${allQuests.map(quest => `
+                            <option value="${quest._id}" ${quest._id === nodeData.requiredQuestId ? 'selected' : ''}>
+                                ${quest.title}
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Activate Quest:</label>
+                    <select class="quest-select">
+                        <option value="">No Quest to Activate</option>
+                        ${allQuests.map(quest => `
+                            <option value="${quest._id}" ${quest._id === nodeData.activateQuestId ? 'selected' : ''}>
+                                ${quest.title}
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Complete Quest Events (comma-separated IDs):</label>
+                    <input type="text" class="quest-events" value="${nodeData?.questCompletionEvents?.join(',') || ''}" placeholder="Quest event IDs...">
+                </div>
+                <div class="node-choices"></div>
+                <button class="action-button add-choice-btn">Add Choice</button>
+            `;
+
+            // Add choice button handler
+            nodeContainer.querySelector('.add-choice-btn').addEventListener('click', () => {
+                const choicesContainer = nodeContainer.querySelector('.node-choices');
+                addChoice(choicesContainer);
+            });
+
+            // Add existing choices if any
+            if (nodeData.choices) {
+                nodeData.choices.forEach(choice => {
+                    const choiceContainer = addChoice(nodeContainer.querySelector('.node-choices'));
+                    choiceContainer.querySelector('.choice-text').value = choice.text;
+                    if (choice.nextNode) {
+                        const nextNode = createEventNode(choice.nextNode);
+                        choiceContainer.querySelector('.next-node-container').appendChild(nextNode);
+                    }
+                });
+            }
+
+            return nodeContainer;
+        }
+
+        // Add choice to event node
+        function addChoice(container) {
+            const choiceContainer = document.createElement('div');
+            choiceContainer.className = 'choice-container';
+            choiceContainer.innerHTML = `
+                <span class="remove-choice">×</span>
+                <div class="form-group">
+                    <label>Choice Text:</label>
+                    <textarea class="choice-text" required></textarea>
+                </div>
+                <div class="next-node-container"></div>
+                <button class="action-button add-response-btn">Add Response</button>
+            `;
+
+            // Add remove handler
+            choiceContainer.querySelector('.remove-choice').addEventListener('click', (e) => {
+                e.preventDefault();
+                if (confirm('Are you sure you want to remove this choice and all its responses?')) {
+                    choiceContainer.remove();
+                }
+            });
+
+            // Add response button handler
+            choiceContainer.querySelector('.add-response-btn').addEventListener('click', (e) => {
+                e.preventDefault();
+                const nextNodeContainer = choiceContainer.querySelector('.next-node-container');
+                if (!nextNodeContainer.querySelector('.event-node')) {
+                    const nextNode = createEventNode();
+                    nextNodeContainer.appendChild(nextNode);
+                }
+            });
+
+            container.appendChild(choiceContainer);
+            return choiceContainer;
+        }
+
+        // Filter and display events
+        function filterAndDisplayEvents() {
+            const filterValue = document.getElementById('eventFilter').value.toLowerCase();
+            const container = document.getElementById('eventsListPanel');
+            container.innerHTML = '';
+
+            allEvents
+                .filter(event => event.title.toLowerCase().includes(filterValue))
+                .forEach(event => {
+                    const eventEntry = document.createElement('div');
+                    eventEntry.className = 'event-entry';
+                    eventEntry.innerHTML = `
+                        <div class="event-title">${event.title}</div>
+                    `;
+                    eventEntry.addEventListener('click', () => loadEventData(event));
+                    container.appendChild(eventEntry);
+                });
+        }
+
+        // Load event data
+        function loadEventData(event) {
+            document.getElementById('eventForm').dataset.eventId = event._id;
+            document.getElementById('deleteEventBtn').classList.remove('hidden');
+            document.getElementById('eventTitle').value = event.title;
+            
+            // Clear and rebuild the event tree
+            const eventTree = document.getElementById('eventTree');
+            eventTree.innerHTML = '';
+            const rootNode = createEventNode(event.rootNode);
+            rootNode.classList.add('root-node');
+            eventTree.appendChild(rootNode);
+        }
+
+        // Add event listeners
+        document.getElementById('newEventBtn').addEventListener('click', () => {
+            document.getElementById('eventForm').dataset.eventId = '';
+            document.getElementById('deleteEventBtn').classList.add('hidden');
+            document.getElementById('eventTitle').value = '';
+            
+            // Create the root node structure
+            const eventTree = document.getElementById('eventTree');
+            eventTree.innerHTML = '';
+            const rootNode = createEventNode();
+            rootNode.classList.add('root-node');
+            eventTree.appendChild(rootNode);
+        });
+
+        document.getElementById('eventFilter').addEventListener('input', filterAndDisplayEvents);
+
+        // Save event
+        document.getElementById('saveEventBtn').addEventListener('click', async () => {
+            try {
+                const form = document.getElementById('eventForm');
+                
+                function getNodeData(nodeElement) {
+                    const questSelects = nodeElement.querySelectorAll('.quest-select');
+                    const nodeData = {
+                        prompt: nodeElement.querySelector('.node-prompt').value,
+                        requiredQuestId: questSelects[0]?.value || undefined,
+                        activateQuestId: questSelects[1]?.value || undefined,
+                        questCompletionEvents: nodeElement.querySelector('.quest-events').value
+                            .split(',')
+                            .map(id => id.trim())
+                            .filter(id => id.length > 0),
+                        choices: []
+                    };
+
+                    // Remove undefined fields
+                    if (!nodeData.requiredQuestId) delete nodeData.requiredQuestId;
+                    if (!nodeData.activateQuestId) delete nodeData.activateQuestId;
+                    if (nodeData.questCompletionEvents.length === 0) delete nodeData.questCompletionEvents;
+
+                    // Get all choices for this node
+                    const choiceElements = nodeElement.querySelector('.node-choices').children;
+                    for (const choiceElement of choiceElements) {
+                        const choiceData = {
+                            text: choiceElement.querySelector('.choice-text').value
+                        };
+
+                        // Get next node if it exists
+                        const nextNodeElement = choiceElement.querySelector('.next-node-container .event-node');
+                        if (nextNodeElement) {
+                            choiceData.nextNode = getNodeData(nextNodeElement);
+                        }
+
+                        nodeData.choices.push(choiceData);
+                    }
+
+                    return nodeData;
+                }
+
+                const eventData = {
+                    _id: form.dataset.eventId || undefined,
+                    title: document.getElementById('eventTitle').value,
+                    rootNode: getNodeData(document.querySelector('.root-node'))
+                };
+
+                const response = await fetch('/api/events', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(eventData)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save event');
+                }
+
+                alert('Event saved successfully!');
+                await loadEvents();
+            } catch (error) {
+                console.error('Error saving event:', error);
+                alert('Failed to save event');
+            }
+        });
+
+        // Delete event
+        document.getElementById('deleteEventBtn').addEventListener('click', async () => {
+            const eventId = document.getElementById('eventForm').dataset.eventId;
+            if (!eventId) return;
+
+            if (confirm('Are you sure you want to delete this event?')) {
+                try {
+                    const response = await fetch(`/api/events/${eventId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to delete event');
+                    }
+
+                    alert('Event deleted successfully');
+                    document.getElementById('newEventBtn').click();
+                    await loadEvents();
+                } catch (error) {
+                    console.error('Error deleting event:', error);
+                    alert('Failed to delete event');
+                }
+            }
+        });
+
+        // Hamburger menu functionality
+        const hamburgerButton = document.querySelector('.hamburger-button');
+        const menuContent = document.querySelector('.menu-content');
+
+        hamburgerButton.addEventListener('click', () => {
+            menuContent.classList.toggle('show');
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!hamburgerButton.contains(e.target) && !menuContent.contains(e.target)) {
+                menuContent.classList.remove('show');
+            }
+        });
+
+        // Highlight current page in menu
+        document.querySelectorAll('.menu-content a').forEach(link => {
+            if (link.href === window.location.href) {
+                link.style.color = 'var(--neon-pink)';
+            }
+        });
+    </script>
+</body>
+</html> 

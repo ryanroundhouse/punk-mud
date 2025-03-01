@@ -15,7 +15,7 @@ router.get('/current', authenticateToken, getCurrentNode);
 router.get('/:address', authenticateToken, getCurrentNode);
 
 // Builder-only routes
-router.get('/', authenticateToken, getNodes);
+router.get('/', verifyBuilderAccess, getNodes);
 router.post('/', verifyBuilderAccess, createOrUpdateNode);
 router.delete('/:address', verifyBuilderAccess, deleteNode);
 

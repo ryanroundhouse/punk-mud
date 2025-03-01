@@ -24,8 +24,23 @@ const nodeSchema = new mongoose.Schema({
         target: String
     }],
     events: [{
-        mobId: String,
-        chance: Number
+        // Either mobId or eventId must be present, but not both
+        mobId: {
+            type: String,
+            required: function() { return !this.eventId; }
+        },
+        eventId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Event',
+            required: function() { return !this.mobId; }
+        },
+        chance: {
+            type: Number,
+            required: true,
+            min: 0,
+            max: 100,
+            default: 100
+        }
     }]
 }, {
     timestamps: true

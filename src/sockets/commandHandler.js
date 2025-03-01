@@ -37,6 +37,31 @@ async function handleCommand(socket, data) {
             return;
         }
 
+        // Check if user is in a story event
+        if (stateService.isInStoryEvent(socket.user.userId)) {
+            // Handle story event input
+            const result = await conversationService.processConversationInput(
+                socket.user.userId,
+                data.command
+            );
+            
+            if (result) {
+                if (result.error) {
+                    socket.emit('console response', {
+                        type: 'error',
+                        message: result.message
+                    });
+                } else {
+                    socket.emit('console response', {
+                        type: 'story',
+                        message: result.message,
+                        isEndOfStory: result.isEnd
+                    });
+                }
+            }
+            return;
+        }
+
         // Check if user is in combat for restricted commands
         if (combatState && ['move', 'list', 'chat', 'quests'].includes(data.command)) {
             socket.emit('console response', {
@@ -109,6 +134,31 @@ async function handleCommand(socket, data) {
                 break;
 
             default:
+                // Check if this is a numeric input and user is in a conversation
+                if (/^\d+$/.test(data.command) && conversationService.isInConversation(socket.user.userId)) {
+                    // Handle conversation choice
+                    const result = await conversationService.processConversationInput(
+                        socket.user.userId,
+                        data.command
+                    );
+                    
+                    if (result) {
+                        if (result.error) {
+                            socket.emit('console response', {
+                                type: 'error',
+                                message: result.message
+                            });
+                        } else {
+                            socket.emit('console response', {
+                                type: 'story',
+                                message: result.message,
+                                isEndOfStory: result.isEnd
+                            });
+                        }
+                    }
+                    return;
+                }
+
                 // If in combat, handle combat moves
                 if (combatState && data.command !== 'help') {
                     await combatService.handleCombatCommand(user, data.command);
@@ -226,9 +276,9 @@ async function handleChatCommand(socket, user, target) {
                 const actor = await actorService.findActorById(activeConv.actorId);
                 
                 socket.emit('console response', {
-                    type: 'chat',
+                    type: 'story',
                     message: `${actor.name} says: "${result.message}"`,
-                    isEndOfConversation: result.isEnd
+                    isEndOfStory: result.isEnd
                 });
 
                 // If this is the end of the conversation, clear the state
@@ -260,8 +310,9 @@ async function handleChatCommand(socket, user, target) {
 
         if (conversationResult) {
             socket.emit('console response', {
-                type: 'chat',
-                message: `${actor.name} says: "${conversationResult.message}"`
+                type: 'story',
+                message: `${actor.name} says: "${conversationResult.message}"`,
+                isEndOfStory: false
             });
             return;
         }

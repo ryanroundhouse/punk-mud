@@ -5,6 +5,7 @@ const nodeService = require('../services/nodeService');
 const stateService = require('../services/stateService');
 const socketService = require('../services/socketService');
 const { publishSystemMessage } = require('../services/chatService');
+const mongoose = require('mongoose');
 
 async function getNodes(req, res) {
     try {
@@ -37,12 +38,31 @@ async function createOrUpdateNode(req, res) {
         // Validate events array
         if (events) {
             for (const event of events) {
-                // Check if it's either a named event or a mob event
-                if ((!event.name && !event.mobId) || (event.name && event.mobId)) {
-                    throw new Error('Event must have either name OR mobId, not both or neither');
+                // Check that exactly one of mobId or eventId is present
+                if ((!event.mobId && !event.eventId) || (event.mobId && event.eventId)) {
+                    return res.status(400).json({
+                        error: 'Invalid event configuration',
+                        details: 'Event must have either mobId OR eventId, not both or neither'
+                    });
                 }
+
+                // Validate chance
                 if (typeof event.chance !== 'number' || event.chance < 0 || event.chance > 100) {
-                    throw new Error('Event chance must be a number between 0 and 100');
+                    return res.status(400).json({
+                        error: 'Invalid event chance',
+                        details: 'Event chance must be a number between 0 and 100'
+                    });
+                }
+
+                // If it's an Event type event, verify it exists
+                if (event.eventId) {
+                    const eventExists = await mongoose.model('Event').exists({ _id: event.eventId });
+                    if (!eventExists) {
+                        return res.status(400).json({
+                            error: 'Invalid event reference',
+                            details: `Event with ID "${event.eventId}" does not exist`
+                        });
+                    }
                 }
             }
         }

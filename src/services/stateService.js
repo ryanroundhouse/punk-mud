@@ -235,11 +235,12 @@ class StateService {
     }
 
     // Add conversation state methods
-    setActiveConversation(userId, conversationId, currentNode, actorId) {
+    setActiveConversation(userId, conversationId, currentNode, actorId, isStoryEvent = false) {
         this.activeConversations.set(userId, {
             conversationId,
             currentNode,
-            actorId
+            actorId,
+            isStoryEvent
         });
     }
 
@@ -253,6 +254,11 @@ class StateService {
 
     isInConversation(userId) {
         return this.activeConversations.has(userId);
+    }
+
+    isInStoryEvent(userId) {
+        const conv = this.activeConversations.get(userId);
+        return conv ? conv.isStoryEvent : false;
     }
 
     // Add these methods to the StateService class

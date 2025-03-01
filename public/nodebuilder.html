@@ -565,13 +565,17 @@
                             <label>Events:</label>
                             <div id="eventsContainer" class="events-container">
                                 <div class="events-controls">
-                                    <input type="text" 
-                                           id="eventName" 
-                                           class="event-input" 
-                                           placeholder="Event name">
+                                    <select id="eventType" class="event-input">
+                                        <option value="mob">Mob Event</option>
+                                        <option value="event">Story Event</option>
+                                    </select>
                                     <select id="eventMob" class="event-input">
                                         <option value="">Select Enemy</option>
                                         <!-- Will be populated with mobs -->
+                                    </select>
+                                    <select id="eventStory" class="event-input" style="display: none;">
+                                        <option value="">Select Event</option>
+                                        <!-- Will be populated with events -->
                                     </select>
                                     <div>
                                         <div class="percentage-label">Chance %</div>
@@ -627,7 +631,13 @@
         const addEventBtn = document.getElementById('addEventBtn');
         let allMobs = []; // Store all mobs for the dropdown
         
-        // Check authentication
+        // Add event type change handler
+        document.getElementById('eventType').addEventListener('change', function() {
+            const isMobEvent = this.value === 'mob';
+            document.getElementById('eventMob').style.display = isMobEvent ? 'block' : 'none';
+            document.getElementById('eventStory').style.display = isMobEvent ? 'none' : 'block';
+        });
+
         window.onload = async () => {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -636,6 +646,7 @@
             }
 
             try {
+                // First verify the token
                 const response = await fetch('/api/auth/verify-token', {
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -647,10 +658,23 @@
                     throw new Error('Invalid token');
                 }
 
-                // Load existing nodes
-                loadNodes();
+                // Then verify builder access
+                const builderResponse = await fetch('/api/nodes', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
 
-                // Load mobs for the events dropdown
+                if (!builderResponse.ok) {
+                    // If not a builder, redirect to game
+                    window.location.href = '/game.html';
+                    return;
+                }
+
+                // Load data only if builder access is verified
+                await loadNodes();
+
+                // Load mobs and events
                 try {
                     const mobsResponse = await fetch('/api/mobs', {
                         headers: {
@@ -664,12 +688,30 @@
                     eventMob.innerHTML = '<option value="">Select Enemy</option>';
                     allMobs.forEach(mob => {
                         const option = document.createElement('option');
-                        option.value = mob._id;  // Use MongoDB _id
+                        option.value = mob._id;
                         option.textContent = mob.name;
                         eventMob.appendChild(option);
                     });
+
+                    // Load events for the story events dropdown
+                    const eventsResponse = await fetch('/api/events', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    const events = await eventsResponse.json();
+                    
+                    // Populate events dropdown
+                    const eventStory = document.getElementById('eventStory');
+                    eventStory.innerHTML = '<option value="">Select Event</option>';
+                    events.forEach(event => {
+                        const option = document.createElement('option');
+                        option.value = event._id;
+                        option.textContent = event.title;
+                        eventStory.appendChild(option);
+                    });
                 } catch (error) {
-                    console.error('Error loading mobs:', error);
+                    console.error('Error loading mobs or events:', error);
                 }
             } catch (error) {
                 console.error('Authentication error:', error);
@@ -763,23 +805,33 @@
             return total === 100;
         }
 
-        // Complete the event handler code
+        // Update the addEventBtn click handler
         addEventBtn.addEventListener('click', () => {
-            const name = document.getElementById('eventName').value;
+            const eventType = document.getElementById('eventType').value;
             const mobSelect = document.getElementById('eventMob');
-            const mobId = mobSelect.value;
-            const mobName = mobSelect.options[mobSelect.selectedIndex].text;
+            const eventSelect = document.getElementById('eventStory');
             const chance = parseInt(document.getElementById('eventChance').value);
             const validationError = document.getElementById('eventValidationError');
 
-            // Ensure either name or mob is selected, but not both
-            if ((!name && !mobId) || (name && mobId)) {
-                validationError.textContent = 'Please provide either an event name OR select a mob, not both';
-                return;
+            let id, name;
+            if (eventType === 'mob') {
+                id = mobSelect.value;
+                name = mobSelect.options[mobSelect.selectedIndex].text;
+                if (!id) {
+                    validationError.textContent = 'Please select a mob';
+                    return;
+                }
+            } else {
+                id = eventSelect.value;
+                name = eventSelect.options[eventSelect.selectedIndex].text;
+                if (!id) {
+                    validationError.textContent = 'Please select an event';
+                    return;
+                }
             }
 
-            if (isNaN(chance)) {
-                validationError.textContent = 'Please provide a valid chance percentage';
+            if (isNaN(chance) || chance < 0 || chance > 100) {
+                validationError.textContent = 'Please provide a valid chance percentage (0-100)';
                 return;
             }
 
@@ -797,15 +849,10 @@
             const eventEntry = document.createElement('div');
             eventEntry.className = 'event-entry';
             
-            // Create content based on whether it's a named event or mob event
-            const eventContent = name 
-                ? `<span class="event-name">${name}</span>
-                   <span class="event-mob" style="display:none" data-mob-id=""></span>`
-                : `<span class="event-name" style="display:none"></span>
-                   <span class="event-mob" data-mob-id="${mobId}">${mobName}</span>`;
-            
             eventEntry.innerHTML = `
-                ${eventContent}
+                <span class="event-type" style="display:none">${eventType}</span>
+                <span class="event-name">${name}</span>
+                <span class="event-id" style="display:none" data-id="${id}"></span>
                 <span class="event-chance">${chance}%</span>
                 <span class="remove-event">×</span>
             `;
@@ -818,8 +865,11 @@
             document.getElementById('eventsList').appendChild(eventEntry);
 
             // Clear inputs
-            document.getElementById('eventName').value = '';
-            document.getElementById('eventMob').value = '';
+            if (eventType === 'mob') {
+                mobSelect.value = '';
+            } else {
+                eventSelect.value = '';
+            }
             document.getElementById('eventChance').value = '100';
 
             validateTotalChance();
@@ -833,30 +883,18 @@
                 }
             }
 
-            // Get node ID if we're editing an existing node
             const nodeId = document.getElementById('nodeForm').dataset.nodeId;
 
             const events = Array.from(document.querySelectorAll('.event-entry')).map(entry => {
-                const nameElement = entry.querySelector('.event-name');
-                const mobElement = entry.querySelector('.event-mob');
+                const type = entry.querySelector('.event-type').textContent;
+                const id = entry.querySelector('.event-id').dataset.id;
                 const chance = parseInt(entry.querySelector('.event-chance').textContent);
                 
-                // If the name element is visible, it's a named event
-                if (nameElement && nameElement.style.display !== 'none') {
-                    return {
-                        name: nameElement.textContent,
-                        mobId: null,
-                        chance: chance
-                    };
-                }
-                // Otherwise it's a mob event
-                else {
-                    return {
-                        name: null,
-                        mobId: mobElement.dataset.mobId,
-                        chance: chance
-                    };
-                }
+                return {
+                    mobId: type === 'mob' ? id : null,
+                    eventId: type === 'event' ? id : null,
+                    chance: chance
+                };
             });
 
             const nodeData = {
@@ -1001,20 +1039,27 @@
             // Add existing events
             if (node.events && Array.isArray(node.events)) {
                 node.events.forEach(event => {
-                    const mob = event.mobId ? allMobs.find(m => m._id === event.mobId) : null;
-                    
                     const eventEntry = document.createElement('div');
                     eventEntry.className = 'event-entry';
                     
-                    // Create content based on whether it's a named event or mob event
-                    const eventContent = event.name 
-                        ? `<span class="event-name">${event.name}</span>
-                           <span class="event-mob" style="display:none" data-mob-id=""></span>`
-                        : `<span class="event-name" style="display:none"></span>
-                           <span class="event-mob" data-mob-id="${event.mobId}">${mob ? mob.name : 'Unknown Mob'}</span>`;
+                    let type, id, name;
+                    if (event.mobId) {
+                        type = 'mob';
+                        id = event.mobId;
+                        const mob = allMobs.find(m => m._id === event.mobId);
+                        name = mob ? mob.name : 'Unknown Mob';
+                    } else {
+                        type = 'event';
+                        id = event.eventId;
+                        const storyEvent = Array.from(document.getElementById('eventStory').options)
+                            .find(option => option.value === event.eventId);
+                        name = storyEvent ? storyEvent.text : 'Unknown Event';
+                    }
                     
                     eventEntry.innerHTML = `
-                        ${eventContent}
+                        <span class="event-type" style="display:none">${type}</span>
+                        <span class="event-name">${name}</span>
+                        <span class="event-id" style="display:none" data-id="${id}"></span>
                         <span class="event-chance">${event.chance}%</span>
                         <span class="remove-event">×</span>
                     `;
