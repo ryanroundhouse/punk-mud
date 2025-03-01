@@ -961,6 +961,40 @@
                 storeChatMessage(data);
             });
 
+            socket.on('event start', (data) => {
+                console.log('Event started:', data);
+                // Add event start message to terminal
+                const inputLine = terminalInput.parentElement;
+                const responseLine = document.createElement('div');
+                responseLine.style.color = 'var(--neon-blue)';
+                responseLine.textContent = data.message;
+                terminalOutput.insertBefore(responseLine, inputLine);
+                inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            });
+
+            socket.on('event end', (data) => {
+                console.log('Event ended:', data);
+                // Add event end message to terminal
+                const inputLine = terminalInput.parentElement;
+                const responseLine = document.createElement('div');
+                responseLine.style.color = 'var(--neon-blue)';
+                responseLine.textContent = data.message;
+                terminalOutput.insertBefore(responseLine, inputLine);
+                inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            });
+
+            socket.on('event choice', (data) => {
+                console.log('Event choice received:', data);
+                // Add event choices to terminal
+                const inputLine = terminalInput.parentElement;
+                const responseLine = document.createElement('div');
+                responseLine.style.color = 'var(--neon-blue)';
+                responseLine.style.whiteSpace = 'pre-wrap';
+                responseLine.textContent = data.message;
+                terminalOutput.insertBefore(responseLine, inputLine);
+                inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            });
+
             socket.on('users update', (users) => {
                 const presentUsersDiv = document.getElementById('presentUsers');
                 presentUsersDiv.innerHTML = '';
@@ -1020,6 +1054,10 @@
                         } else {
                             responseLine.textContent = data.message;
                         }
+                        break;
+                    case 'event':
+                        responseLine.style.color = 'var(--neon-blue)';
+                        responseLine.textContent = data.message;
                         break;
                     default:
                         responseLine.style.color = 'var(--terminal-green)';
@@ -1205,7 +1243,7 @@
                 // Clear the input
                 terminalInput.value = '';
 
-                // If input is a number and we're in a conversation, treat it as a conversation choice
+                // If input is a number and we're in an event, treat it as an event choice
                 if (/^\d+$/.test(fullCommand)) {
                     socket.emit('console command', { 
                         command: fullCommand

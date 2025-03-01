@@ -1,11 +1,11 @@
 const logger = require('../config/logger');
-const Conversation = require('../models/Conversation');
+const Event = require('../models/Event');
 const stateService = require('./stateService');
 const messageService = require('./messageService');
 const questService = require('./questService');
 const User = require('../models/User');
 
-class ConversationService {
+class EventService {
     async handleActorChat(user, actor) {
         try {
             logger.debug('handleActorChat called:', {
@@ -14,98 +14,98 @@ class ConversationService {
                 actorName: actor.name
             });
 
-            // Check if user is already in a conversation
-            const activeConv = stateService.getActiveConversation(user._id.toString());
-            logger.debug('Active conversation state:', {
-                exists: !!activeConv,
-                activeConv
+            // Check if user is already in an event
+            const activeEvent = stateService.getActiveEvent(user._id.toString());
+            logger.debug('Active event state:', {
+                exists: !!activeEvent,
+                activeEvent
             });
 
-            if (activeConv) {
-                logger.debug('Processing existing conversation');
-                const result = await this.handleConversationChoice(user._id.toString(), activeConv, null);
-                logger.debug('Conversation choice result:', { result });
+            if (activeEvent) {
+                logger.debug('Processing existing event');
+                const result = await this.handleEventChoice(user._id.toString(), activeEvent, null);
+                logger.debug('Event choice result:', { result });
                 
                 if (!result) {
-                    logger.debug('Clearing conversation state due to null result');
-                    stateService.clearActiveConversation(user._id.toString());
+                    logger.debug('Clearing event state due to null result');
+                    stateService.clearActiveEvent(user._id.toString());
                 }
                 return result;
             }
 
-            // Find conversations for this actor
-            const conversations = await Conversation.find({ actorId: actor._id })
+            // Find events for this actor
+            const events = await Event.find({ actorId: actor._id })
                 .populate('rootNode.requiredQuestId')
                 .populate('rootNode.activateQuestId');
 
-            logger.debug('Found conversations for actor:', {
-                count: conversations.length,
-                conversations: conversations.map(c => ({
-                    id: c._id,
-                    title: c.title,
-                    hasRequiredQuest: !!c.rootNode.requiredQuestId
+            logger.debug('Found events for actor:', {
+                count: events.length,
+                events: events.map(e => ({
+                    id: e._id,
+                    title: e.title,
+                    hasRequiredQuest: !!e.rootNode.requiredQuestId
                 }))
             });
 
-            // Filter conversations by quest requirements
-            const availableConversations = conversations.filter(conv => {
-                if (!conv.rootNode.requiredQuestId) return true;
+            // Filter events by quest requirements
+            const availableEvents = events.filter(event => {
+                if (!event.rootNode.requiredQuestId) return true;
                 
                 // Check if user has the required quest active
                 const hasRequiredQuest = user.quests?.some(userQuest => 
-                    userQuest.questId === conv.rootNode.requiredQuestId._id.toString() &&
+                    userQuest.questId === event.rootNode.requiredQuestId._id.toString() &&
                     !userQuest.completed
                 );
 
                 logger.debug('Quest requirement check:', {
-                    conversationId: conv._id,
-                    requiredQuestId: conv.rootNode.requiredQuestId._id,
+                    eventId: event._id,
+                    requiredQuestId: event.rootNode.requiredQuestId._id,
                     hasRequiredQuest
                 });
 
                 return hasRequiredQuest;
             });
 
-            logger.debug('Available conversations after filtering:', {
-                count: availableConversations.length
+            logger.debug('Available events after filtering:', {
+                count: availableEvents.length
             });
 
-            if (availableConversations.length === 0) {
-                logger.debug('No available conversations found');
+            if (availableEvents.length === 0) {
+                logger.debug('No available events found');
                 return null;
             }
 
-            // Start the first available conversation
-            const conversation = availableConversations[0];
-            logger.debug('Starting new conversation:', {
-                conversationId: conversation._id,
-                title: conversation.title
+            // Start the first available event
+            const event = availableEvents[0];
+            logger.debug('Starting new event:', {
+                eventId: event._id,
+                title: event.title
             });
 
-            return this.startConversation(user._id.toString(), conversation);
+            return this.startEvent(user._id.toString(), event);
         } catch (error) {
             logger.error('Error handling actor chat:', error);
             return null;
         }
     }
 
-    async startConversation(userId, conversation) {
+    async startEvent(userId, event) {
         try {
-            const rootNode = conversation.rootNode;
+            const rootNode = event.rootNode;
             
-            logger.debug('Starting conversation:', {
+            logger.debug('Starting event:', {
                 userId,
-                conversationId: conversation._id,
+                eventId: event._id,
                 hasActivateQuest: !!rootNode.activateQuestId,
                 activateQuestId: rootNode.activateQuestId?._id?.toString()
             });
 
-            // Store conversation state using stateService
-            stateService.setActiveConversation(
+            // Store event state using stateService
+            stateService.setActiveEvent(
                 userId, 
-                conversation._id, 
+                event._id, 
                 rootNode,
-                conversation.actorId
+                event.actorId
             );
 
             // Handle quest activation if specified
@@ -113,11 +113,11 @@ class ConversationService {
                 // Get the user object first
                 const user = await User.findById(userId);
                 if (!user) {
-                    logger.error('User not found when starting conversation:', { userId });
+                    logger.error('User not found when starting event:', { userId });
                     return null;
                 }
                 
-                logger.debug('Activating quest from conversation:', {
+                logger.debug('Activating quest from event:', {
                     userId: user._id.toString(),
                     questId: rootNode.activateQuestId._id.toString(),
                     questTitle: rootNode.activateQuestId.title
@@ -126,7 +126,7 @@ class ConversationService {
                 // Pass the correct parameters
                 await questService.handleQuestProgression(
                     user,
-                    conversation.actorId,
+                    event.actorId,
                     [],  // No completion events
                     rootNode.activateQuestId._id  // Pass the actual quest ID
                 );
@@ -138,46 +138,46 @@ class ConversationService {
                 // This would need to be coordinated with questService
             }
 
-            // Pass userId to formatConversationResponse
-            return await this.formatConversationResponse(rootNode, userId);
+            // Pass userId to formatEventResponse
+            return await this.formatEventResponse(rootNode, userId);
         } catch (error) {
-            logger.error('Error starting conversation:', error);
+            logger.error('Error starting event:', error);
             return null;
         }
     }
 
-    async handleConversationChoice(userId, activeConv, choice) {
+    async handleEventChoice(userId, activeEvent, choice) {
         try {
-            logger.debug('handleConversationChoice called:', {
+            logger.debug('handleEventChoice called:', {
                 userId,
                 choice,
-                activeConv: {
-                    conversationId: activeConv.conversationId,
-                    hasCurrentNode: !!activeConv.currentNode,
-                    actorId: activeConv.actorId,
-                    isStoryEvent: activeConv.isStoryEvent
+                activeEvent: {
+                    eventId: activeEvent.eventId,
+                    hasCurrentNode: !!activeEvent.currentNode,
+                    actorId: activeEvent.actorId,
+                    isStoryEvent: activeEvent.isStoryEvent
                 }
             });
 
-            const currentNode = activeConv.currentNode;
+            const currentNode = activeEvent.currentNode;
 
-            // If no choices available, end conversation and allow new one to start
+            // If no choices available, end event and allow new one to start
             if (!currentNode.choices || currentNode.choices.length === 0) {
-                logger.debug('No choices available, ending conversation', {
+                logger.debug('No choices available, ending event', {
                     userId,
-                    isStoryEvent: activeConv.isStoryEvent
+                    isStoryEvent: activeEvent.isStoryEvent
                 });
-                stateService.clearActiveConversation(userId);
+                stateService.clearActiveEvent(userId);
                 return null;
             }
 
-            // If we get a non-numeric input in a conversation with choices, 
-            // return an error message instead of clearing the conversation
+            // If we get a non-numeric input in an event with choices, 
+            // return an error message instead of clearing the event
             if (isNaN(parseInt(choice)) && currentNode.choices.length > 0) {
                 logger.debug('Non-numeric input received, prompting for valid choice', {
                     userId,
                     input: choice,
-                    isStoryEvent: activeConv.isStoryEvent
+                    isStoryEvent: activeEvent.isStoryEvent
                 });
                 return {
                     error: true,
@@ -221,16 +221,16 @@ class ConversationService {
                 userId,
                 totalChoices: currentNode.choices.length,
                 validChoices: validChoices.length,
-                isStoryEvent: activeConv.isStoryEvent
+                isStoryEvent: activeEvent.isStoryEvent
             });
 
-            // End conversation if no valid choices remain
+            // End event if no valid choices remain
             if (validChoices.length === 0) {
-                logger.debug('No valid choices available after filtering, ending conversation', {
+                logger.debug('No valid choices available after filtering, ending event', {
                     userId,
-                    isStoryEvent: activeConv.isStoryEvent
+                    isStoryEvent: activeEvent.isStoryEvent
                 });
-                stateService.clearActiveConversation(userId);
+                stateService.clearActiveEvent(userId);
                 return null;
             }
 
@@ -241,7 +241,7 @@ class ConversationService {
                     userId,
                     choice,
                     validChoiceRange: `1-${validChoices.length}`,
-                    isStoryEvent: activeConv.isStoryEvent
+                    isStoryEvent: activeEvent.isStoryEvent
                 });
                 return {
                     error: true,
@@ -257,20 +257,20 @@ class ConversationService {
                 hasNextNode: !!selectedChoice.nextNode,
                 hasActivateQuest: !!selectedChoice.nextNode?.activateQuestId,
                 hasQuestCompletionEvents: !!selectedChoice.nextNode?.questCompletionEvents?.length,
-                isStoryEvent: activeConv.isStoryEvent
+                isStoryEvent: activeEvent.isStoryEvent
             });
 
-            // Process quest completion events BEFORE updating state or ending conversation
+            // Process quest completion events BEFORE updating state or ending event
             if (selectedChoice.nextNode?.questCompletionEvents?.length > 0) {
                 logger.debug('Processing quest completion events:', {
                     events: selectedChoice.nextNode.questCompletionEvents,
                     userId: user._id.toString(),
-                    isStoryEvent: activeConv.isStoryEvent
+                    isStoryEvent: activeEvent.isStoryEvent
                 });
 
                 const result = await questService.handleQuestProgression(
                     user,
-                    activeConv.actorId,
+                    activeEvent.actorId,
                     selectedChoice.nextNode.questCompletionEvents
                 );
 
@@ -289,57 +289,57 @@ class ConversationService {
 
                 await questService.handleQuestProgression(
                     user,
-                    activeConv.actorId,
+                    activeEvent.actorId,
                     [],  // No completion events
                     selectedChoice.nextNode.activateQuestId // Pass the quest to activate
                 );
             }
 
             if (!selectedChoice.nextNode) {
-                logger.debug('End of conversation branch reached', {
+                logger.debug('End of event branch reached', {
                     userId,
-                    isStoryEvent: activeConv.isStoryEvent
+                    isStoryEvent: activeEvent.isStoryEvent
                 });
-                stateService.clearActiveConversation(userId);
+                stateService.clearActiveEvent(userId);
                 return {
                     message: selectedChoice.text,
                     isEnd: true
                 };
             }
 
-            // Update conversation state
-            logger.debug('Updating conversation state with next node', {
+            // Update event state
+            logger.debug('Updating event state with next node', {
                 userId,
-                isStoryEvent: activeConv.isStoryEvent,
+                isStoryEvent: activeEvent.isStoryEvent,
                 nextNodePrompt: selectedChoice.nextNode.prompt,
                 nextNodeChoices: selectedChoice.nextNode.choices?.length || 0
             });
 
-            stateService.setActiveConversation(
+            stateService.setActiveEvent(
                 userId, 
-                activeConv.conversationId, 
+                activeEvent.eventId, 
                 selectedChoice.nextNode,
-                activeConv.actorId,
-                activeConv.isStoryEvent
+                activeEvent.actorId,
+                activeEvent.isStoryEvent
             );
 
             // Return the formatted response
-            const response = await this.formatConversationResponse(selectedChoice.nextNode, userId);
+            const response = await this.formatEventResponse(selectedChoice.nextNode, userId);
             logger.debug('Formatted response:', {
                 userId,
                 message: response.message,
                 hasChoices: response.hasChoices,
                 isEnd: response.isEnd,
-                isStoryEvent: activeConv.isStoryEvent
+                isStoryEvent: activeEvent.isStoryEvent
             });
 
-            // Clear conversation state if there are no more choices
+            // Clear event state if there are no more choices
             if (!response.hasChoices) {
-                logger.debug('No more choices available, ending conversation', {
+                logger.debug('No more choices available, ending event', {
                     userId,
-                    isStoryEvent: activeConv.isStoryEvent
+                    isStoryEvent: activeEvent.isStoryEvent
                 });
-                stateService.clearActiveConversation(userId);
+                stateService.clearActiveEvent(userId);
             }
 
             return {
@@ -349,12 +349,12 @@ class ConversationService {
                 error: false
             };
         } catch (error) {
-            logger.error('Error in handleConversationChoice:', error);
+            logger.error('Error in handleEventChoice:', error);
             return null;
         }
     }
 
-    async formatConversationResponse(node, userId) {
+    async formatEventResponse(node, userId) {
         let response = node.prompt + '\n\n';
         
         if (node.choices && node.choices.length > 0) {
@@ -411,24 +411,24 @@ class ConversationService {
         };
     }
 
-    isInConversation(userId) {
-        return stateService.isInConversation(userId);
+    isInEvent(userId) {
+        return stateService.isInEvent(userId);
     }
 
-    async processConversationInput(userId, input) {
-        logger.debug('processConversationInput called:', { userId, input });
+    async processEventInput(userId, input) {
+        logger.debug('processEventInput called:', { userId, input });
         
-        const activeConv = stateService.getActiveConversation(userId);
-        logger.debug('Active conversation state:', { exists: !!activeConv, activeConv });
+        const activeEvent = stateService.getActiveEvent(userId);
+        logger.debug('Active event state:', { exists: !!activeEvent, activeEvent });
         
-        if (!activeConv) {
-            logger.debug('No active conversation found');
+        if (!activeEvent) {
+            logger.debug('No active event found');
             return null;
         }
 
-        return this.handleConversationChoice(userId, activeConv, input);
+        return this.handleEventChoice(userId, activeEvent, input);
     }
 }
 
-const conversationService = new ConversationService();
-module.exports = conversationService; 
+const eventService = new EventService();
+module.exports = eventService; 

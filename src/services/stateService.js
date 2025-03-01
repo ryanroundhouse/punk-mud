@@ -11,7 +11,7 @@ class StateService {
         this.userCombatStates = new Map(); // tracks combat state for each user
         this.combatantEffects = new Map(); // key: combatantId, value: array of active effects
         this.combatDelays = new Map(); // Tracks active move delays for combatants
-        this.activeConversations = new Map(); // userId -> { conversationId, currentNode }
+        this.activeEvents = new Map(); // userId -> { eventId, currentNode }
     }
 
     addClient(userId, socket) {
@@ -234,31 +234,31 @@ class StateService {
         return readyMoves;
     }
 
-    // Add conversation state methods
-    setActiveConversation(userId, conversationId, currentNode, actorId, isStoryEvent = false) {
-        this.activeConversations.set(userId, {
-            conversationId,
+    // Event state methods
+    setActiveEvent(userId, eventId, currentNode, actorId, isStoryEvent = false) {
+        this.activeEvents.set(userId, {
+            eventId,
             currentNode,
             actorId,
             isStoryEvent
         });
     }
 
-    getActiveConversation(userId) {
-        return this.activeConversations.get(userId);
+    getActiveEvent(userId) {
+        return this.activeEvents.get(userId);
     }
 
-    clearActiveConversation(userId) {
-        this.activeConversations.delete(userId);
+    clearActiveEvent(userId) {
+        this.activeEvents.delete(userId);
     }
 
-    isInConversation(userId) {
-        return this.activeConversations.has(userId);
+    isInEvent(userId) {
+        return this.activeEvents.has(userId);
     }
 
     isInStoryEvent(userId) {
-        const conv = this.activeConversations.get(userId);
-        return conv ? conv.isStoryEvent : false;
+        const activeEvent = this.activeEvents.get(userId);
+        return activeEvent?.isStoryEvent || false;
     }
 
     // Add these methods to the StateService class

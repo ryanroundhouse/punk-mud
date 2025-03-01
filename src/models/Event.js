@@ -6,6 +6,12 @@ const eventNodeSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    // Replace the restrictedToNoClass with an array of restrictions
+    restrictions: [{
+        type: String,
+        enum: ['noClass', 'enforcerOnly'],
+        trim: true
+    }],
     // Optional quest that must be active to see this option
     requiredQuestId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -37,6 +43,11 @@ const eventSchema = new mongoose.Schema({
         type: String,
         required: true,
         trim: true
+    },
+    // Optional actor reference
+    actorId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Actor'
     },
     rootNode: {
         type: eventNodeSchema,

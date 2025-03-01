@@ -6,6 +6,7 @@ async function getEvents(req, res) {
     try {
         const events = await Event.find()
             .sort({ title: 1 })
+            .populate('actorId')
             .populate('rootNode.requiredQuestId')
             .populate('rootNode.activateQuestId');
         res.json(events);
@@ -18,6 +19,19 @@ async function getEvents(req, res) {
 async function validateNode(node) {
     if (!node.prompt) {
         throw new Error('Each node must have a prompt');
+    }
+
+    // Validate restrictions if present
+    if (node.restrictions) {
+        if (!Array.isArray(node.restrictions)) {
+            throw new Error('restrictions must be an array');
+        }
+        const validRestrictions = ['noClass', 'enforcerOnly'];
+        node.restrictions.forEach(restriction => {
+            if (!validRestrictions.includes(restriction)) {
+                throw new Error(`Invalid restriction: ${restriction}`);
+            }
+        });
     }
 
     // Validate questCompletionEvents if present
@@ -44,7 +58,7 @@ async function validateNode(node) {
 }
 
 async function createOrUpdateEvent(req, res) {
-    const { _id, title, rootNode } = req.body;
+    const { _id, title, actorId, rootNode } = req.body;
     
     try {
         // Validate basic fields
@@ -71,18 +85,21 @@ async function createOrUpdateEvent(req, res) {
             }
 
             event.title = title;
+            event.actorId = actorId;
             event.rootNode = rootNode;
             await event.save();
         } else {
             // Create new event
             event = new Event({
                 title,
+                actorId,
                 rootNode
             });
             await event.save();
         }
         
         // Populate references before sending response
+        await event.populate('actorId');
         await event.populate('rootNode.requiredQuestId');
         await event.populate('rootNode.activateQuestId');
         
@@ -96,6 +113,7 @@ async function createOrUpdateEvent(req, res) {
 async function getEventById(req, res) {
     try {
         const event = await Event.findById(req.params.id)
+            .populate('actorId')
             .populate('rootNode.requiredQuestId')
             .populate('rootNode.activateQuestId');
         

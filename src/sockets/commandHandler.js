@@ -6,7 +6,7 @@ const userService = require('../services/userService');
 const combatService = require('../services/combatService');
 const actorService = require('../services/actorService');
 const questService = require('../services/questService');
-const conversationService = require('../services/conversationService');
+const eventService = require('../services/eventService');
 
 const HELP_TEXT = `
 Available Commands:
@@ -40,7 +40,7 @@ async function handleCommand(socket, data) {
         // Check if user is in a story event
         if (stateService.isInStoryEvent(socket.user.userId)) {
             // Handle story event input
-            const result = await conversationService.processConversationInput(
+            const result = await eventService.processEventInput(
                 socket.user.userId,
                 data.command
             );
@@ -53,9 +53,9 @@ async function handleCommand(socket, data) {
                     });
                 } else {
                     socket.emit('console response', {
-                        type: 'story',
+                        type: 'event',
                         message: result.message,
-                        isEndOfStory: result.isEnd
+                        isEndOfEvent: result.isEnd
                     });
                 }
             }
@@ -134,10 +134,10 @@ async function handleCommand(socket, data) {
                 break;
 
             default:
-                // Check if this is a numeric input and user is in a conversation
-                if (/^\d+$/.test(data.command) && conversationService.isInConversation(socket.user.userId)) {
-                    // Handle conversation choice
-                    const result = await conversationService.processConversationInput(
+                // Check if this is a numeric input and user is in an event
+                if (/^\d+$/.test(data.command) && eventService.isInEvent(socket.user.userId)) {
+                    // Handle event choice
+                    const result = await eventService.processEventInput(
                         socket.user.userId,
                         data.command
                     );
@@ -148,24 +148,24 @@ async function handleCommand(socket, data) {
                                 type: 'error',
                                 message: result.message
                             });
-                            // Re-display the current conversation state
-                            const activeConv = stateService.getActiveConversation(socket.user.userId);
-                            if (activeConv && activeConv.currentNode) {
-                                const currentState = await conversationService.formatConversationResponse(
-                                    activeConv.currentNode,
+                            // Re-display the current event state
+                            const activeEvent = stateService.getActiveEvent(socket.user.userId);
+                            if (activeEvent && activeEvent.currentNode) {
+                                const currentState = await eventService.formatEventResponse(
+                                    activeEvent.currentNode,
                                     socket.user.userId
                                 );
                                 socket.emit('console response', {
-                                    type: 'story',
+                                    type: 'event',
                                     message: currentState.message,
-                                    isEndOfStory: false
+                                    isEndOfEvent: false
                                 });
                             }
                         } else {
                             socket.emit('console response', {
-                                type: 'story',
+                                type: 'event',
                                 message: result.message,
-                                isEndOfStory: result.isEnd
+                                isEndOfEvent: result.isEnd
                             });
                         }
                     }
@@ -270,9 +270,9 @@ async function handleChatCommand(socket, user, target) {
         return;
     }
 
-    // First check if user is in an active conversation
-    if (conversationService.isInConversation(user._id.toString())) {
-        const result = await conversationService.processConversationInput(
+    // First check if user is in an active event
+    if (eventService.isInEvent(user._id.toString())) {
+        const result = await eventService.processEventInput(
             user._id.toString(), 
             target
         );
@@ -284,53 +284,53 @@ async function handleChatCommand(socket, user, target) {
                     message: result.message
                 });
             } else {
-                // Get the actor name from the active conversation
-                const activeConv = stateService.getActiveConversation(user._id.toString());
-                const actor = await actorService.findActorById(activeConv.actorId);
+                // Get the actor name from the active event
+                const activeEvent = stateService.getActiveEvent(user._id.toString());
+                const actor = await actorService.findActorById(activeEvent.actorId);
                 
                 socket.emit('console response', {
-                    type: 'story',
+                    type: 'event',
                     message: `${actor.name} says: "${result.message}"`,
-                    isEndOfStory: result.isEnd
+                    isEndOfEvent: result.isEnd
                 });
 
-                // If this is the end of the conversation, clear the state
+                // If this is the end of the event, clear the state
                 if (result.isEnd) {
-                    stateService.clearActiveConversation(user._id.toString());
+                    stateService.clearActiveEvent(user._id.toString());
                 }
             }
         }
         return;
     }
 
-    // If not in conversation, try to find an actor in the current location
+    // If not in an event, try to find an actor in the current location
     const actor = await actorService.findActorInLocation(target, user.currentNode);
 
     if (actor) {
-        // Try to start a conversation
-        logger.debug('Attempting to start conversation:', {
+        // Try to start an event
+        logger.debug('Attempting to start event:', {
             userId: user._id,
             actorId: actor._id,
             actorName: actor.name
         });
         
-        const conversationResult = await conversationService.handleActorChat(user, actor);
+        const eventResult = await eventService.handleActorChat(user, actor);
         
-        logger.debug('Conversation result:', {
-            hasResult: !!conversationResult,
-            message: conversationResult?.message
+        logger.debug('Event result:', {
+            hasResult: !!eventResult,
+            message: eventResult?.message
         });
 
-        if (conversationResult) {
+        if (eventResult) {
             socket.emit('console response', {
-                type: 'story',
-                message: `${actor.name} says: "${conversationResult.message}"`,
-                isEndOfStory: false
+                type: 'event',
+                message: `${actor.name} says: "${eventResult.message}"`,
+                isEndOfEvent: false
             });
             return;
         }
 
-        // Fall back to quest progression if no conversation available
+        // Fall back to quest progression if no event available
         logger.debug('Checking quest progression');
         const questResponse = await questService.handleQuestProgression(user, actor.id);
 

@@ -6,7 +6,7 @@ const mobService = require('./mobService');
 const questService = require('./questService');
 const { publishSystemMessage } = require('./chatService');
 const Event = require('../models/Event');
-const conversationService = require('./conversationService');
+const eventService = require('./eventService');
 
 async function moveUser(userId, direction) {
     const user = await User.findById(userId);
@@ -130,8 +130,8 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
                         const storyEvent = await Event.findById(event.eventId);
                         if (storyEvent) {
                             logger.debug(`Starting story event ${storyEvent._id} (${storyEvent.title}) for user ${userId}`);
-                            // Set the story event as an active conversation
-                            stateService.setActiveConversation(
+                            // Set the story event as active
+                            stateService.setActiveEvent(
                                 userId,
                                 storyEvent._id,
                                 storyEvent.rootNode,
@@ -144,11 +144,11 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
                             const socket = stateService.getClient(userId);
                             if (socket) {
                                 // Format and send initial story prompt
-                                const formattedResponse = await conversationService.formatConversationResponse(storyEvent.rootNode, userId);
+                                const formattedResponse = await eventService.formatEventResponse(storyEvent.rootNode, userId);
                                 socket.emit('console response', {
-                                    type: 'story',
+                                    type: 'event',
                                     message: formattedResponse.message,
-                                    isEndOfStory: formattedResponse.isEnd
+                                    isEndOfEvent: formattedResponse.isEnd
                                 });
                             }
                         }
@@ -187,8 +187,8 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
                     const storyEvent = await Event.findById(selectedEvent.eventId);
                     if (storyEvent) {
                         logger.debug(`Starting story event ${storyEvent._id} (${storyEvent.title}) for user ${userId}`);
-                        // Set the story event as an active conversation
-                        stateService.setActiveConversation(
+                        // Set the story event as active
+                        stateService.setActiveEvent(
                             userId,
                             storyEvent._id,
                             storyEvent.rootNode,
@@ -201,11 +201,11 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
                         const socket = stateService.getClient(userId);
                         if (socket) {
                             // Format and send initial story prompt
-                            const formattedResponse = await conversationService.formatConversationResponse(storyEvent.rootNode, userId);
+                            const formattedResponse = await eventService.formatEventResponse(storyEvent.rootNode, userId);
                             socket.emit('console response', {
-                                type: 'story',
+                                type: 'event',
                                 message: formattedResponse.message,
-                                isEndOfStory: formattedResponse.isEnd
+                                isEndOfEvent: formattedResponse.isEnd
                             });
                         }
                     }

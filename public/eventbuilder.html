@@ -318,12 +318,28 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="actorSelect">Actor:</label>
+                        <select id="actorSelect"></select>
+                    </div>
+
+                    <div class="form-group">
                         <label>Event Tree:</label>
                         <div id="eventTree">
                             <div class="event-node root-node">
                                 <div class="form-group">
                                     <label>Initial Prompt:</label>
                                     <textarea class="node-prompt" required></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>Restrictions:</label>
+                                    <div class="restrictions-container">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" class="restriction-checkbox" value="noClass"> No Class Only
+                                        </label>
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" class="restriction-checkbox" value="enforcerOnly"> Enforcer Only
+                                        </label>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label>Required Quest:</label>
@@ -371,6 +387,7 @@
     <script>
         // Initialize variables
         let allEvents = [];
+        let allActors = [];
         let allQuests = [];
 
         // Check authentication and load data
@@ -393,6 +410,7 @@
                 }
 
                 await Promise.all([
+                    loadActors(),
                     loadQuests(),
                     loadEvents()
                 ]);
@@ -403,6 +421,39 @@
                 window.location.href = '/';
             }
         };
+
+        // Load actors
+        async function loadActors() {
+            try {
+                const response = await fetch('/api/actors', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load actors');
+                }
+
+                allActors = await response.json();
+                populateActorSelect();
+            } catch (error) {
+                console.error('Error loading actors:', error);
+                alert('Failed to load actors');
+            }
+        }
+
+        // Populate actor select
+        function populateActorSelect() {
+            const actorSelect = document.getElementById('actorSelect');
+            actorSelect.innerHTML = '<option value="">Select Actor</option>';
+            allActors.forEach(actor => {
+                const option = document.createElement('option');
+                option.value = actor._id;
+                option.textContent = actor.name;
+                actorSelect.appendChild(option);
+            });
+        }
 
         // Load quests
         async function loadQuests() {
@@ -469,6 +520,19 @@
                 <div class="form-group">
                     <label>Response Prompt:</label>
                     <textarea class="node-prompt" required>${nodeData.prompt || ''}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Restrictions:</label>
+                    <div class="restrictions-container">
+                        <label class="checkbox-label">
+                            <input type="checkbox" class="restriction-checkbox" value="noClass"
+                                ${nodeData.restrictions?.includes('noClass') ? 'checked' : ''}> No Class Only
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" class="restriction-checkbox" value="enforcerOnly"
+                                ${nodeData.restrictions?.includes('enforcerOnly') ? 'checked' : ''}> Enforcer Only
+                        </label>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Required Quest:</label>
@@ -581,6 +645,7 @@
             document.getElementById('eventForm').dataset.eventId = event._id;
             document.getElementById('deleteEventBtn').classList.remove('hidden');
             document.getElementById('eventTitle').value = event.title;
+            document.getElementById('actorSelect').value = event.actorId?._id || '';
             
             // Clear and rebuild the event tree
             const eventTree = document.getElementById('eventTree');
@@ -595,6 +660,7 @@
             document.getElementById('eventForm').dataset.eventId = '';
             document.getElementById('deleteEventBtn').classList.add('hidden');
             document.getElementById('eventTitle').value = '';
+            document.getElementById('actorSelect').value = '';
             
             // Create the root node structure
             const eventTree = document.getElementById('eventTree');
@@ -612,9 +678,13 @@
                 const form = document.getElementById('eventForm');
                 
                 function getNodeData(nodeElement) {
+                    const restrictions = Array.from(nodeElement.querySelectorAll('.restriction-checkbox:checked'))
+                        .map(checkbox => checkbox.value);
+
                     const questSelects = nodeElement.querySelectorAll('.quest-select');
                     const nodeData = {
                         prompt: nodeElement.querySelector('.node-prompt').value,
+                        restrictions: restrictions.length > 0 ? restrictions : undefined,
                         requiredQuestId: questSelects[0]?.value || undefined,
                         activateQuestId: questSelects[1]?.value || undefined,
                         questCompletionEvents: nodeElement.querySelector('.quest-events').value
@@ -625,6 +695,7 @@
                     };
 
                     // Remove undefined fields
+                    if (!nodeData.restrictions) delete nodeData.restrictions;
                     if (!nodeData.requiredQuestId) delete nodeData.requiredQuestId;
                     if (!nodeData.activateQuestId) delete nodeData.activateQuestId;
                     if (nodeData.questCompletionEvents.length === 0) delete nodeData.questCompletionEvents;
@@ -651,6 +722,7 @@
                 const eventData = {
                     _id: form.dataset.eventId || undefined,
                     title: document.getElementById('eventTitle').value,
+                    actorId: document.getElementById('actorSelect').value || undefined,
                     rootNode: getNodeData(document.querySelector('.root-node'))
                 };
 
