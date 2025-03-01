@@ -302,7 +302,6 @@
             <a href="/nodebuilder.html">Node Builder</a>
             <a href="/questbuilder.html">Quest Builder</a>
             <a href="/classbuilder.html">Class Builder</a>
-            <a href="/conversationbuilder.html">Conversation Builder</a>
             <a href="/eventbuilder.html">Event Builder</a>
         </div>
     </div>
@@ -633,7 +632,7 @@
                     const eventEntry = document.createElement('div');
                     eventEntry.className = 'event-entry';
                     eventEntry.innerHTML = `
-                        <div class="event-title">${event.title}</div>
+                        <div class="event-title">${event.actorId ? 'C - ' : ''}${event.title}</div>
                     `;
                     eventEntry.addEventListener('click', () => loadEventData(event));
                     container.appendChild(eventEntry);

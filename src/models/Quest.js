@@ -24,13 +24,21 @@ const questSchema = new mongoose.Schema({
         eventType: {
             type: String,
             required: true,
-            enum: ['chat', 'kill', 'conversation'],  // Removed 'gainClass'
+            enum: ['chat', 'kill', 'event'],  // Removed 'conversation'
             default: 'chat'
         },
         // Common fields for all event types
         hint: {
             type: String,
             default: ''
+        },
+        requiredQuestId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Quest'
+        },
+        activateQuestId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Quest'
         },
         choices: [{
             nextEventId: {
@@ -88,6 +96,12 @@ const questSchema = new mongoose.Schema({
                 }
             }]
         }],
+        // Event specific fields
+        eventId: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: function() { return this.eventType === 'event'; },
+            ref: 'Event'
+        },
         // Chat event specific fields
         actorId: {
             type: String,
@@ -109,12 +123,6 @@ const questSchema = new mongoose.Schema({
             required: function() { return this.eventType === 'kill'; },
             min: 1,
             default: 1
-        },
-        // Conversation event specific fields
-        conversationId: {
-            type: mongoose.Schema.Types.ObjectId,
-            required: function() { return this.eventType === 'conversation'; },
-            ref: 'Conversation'
         }
     }],
     createdAt: {

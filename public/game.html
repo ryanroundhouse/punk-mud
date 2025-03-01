@@ -665,31 +665,40 @@
                     nodeImage.src = node.image;
                     nodeImage.style.display = 'block';
                     
-                    // Check for actual mob presence by making an ls request
-                    const lsResponse = await fetch(`/api/nodes/${node.address}/list`, {
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
-                        }
-                    });
-                    
-                    if (lsResponse.ok) {
-                        const lsData = await lsResponse.json();
-                        console.log('List data for border color:', lsData);
+                    try {
+                        // Check for actual mob presence by making an ls request
+                        const lsResponse = await fetch(`/api/mobs/node/${node.address}`, {
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            }
+                        });
                         
-                        // Check if there are actual enemies present
-                        if (lsData.enemies && lsData.enemies.length > 0) {
-                            console.log('Setting RED border due to actual mob presence:', lsData.enemies);
-                            nodeImage.style.borderColor = 'var(--neon-red)';
-                            nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
-                        } else if (node.isRestPoint) {
-                            console.log('Setting GREEN border due to rest point');
-                            nodeImage.style.borderColor = 'var(--terminal-green)';
-                            nodeImage.style.boxShadow = '0 0 15px var(--terminal-green)';
+                        if (lsResponse.ok) {
+                            const lsData = await lsResponse.json();
+                            console.log('List data for border color:', lsData);
+                            
+                            // Check if there are actual enemies present
+                            if (lsData.enemies && lsData.enemies.length > 0) {
+                                console.log('Setting RED border due to actual mob presence:', lsData.enemies);
+                                nodeImage.style.borderColor = 'var(--neon-red)';
+                                nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
+                            } else if (node.isRestPoint) {
+                                console.log('Setting GREEN border due to rest point');
+                                nodeImage.style.borderColor = 'var(--terminal-green)';
+                                nodeImage.style.boxShadow = '0 0 15px var(--terminal-green)';
+                            } else {
+                                console.log('Setting default BLUE border - no enemies present');
+                                nodeImage.style.borderColor = 'var(--neon-blue)';
+                                nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
+                            }
                         } else {
-                            console.log('Setting default BLUE border - no enemies present');
-                            nodeImage.style.borderColor = 'var(--neon-blue)';
-                            nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
+                            throw new Error('Failed to get list data');
                         }
+                    } catch (error) {
+                        console.error('Error checking for enemies:', error);
+                        // Set default border color on error
+                        nodeImage.style.borderColor = 'var(--neon-blue)';
+                        nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
                     }
                 } else {
                     nodeImage.style.display = 'none';
@@ -1043,14 +1052,18 @@
                         break;
                     case 'combat':
                         responseLine.style.color = 'var(--neon-pink)';
+                        // Check for death or victory message and refresh node
+                        if (data.message.includes('*** YOU HAVE BEEN DEFEATED ***') ||
+                            data.message.includes('has been defeated!')) {
+                            console.log('Combat ended, refreshing location');
+                            setTimeout(() => loadNode(), 100);
+                        }
                         // Check for death message and style it differently
                         if (data.message.includes('*** YOU HAVE BEEN DEFEATED ***')) {
                             const parts = data.message.split('\n\n');
                             responseLine.innerHTML = `${parts[0]}\n\n` +
                                 `<span style="color: var(--neon-red); text-align: center; display: block; font-weight: bold;">` +
                                 `${parts[1]}\n${parts[2]}</span>`;
-                            // Refresh location after death message
-                            setTimeout(() => loadNode(), 100);
                         } else {
                             responseLine.textContent = data.message;
                         }
@@ -1572,6 +1585,14 @@
                     return;
                 }
             }
+
+            // Ensure event messages are stored with their type
+            if (response && (response.type === 'event' || response.message?.startsWith('Event:'))) {
+                storableResponse = {
+                    type: 'event',
+                    message: response.message || response
+                };
+            }
             
             // Add as a new entry if not merged
             history.push({ 
@@ -1611,6 +1632,7 @@
                             responseLine.style.color = 'var(--neon-red)';
                             break;
                         case 'success':
+                        case 'event':  // Handle event type explicitly
                             responseLine.style.color = 'var(--neon-blue)';
                             break;
                         case 'combat':
@@ -1632,8 +1654,12 @@
                         responseLine.textContent = item.response.message || '';
                     }
                 } else {
-                    // If response is just a string
-                    responseLine.style.color = 'var(--terminal-green)';
+                    // If response is just a string, check if it's an event message
+                    if (typeof item.response === 'string' && item.response.startsWith('Event:')) {
+                        responseLine.style.color = 'var(--neon-blue)';
+                    } else {
+                        responseLine.style.color = 'var(--terminal-green)';
+                    }
                     responseLine.textContent = item.response || '';
                 }
                 

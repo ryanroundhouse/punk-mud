@@ -5,15 +5,16 @@ const logger = require('../config/logger');
 async function getQuests(req, res) {
     try {
         const quests = await Quest.find()
-            .sort({ title: 1 })
+            .populate('events.actorId')
             .populate('events.mobId')
-            .populate('events.conversationId')
-            .populate('events.rewards.value')
-            .populate('events.nodeEventOverrides.events.mobId');
+            .populate('events.eventId')
+            .populate('events.requiredQuestId')
+            .populate('events.activateQuestId')
+            .populate('events.rewards.value');
         res.json(quests);
     } catch (error) {
         logger.error('Error fetching quests:', error);
-        res.status(500).json({ error: 'Error fetching quests' });
+        res.status(500).json({ error: 'Failed to fetch quests' });
     }
 }
 
@@ -58,17 +59,17 @@ async function createOrUpdateQuest(req, res) {
                         details: 'Kill events must have mobId and quantity (minimum 1)'
                     });
                 }
-            } else if (event.eventType === 'conversation') {
-                if (!event.conversationId) {
+            } else if (event.eventType === 'event') {
+                if (!event.eventId) {
                     return res.status(400).json({ 
-                        error: 'Invalid conversation event data',
-                        details: 'Conversation events must have a conversationId'
+                        error: 'Invalid event data',
+                        details: 'Event type events must have an eventId'
                     });
                 }
             } else {
                 return res.status(400).json({ 
                     error: 'Invalid event type',
-                    details: 'Event type must be "chat", "kill", or "conversation"'
+                    details: 'Event type must be "chat", "kill", or "event"'
                 });
             }
 

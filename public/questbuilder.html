@@ -706,11 +706,10 @@
                         <label>Quest Events:</label>
                         <div id="eventsContainer">
                             <div class="event-controls">
-                                <select id="eventType" class="event-type-select">
+                                <select id="eventType" required>
                                     <option value="chat">Chat Event</option>
                                     <option value="kill">Kill Event</option>
-                                    <option value="conversation">Conversation Event</option>
-                                    <option value="gainClass">Gain Class Event</option>
+                                    <option value="event">Story Event</option>
                                 </select>
                                 
                                 <div class="input-group" id="actorSelection">
@@ -738,17 +737,17 @@
                                         value="1">
                                 </div>
                                 
-                                <!-- Conversation Event Fields -->
-                                <div id="conversationEventFields" style="display: none;">
-                                    <select id="eventConversation">
-                                        <!-- Will be populated with conversations -->
+                                <!-- Story Event Fields -->
+                                <div id="eventFields" style="display: none;">
+                                    <select id="eventSelect">
+                                        <!-- Will be populated with events -->
                                     </select>
                                 </div>
                                 
-                                <!-- Gain Class Event Fields -->
-                                <div id="gainClassEventFields" style="display: none;">
+                                <div class="input-group" id="rewardsSection">
+                                    <label>Event Rewards:</label>
                                     <select id="eventClass">
-                                        <!-- Will be populated with classes -->
+                                        <option value="">Select Class Reward</option>
                                     </select>
                                 </div>
                                 
@@ -796,9 +795,208 @@
         let allQuests = [];
         let allActors = [];
         let allMobs = [];
-        let allConversations = [];
+        let allEvents = [];
         let allClasses = [];
         let allNodes = [];
+
+        // Populate select elements
+        function populateMobSelect() {
+            const eventMob = document.getElementById('eventMob');
+            eventMob.innerHTML = '<option value="">Select Mob</option>';
+            allMobs.forEach(mob => {
+                const option = document.createElement('option');
+                option.value = mob._id;
+                option.textContent = mob.name;
+                eventMob.appendChild(option);
+            });
+        }
+
+        function populateEventSelect() {
+            const eventSelect = document.getElementById('eventSelect');
+            eventSelect.innerHTML = '<option value="">Select Event</option>';
+            allEvents.forEach(event => {
+                const option = document.createElement('option');
+                option.value = event._id;
+                option.textContent = event.title || event._id;
+                eventSelect.appendChild(option);
+            });
+        }
+
+        function populateClassSelect() {
+            const eventClass = document.getElementById('eventClass');
+            eventClass.innerHTML = '<option value="">Select Class Reward</option>';
+            allClasses.forEach(classItem => {
+                const option = document.createElement('option');
+                option.value = classItem._id;
+                option.textContent = classItem.name;
+                eventClass.appendChild(option);
+            });
+        }
+
+        function populateNodeSelect() {
+            const nodeAddressSelects = document.querySelectorAll('.node-address-select');
+            nodeAddressSelects.forEach(select => {
+                select.innerHTML = '<option value="">Select Node</option>';
+                allNodes.forEach(node => {
+                    const option = document.createElement('option');
+                    option.value = node.address;
+                    option.textContent = `${node.name} (${node.address})`;
+                    select.appendChild(option);
+                });
+            });
+        }
+
+        function addEventEntryHandlers(eventEntry) {
+            // Add drag and drop handlers
+            eventEntry.draggable = true;
+            eventEntry.addEventListener('dragstart', handleDragStart);
+            eventEntry.addEventListener('dragend', handleDragEnd);
+            eventEntry.addEventListener('dragover', handleDragOver);
+            eventEntry.addEventListener('drop', handleDrop);
+
+            // Add remove event handler
+            eventEntry.querySelector('.remove-event').addEventListener('click', () => {
+                eventEntry.remove();
+                updateStartEvent();
+                updateEventTargets();
+            });
+
+            // Add end event checkbox handler
+            const endEventCheckbox = eventEntry.querySelector('.end-event-checkbox');
+            endEventCheckbox.addEventListener('change', () => {
+                eventEntry.dataset.isEnd = endEventCheckbox.checked;
+                const choicesContainer = eventEntry.querySelector('.event-choices');
+                const addChoiceBtn = eventEntry.querySelector('.add-choice-btn');
+                
+                if (endEventCheckbox.checked) {
+                    choicesContainer.innerHTML = '';
+                    addChoiceBtn.style.display = 'none';
+                } else {
+                    addChoiceBtn.style.display = '';
+                }
+            });
+
+            // Add choice button handler
+            eventEntry.querySelector('.add-choice-btn').addEventListener('click', () => {
+                addChoiceToEvent(eventEntry);
+            });
+
+            // Add copy ID button handler
+            const copyBtn = eventEntry.querySelector('.copy-id-btn');
+            copyBtn.addEventListener('click', () => {
+                const eventId = eventEntry.dataset.eventId;
+                navigator.clipboard.writeText(eventId);
+                
+                // Show tooltip
+                const tooltip = document.createElement('div');
+                tooltip.className = 'copy-tooltip';
+                tooltip.textContent = 'Copied!';
+                copyBtn.appendChild(tooltip);
+                
+                // Position tooltip
+                const btnRect = copyBtn.getBoundingClientRect();
+                tooltip.style.position = 'absolute';
+                tooltip.style.top = '-25px';
+                tooltip.style.left = '50%';
+                tooltip.style.transform = 'translateX(-50%)';
+                
+                // Show tooltip
+                setTimeout(() => tooltip.classList.add('show'), 0);
+                
+                // Remove tooltip after animation
+                setTimeout(() => {
+                    tooltip.classList.remove('show');
+                    setTimeout(() => tooltip.remove(), 300);
+                }, 1000);
+            });
+        }
+
+        function createNodeOverrideEntry(override = {}) {
+            return `
+                <div class="node-override-item">
+                    <span class="remove-node-override" onclick="this.closest('.node-override-item').remove()">×</span>
+                    <div class="input-group">
+                        <label>Node:</label>
+                        <select class="node-address-select">
+                            <option value="">Select Node</option>
+                            ${allNodes.map(node => `
+                                <option value="${node.address}" ${node.address === override.nodeAddress ? 'selected' : ''}>
+                                    ${node.name} (${node.address})
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div class="node-event-list">
+                        ${(override.events || []).map(event => createNodeEventEntry(event)).join('')}
+                    </div>
+                    <div class="add-node-event" onclick="addNodeEvent(this)">+ Add Node Event</div>
+                </div>
+            `;
+        }
+
+        function createNodeEventEntry(nodeEvent = {}) {
+            return `
+                <div class="node-event-item">
+                    <select class="node-event-mob-select">
+                        <option value="">Select Mob</option>
+                        ${allMobs.map(mob => `
+                            <option value="${mob._id}" ${mob._id === nodeEvent.mobId ? 'selected' : ''}>
+                                ${mob.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                    <div class="input-group">
+                        <label>Chance (%):</label>
+                        <input type="number" 
+                               class="node-event-chance-input" 
+                               min="1" 
+                               max="100" 
+                               value="${nodeEvent.chance || 100}">
+                    </div>
+                    <span class="remove-node-event" onclick="this.closest('.node-event-item').remove()">×</span>
+                </div>
+            `;
+        }
+
+        function addNodeOverride(button) {
+            const nodeOverrideList = button.closest('.node-override-section').querySelector('.node-override-list');
+            const overrideEntry = document.createElement('div');
+            overrideEntry.innerHTML = createNodeOverrideEntry();
+            nodeOverrideList.appendChild(overrideEntry.firstElementChild);
+        }
+
+        function addNodeEvent(button) {
+            const nodeEventList = button.closest('.node-override-item').querySelector('.node-event-list');
+            const eventEntry = document.createElement('div');
+            eventEntry.innerHTML = createNodeEventEntry();
+            nodeEventList.appendChild(eventEntry.firstElementChild);
+        }
+
+        function createRewardEntry(reward = {}) {
+            return `
+                <div class="reward-entry">
+                    <select class="reward-type-select">
+                        <option value="class" ${reward.type === 'class' ? 'selected' : ''}>Class</option>
+                    </select>
+                    <select class="reward-value-select">
+                        <option value="">Select Class</option>
+                        ${allClasses.map(classItem => `
+                            <option value="${classItem._id}" ${classItem._id === reward.value ? 'selected' : ''}>
+                                ${classItem.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                    <span class="remove-reward" onclick="this.closest('.reward-entry').remove()">×</span>
+                </div>
+            `;
+        }
+
+        function addReward(button) {
+            const rewardsList = button.closest('.rewards-container').querySelector('.rewards-list');
+            const rewardEntry = document.createElement('div');
+            rewardEntry.innerHTML = createRewardEntry();
+            rewardsList.appendChild(rewardEntry.firstElementChild);
+        }
 
         // Check authentication
         window.onload = async () => {
@@ -822,7 +1020,7 @@
                 // Load everything sequentially to avoid race conditions
                 await loadActors();
                 await loadMobs();
-                await loadConversations();
+                await loadEvents();
                 await loadClasses();
                 await loadQuests();
                 await loadNodes();
@@ -912,24 +1110,24 @@
             }
         }
 
-        // Load conversations
-        async function loadConversations() {
+        // Load events
+        async function loadEvents() {
             try {
-                const response = await fetch('/api/conversations', {
+                const response = await fetch('/api/events', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
                 
                 if (!response.ok) {
-                    throw new Error(`Failed to load conversations - Status: ${response.status}`);
+                    throw new Error(`Failed to load events - Status: ${response.status}`);
                 }
                 
-                allConversations = await response.json();
-                populateConversationSelect();
+                allEvents = await response.json();
+                populateEventSelect();
             } catch (error) {
-                console.error('Error loading conversations:', error);
-                alert('Failed to load conversations. Please try refreshing the page.');
+                console.error('Error loading events:', error);
+                alert('Failed to load events. Please try refreshing the page.');
             }
         }
 
@@ -1069,31 +1267,15 @@
                     };
                     break;
 
-                case 'conversation':
-                    const conversationId = document.getElementById('eventConversation').value;
-
-                    if (!conversationId) {
-                        alert('Please select a conversation');
-                        return;
+                case 'event':
+                    const eventId = document.getElementById('eventSelect').value;
+                    if (!eventId) {
+                        alert('Please select an event');
+                        return null;
                     }
-
                     eventData = {
                         ...eventData,
-                        conversationId
-                    };
-                    break;
-
-                case 'gainClass':
-                    const classId = document.getElementById('eventClass').value;
-
-                    if (!classId) {
-                        alert('Please select a class');
-                        return;
-                    }
-
-                    eventData = {
-                        ...eventData,
-                        classId
+                        eventId
                     };
                     break;
             }
@@ -1117,13 +1299,14 @@
             eventEntry.dataset.eventId = eventData.eventId || generateObjectId();
             eventEntry.dataset.isStart = eventData.isStart || false;
             eventEntry.dataset.isEnd = eventData.isEnd || false;
-            eventEntry.dataset.eventType = eventData.eventType;
+            // Convert any 'conversation' type to 'chat'
+            eventEntry.dataset.eventType = eventData.eventType === 'conversation' ? 'chat' : eventData.eventType;
             
             // Create the base HTML structure
             eventEntry.innerHTML = `
                 <span class="event-handle">⋮⋮</span>
                 <div class="event-content">
-                    ${getEventTypeSpecificHTML(eventData)}
+                    ${getEventTypeSpecificHTML({ ...eventData, eventType: eventEntry.dataset.eventType })}
                     <div class="input-group">
                         <label>Hint:</label>
                         <textarea class="event-hint-input" placeholder="Enter optional hint">${eventData.hint || ''}</textarea>
@@ -1217,27 +1400,14 @@
                             <input type="number" class="event-quantity-input" min="1" value="${eventData.quantity || 1}">
                         </div>
                     `;
-                case 'conversation':
+                case 'event':
                     return `
                         <div class="input-group">
-                            <label>Conversation:</label>
-                            <select class="event-conversation-select">
-                                ${allConversations.map(conv => `
-                                    <option value="${conv._id}" ${conv._id === eventData.conversationId ? 'selected' : ''}>
-                                        ${conv.title || conv._id}
-                                    </option>
-                                `).join('')}
-                            </select>
-                        </div>
-                    `;
-                case 'gainClass':
-                    return `
-                        <div class="input-group">
-                            <label>Class:</label>
-                            <select class="event-class-select">
-                                ${allClasses.map(classObj => `
-                                    <option value="${classObj._id}" ${classObj._id === eventData.classId ? 'selected' : ''}>
-                                        ${classObj.name}
+                            <label>Event:</label>
+                            <select class="event-event-select">
+                                ${allEvents.map(event => `
+                                    <option value="${event._id}" ${event._id === eventData.eventId ? 'selected' : ''}>
+                                        ${event.title || event._id}
                                     </option>
                                 `).join('')}
                             </select>
@@ -1373,9 +1543,12 @@
 
             // Add existing events
             quest.events.forEach(event => {
+                // Convert old 'conversation' type to 'chat'
+                const eventType = event.eventType === 'conversation' ? 'chat' : event.eventType;
+                
                 let eventData = {
                     eventId: event._id,
-                    eventType: event.eventType,
+                    eventType: eventType,
                     hint: event.hint,
                     isStart: event.isStart,
                     isEnd: event.isEnd,
@@ -1383,7 +1556,7 @@
                     nodeEventOverrides: event.nodeEventOverrides || []
                 };
 
-                switch(event.eventType) {
+                switch(eventType) {
                     case 'chat':
                         eventData = {
                             ...eventData,
@@ -1392,7 +1565,6 @@
                         };
                         break;
                     case 'kill':
-                        // Handle both populated and unpopulated mobId
                         const mobId = event.mobId._id || event.mobId;
                         eventData = {
                             ...eventData,
@@ -1400,16 +1572,10 @@
                             quantity: event.quantity
                         };
                         break;
-                    case 'conversation':
+                    case 'event':
                         eventData = {
                             ...eventData,
-                            conversationId: event.conversationId._id || event.conversationId
-                        };
-                        break;
-                    case 'gainClass':
-                        eventData = {
-                            ...eventData,
-                            classId: event.classId._id || event.classId
+                            eventId: event.eventId
                         };
                         break;
                 }
@@ -1520,59 +1686,88 @@
                             .map(reward => ({
                                 type: reward.querySelector('.reward-type-select').value,
                                 value: reward.querySelector('.reward-value-select').value,
-                                valueRef: 'Class' // Currently hardcoded as we only have Class rewards
+                                valueRef: 'Class'
                             })),
                         nodeEventOverrides: Array.from(event.querySelectorAll('.node-override-item'))
-                            .map(override => {
+                            .map((override) => {
                                 const nodeAddress = override.querySelector('.node-address-select').value;
-                                if (!nodeAddress) return null; // Skip empty node addresses
+                                if (!nodeAddress) {
+                                    return null;
+                                }
+                                
+                                const events = Array.from(override.querySelectorAll('.node-event-item'))
+                                    .map((nodeEvent) => {
+                                        const mobId = nodeEvent.querySelector('.node-event-mob-select').value;
+                                        const chance = parseInt(nodeEvent.querySelector('.node-event-chance-input').value) || 100;
+                                        
+                                        if (!mobId) {
+                                            return null;
+                                        }
+                                        
+                                        return {
+                                            mobId,
+                                            chance
+                                        };
+                                    })
+                                    .filter(Boolean);
                                 
                                 return {
                                     nodeAddress,
-                                    events: Array.from(override.querySelectorAll('.node-event-item'))
-                                        .map(nodeEvent => {
-                                            const mobId = nodeEvent.querySelector('.node-event-mob-select').value;
-                                            const chance = parseInt(nodeEvent.querySelector('.node-event-chance-input').value) || 100;
-                                            
-                                            if (!mobId) return null; // Skip empty mob selections
-                                            
-                                            return {
-                                                mobId,
-                                                chance
-                                            };
-                                        })
-                                        .filter(Boolean) // Remove null entries
+                                    events
                                 };
                             })
-                            .filter(Boolean) // Remove null entries
+                            .filter(Boolean)
                     };
 
+                    let eventData;
                     switch(eventType) {
                         case 'chat':
-                            return {
+                            const actorId = event.querySelector('.event-actor-select').value;
+                            const message = event.querySelector('.event-message-input').value;
+                            
+                            // Validate chat event fields
+                            if (!actorId || !message.trim()) {
+                                throw new Error(`Chat event is missing required fields (actor or message) - Event ID: ${event.dataset.eventId}`);
+                            }
+                            
+                            eventData = {
                                 ...baseEvent,
-                                actorId: event.querySelector('.event-actor-select').value,
-                                message: event.querySelector('.event-message-input').value
+                                actorId,
+                                message
                             };
+                            break;
                         case 'kill':
-                            return {
+                            const mobId = event.querySelector('.event-mob-select').value;
+                            const quantity = parseInt(event.querySelector('.event-quantity-input').value);
+                            
+                            // Validate kill event fields
+                            if (!mobId || !quantity || quantity < 1) {
+                                throw new Error(`Kill event is missing required fields or has invalid quantity - Event ID: ${event.dataset.eventId}`);
+                            }
+                            
+                            eventData = {
                                 ...baseEvent,
-                                mobId: event.querySelector('.event-mob-select').value,
-                                quantity: parseInt(event.querySelector('.event-quantity-input').value)
+                                mobId,
+                                quantity
                             };
-                        case 'conversation':
-                            return {
+                            break;
+                        case 'event':
+                            const eventId = event.querySelector('.event-event-select').value;
+                            
+                            // Validate story event fields
+                            if (!eventId) {
+                                throw new Error(`Story event is missing event selection - Event ID: ${event.dataset.eventId}`);
+                            }
+                            
+                            eventData = {
                                 ...baseEvent,
-                                conversationId: event.querySelector('.event-conversation-select').value
+                                eventId
                             };
-                        case 'gainClass':
-                            return {
-                                ...baseEvent,
-                                classId: event.querySelector('.event-class-select').value
-                            };
+                            break;
                         default:
-                            return baseEvent;
+                            throw new Error(`Invalid event type: ${eventType}`);
                     }
+                    return eventData;
                 });
 
                 if (events.length === 0) {
@@ -1675,357 +1870,6 @@
                 link.style.color = 'var(--neon-pink)';
             }
         });
-
-        document.getElementById('eventType').addEventListener('change', (e) => {
-            const chatFields = document.getElementById('chatEventFields');
-            const killFields = document.getElementById('killEventFields');
-            const conversationFields = document.getElementById('conversationEventFields');
-            const gainClassFields = document.getElementById('gainClassEventFields');
-            const actorSelection = document.getElementById('actorSelection');
-            
-            // Hide all fields first
-            chatFields.style.display = 'none';
-            killFields.style.display = 'none';
-            conversationFields.style.display = 'none';
-            gainClassFields.style.display = 'none';
-            actorSelection.style.display = 'block';
-            
-            switch(e.target.value) {
-                case 'chat':
-                    chatFields.style.display = 'block';
-                    break;
-                case 'kill':
-                    killFields.style.display = 'block';
-                    break;
-                case 'conversation':
-                    conversationFields.style.display = 'block';
-                    actorSelection.style.display = 'none';
-                    break;
-                case 'gainClass':
-                    gainClassFields.style.display = 'block';
-                    actorSelection.style.display = 'none';
-                    break;
-            }
-        });
-
-        // Add this function after createEventEntry
-        function addEventEntryHandlers(eventEntry) {
-            // Add drag and drop handlers
-            eventEntry.draggable = true;
-            eventEntry.addEventListener('dragstart', handleDragStart);
-            eventEntry.addEventListener('dragend', handleDragEnd);
-            eventEntry.addEventListener('dragover', handleDragOver);
-            eventEntry.addEventListener('drop', handleDrop);
-
-            // Add remove event handler
-            eventEntry.querySelector('.remove-event').addEventListener('click', () => {
-                let confirmMessage = '';
-                
-                // Customize confirmation message based on event type
-                switch(eventEntry.dataset.eventType) {
-                    case 'chat':
-                        confirmMessage = `Event message: "${eventEntry.querySelector('.event-message-input').value}"`;
-                        break;
-                    case 'kill':
-                        const mobSelect = eventEntry.querySelector('.event-mob-select');
-                        const quantity = eventEntry.querySelector('.event-quantity-input').value;
-                        const mobName = mobSelect.options[mobSelect.selectedIndex].text;
-                        confirmMessage = `Kill ${quantity} ${mobName}`;
-                        break;
-                    case 'conversation':
-                        const convSelect = eventEntry.querySelector('.event-conversation-select');
-                        const convName = convSelect.options[convSelect.selectedIndex].text;
-                        confirmMessage = `Conversation: "${convName}"`;
-                        break;
-                    case 'gainClass':
-                        const classSelect = eventEntry.querySelector('.event-class-select');
-                        const className = classSelect.options[classSelect.selectedIndex].text;
-                        confirmMessage = `Gain class: ${className}`;
-                        break;
-                }
-                
-                const confirmDelete = confirm(`Are you sure you want to delete this event?\n\n${confirmMessage}\n\nThis cannot be undone.`);
-                
-                if (confirmDelete) {
-                    eventEntry.remove();
-                    updateEventTargets();
-                    updateStartEvent();
-                }
-            });
-
-            // Add end event checkbox handler
-            eventEntry.querySelector('.end-event-checkbox').addEventListener('change', (e) => {
-                eventEntry.dataset.isEnd = e.target.checked;
-                // If it's an end event, remove all choices
-                if (e.target.checked) {
-                    eventEntry.querySelector('.event-choices').innerHTML = '';
-                    eventEntry.querySelector('.add-choice-btn').style.display = 'none';
-                } else {
-                    eventEntry.querySelector('.add-choice-btn').style.display = '';
-                }
-            });
-
-            // Add choice button handler
-            eventEntry.querySelector('.add-choice-btn').addEventListener('click', () => {
-                addChoiceToEvent(eventEntry);
-            });
-
-            // Add input handlers based on event type
-            switch(eventEntry.dataset.eventType) {
-                case 'chat':
-                    eventEntry.querySelector('.event-message-input')?.addEventListener('input', () => {
-                        updateEventTargets();
-                    });
-                    break;
-                case 'kill':
-                    eventEntry.querySelector('.event-quantity-input')?.addEventListener('input', (e) => {
-                        // Ensure quantity is at least 1
-                        if (e.target.value < 1) e.target.value = 1;
-                    });
-                    break;
-                case 'conversation':
-                    eventEntry.querySelector('.event-conversation-select')?.addEventListener('change', () => {
-                        updateEventTargets();
-                    });
-                    break;
-                case 'gainClass':
-                    eventEntry.querySelector('.event-class-select')?.addEventListener('change', () => {
-                        updateEventTargets();
-                    });
-                    break;
-            }
-
-            // Add copy ID button handler
-            const copyBtn = eventEntry.querySelector('.copy-id-btn');
-            copyBtn.addEventListener('click', (e) => {
-                const id = eventEntry.dataset.eventId;
-                navigator.clipboard.writeText(id).then(() => {
-                    // Create and show tooltip
-                    const tooltip = document.createElement('div');
-                    tooltip.className = 'copy-tooltip';
-                    tooltip.textContent = 'Copied!';
-                    
-                    // Position tooltip near the click
-                    tooltip.style.position = 'absolute';
-                    tooltip.style.left = `${e.pageX + 10}px`;
-                    tooltip.style.top = `${e.pageY - 30}px`;
-                    
-                    document.body.appendChild(tooltip);
-                    
-                    // Show tooltip
-                    setTimeout(() => tooltip.classList.add('show'), 10);
-                    
-                    // Remove tooltip after animation
-                    setTimeout(() => {
-                        tooltip.classList.remove('show');
-                        setTimeout(() => tooltip.remove(), 300);
-                    }, 1500);
-                }).catch(err => {
-                    console.error('Failed to copy:', err);
-                    alert('Failed to copy ID to clipboard');
-                });
-            });
-        }
-
-        // Also add this function to populate the mob select when the page loads
-        function populateMobSelect() {
-            const eventMob = document.getElementById('eventMob');
-            eventMob.innerHTML = '<option value="">Select Mob</option>';
-            allMobs.forEach(mob => {
-                const option = document.createElement('option');
-                option.value = mob._id;
-                option.textContent = mob.name;
-                eventMob.appendChild(option);
-            });
-        }
-
-        function populateConversationSelect() {
-            const eventConversation = document.getElementById('eventConversation');
-            eventConversation.innerHTML = '<option value="">Select Conversation</option>';
-            allConversations.forEach(conversation => {
-                const option = document.createElement('option');
-                option.value = conversation._id;
-                option.textContent = conversation.title || conversation._id;
-                eventConversation.appendChild(option);
-            });
-        }
-
-        function populateClassSelect() {
-            const eventClass = document.getElementById('eventClass');
-            eventClass.innerHTML = '<option value="">Select Class</option>';
-            allClasses.forEach(classObj => {
-                const option = document.createElement('option');
-                option.value = classObj._id;
-                option.textContent = classObj.name;
-                eventClass.appendChild(option);
-            });
-        }
-
-        // First, add this CSS to your existing styles section
-        function addStyleToHead() {
-            const style = document.createElement('style');
-            style.textContent = `
-                .event-id {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    font-size: 0.8em;
-                    color: var(--neon-blue);
-                    opacity: 0.7;
-                }
-
-                .copy-id-btn {
-                    cursor: pointer;
-                    color: var(--neon-pink);
-                    transition: all 0.3s ease;
-                }
-
-                .copy-id-btn:hover {
-                    transform: scale(1.2);
-                    color: var(--neon-blue);
-                }
-
-                .copy-tooltip {
-                    position: absolute;
-                    background: rgba(0, 255, 249, 0.1);
-                    border: 1px solid var(--neon-blue);
-                    padding: 0.3rem 0.6rem;
-                    border-radius: 3px;
-                    font-size: 0.8em;
-                    pointer-events: none;
-                    opacity: 0;
-                    transition: opacity 0.3s ease;
-                }
-
-                .copy-tooltip.show {
-                    opacity: 1;
-                }
-            `;
-            document.head.appendChild(style);
-        }
-        addStyleToHead();
-
-        // Add these new functions
-        function createRewardEntry(reward = {}) {
-            return `
-                <div class="reward-entry">
-                    <select class="reward-type-select">
-                        <option value="gainClass" ${reward.type === 'gainClass' ? 'selected' : ''}>Gain Class</option>
-                    </select>
-                    <select class="reward-value-select">
-                        <option value="">Select value...</option>
-                        ${allClasses.map(c => `
-                            <option value="${c._id}" ${reward.value === c._id ? 'selected' : ''}>
-                                ${c.name}
-                            </option>
-                        `).join('')}
-                    </select>
-                    <span class="remove-reward" onclick="removeReward(this)">×</span>
-                </div>
-            `;
-        }
-
-        function addReward(button) {
-            const rewardsList = button.previousElementSibling;
-            const rewardEntry = createRewardEntry();
-            rewardsList.insertAdjacentHTML('beforeend', rewardEntry);
-        }
-
-        function removeReward(button) {
-            button.closest('.reward-entry').remove();
-        }
-
-        // Node event override functions
-        function createNodeOverrideEntry(override = {}) {
-            return `
-                <div class="node-override-item">
-                    <div class="input-group">
-                        <label>Node Address:</label>
-                        <select class="node-address-select">
-                            <option value="">Select Node</option>
-                            ${allNodes.map(node => `
-                                <option value="${node.address}" ${node.address === override.nodeAddress ? 'selected' : ''} title="${node.description || 'No description available'}">
-                                    ${node.name} (${node.address})${node.isRestPoint ? ' [Rest]' : ''}
-                                </option>
-                            `).join('')}
-                        </select>
-                    </div>
-                    <div class="node-event-list">
-                        ${(override.events || []).map(event => createNodeEventEntry(event)).join('')}
-                    </div>
-                    <div class="add-node-event" onclick="addNodeEvent(this)">+ Add Mob Event</div>
-                    <span class="remove-node-override" onclick="removeNodeOverride(this)">×</span>
-                </div>
-            `;
-        }
-
-        function createNodeEventEntry(event = {}) {
-            // Extract the mob ID correctly, handling both string and object formats
-            const mobIdValue = event.mobId?._id || event.mobId;
-            
-            return `
-                <div class="node-event-item">
-                    <select class="node-event-mob-select">
-                        <option value="">Select Mob</option>
-                        ${allMobs.map(mob => `
-                            <option value="${mob._id}" ${mobIdValue === mob._id ? 'selected' : ''}>
-                                ${mob.name}
-                            </option>
-                        `).join('')}
-                    </select>
-                    <div class="input-group">
-                        <label>Chance (%):</label>
-                        <input type="number" class="node-event-chance-input" min="0" max="100" value="${event.chance || 100}" style="width: 70px;">
-                    </div>
-                    <span class="remove-node-event" onclick="removeNodeEvent(this)">×</span>
-                </div>
-            `;
-        }
-
-        function addNodeOverride(button) {
-            const nodeOverrideList = button.closest('.node-override-section').querySelector('.node-override-list');
-            const nodeOverrideEntry = createNodeOverrideEntry();
-            nodeOverrideList.insertAdjacentHTML('beforeend', nodeOverrideEntry);
-            
-            // Ensure the newly added node select has options
-            const newNodeSelect = nodeOverrideList.lastElementChild.querySelector('.node-address-select');
-            populateNodeSelect(newNodeSelect);
-        }
-
-        function removeNodeOverride(button) {
-            button.closest('.node-override-item').remove();
-        }
-
-        function addNodeEvent(button) {
-            const nodeEventList = button.previousElementSibling;
-            const nodeEventEntry = createNodeEventEntry();
-            nodeEventList.insertAdjacentHTML('beforeend', nodeEventEntry);
-        }
-
-        function removeNodeEvent(button) {
-            button.closest('.node-event-item').remove();
-        }
-
-        function populateNodeSelect(specificSelect = null) {
-            const options = `
-                <option value="">Select Node</option>
-                ${allNodes.map(node => `
-                    <option value="${node.address}" title="${node.description || 'No description available'}">
-                        ${node.name} (${node.address})${node.isRestPoint ? ' [Rest]' : ''}
-                    </option>
-                `).join('')}
-            `;
-
-            if (specificSelect) {
-                specificSelect.innerHTML = options;
-            } else {
-                document.querySelectorAll('.node-address-select').forEach(select => {
-                    const currentValue = select.value;
-                    select.innerHTML = options;
-                    select.value = currentValue; // Preserve selected value
-                });
-            }
-        }
     </script>
 </body>
-</html> 
+</html>

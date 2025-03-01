@@ -5,11 +5,13 @@ const {
     getMobs, 
     getPublicMobs, 
     createOrUpdateMob, 
-    deleteMob 
+    deleteMob,
+    getMobsAtNode
 } = require('../controllers/mobController');
 
 // Public mob routes
 router.get('/public', authenticateToken, getPublicMobs);
+router.get('/node/:address', authenticateToken, getMobsAtNode);
 
 // Builder-only routes
 router.get('/', verifyBuilderAccess, getMobs);

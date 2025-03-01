@@ -100,6 +100,37 @@ class EventService {
                 activateQuestId: rootNode.activateQuestId?._id?.toString()
             });
 
+            // Get user data to check restrictions
+            const user = await User.findById(userId);
+            if (!user) {
+                logger.error('User not found when starting event:', { userId });
+                return null;
+            }
+
+            // Check node restrictions
+            if (rootNode.restrictions?.length > 0) {
+                for (const restriction of rootNode.restrictions) {
+                    // 'noClass' restriction - only show if user has no class
+                    if (restriction === 'noClass' && user.class) {
+                        logger.debug('Event blocked by noClass restriction:', {
+                            userId,
+                            eventId: event._id,
+                            userHasClass: !!user.class
+                        });
+                        return null;
+                    }
+                    // 'enforcerOnly' restriction - only show if user is enforcer class
+                    if (restriction === 'enforcerOnly' && (!user.class || user.class.name !== 'Enforcer')) {
+                        logger.debug('Event blocked by enforcerOnly restriction:', {
+                            userId,
+                            eventId: event._id,
+                            userClass: user.class?.name
+                        });
+                        return null;
+                    }
+                }
+            }
+
             // Store event state using stateService
             stateService.setActiveEvent(
                 userId, 

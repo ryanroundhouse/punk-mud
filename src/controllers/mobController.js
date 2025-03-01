@@ -1,6 +1,8 @@
 const Mob = require('../models/Mob');
 const Move = require('../models/Move');
 const logger = require('../config/logger');
+const Node = require('../models/Node');
+const stateService = require('../services/stateService');
 
 async function getMobs(req, res) {
     try {
@@ -141,9 +143,58 @@ async function deleteMob(req, res) {
     }
 }
 
+async function getMobsAtNode(req, res) {
+    try {
+        const { address } = req.params;
+        logger.debug(`Attempting to find mobs at node address: ${address}`);
+        logger.debug('Auth user data:', {
+            user: req.user,
+            avatar: req.user?.avatar,
+            stats: req.user?.avatar?.stats
+        });
+
+        // Get the player's mob if they have one in this node
+        const playerMob = stateService.getPlayerMob(req.user.userId);
+        logger.debug('Player mob data:', {
+            hasMob: !!playerMob,
+            mobDetails: playerMob
+        });
+
+        let enemies = [];
+        if (playerMob) {
+            enemies.push({
+                name: playerMob.name,
+                level: playerMob.stats?.level || 1
+            });
+        }
+
+        // Get player level from the authenticated user
+        const playerLevel = req.user?.avatar?.stats?.level || 1;
+        logger.debug('Final response data:', {
+            enemyCount: enemies.length,
+            enemies,
+            playerLevel
+        });
+
+        res.json({
+            type: 'list',
+            enemies,
+            playerLevel
+        });
+    } catch (error) {
+        logger.error('Error fetching mobs at node:', error);
+        logger.error('Stack trace:', error.stack);
+        res.status(500).json({ 
+            error: 'Error fetching mobs at node',
+            details: error.message
+        });
+    }
+}
+
 module.exports = {
     getMobs,
     getPublicMobs,
     createOrUpdateMob,
-    deleteMob
+    deleteMob,
+    getMobsAtNode
 }; 
