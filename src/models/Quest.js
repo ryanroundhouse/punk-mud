@@ -24,7 +24,7 @@ const questSchema = new mongoose.Schema({
         eventType: {
             type: String,
             required: true,
-            enum: ['chat', 'kill', 'event'],  // Removed 'conversation'
+            enum: ['chat', 'kill', 'stage'],
             default: 'chat'
         },
         // Common fields for all event types
@@ -96,12 +96,6 @@ const questSchema = new mongoose.Schema({
                 }
             }]
         }],
-        // Event specific fields
-        eventId: {
-            type: mongoose.Schema.Types.ObjectId,
-            required: function() { return this.eventType === 'event'; },
-            ref: 'Event'
-        },
         // Chat event specific fields
         actorId: {
             type: String,

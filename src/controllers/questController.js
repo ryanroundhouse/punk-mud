@@ -7,7 +7,6 @@ async function getQuests(req, res) {
         const quests = await Quest.find()
             .populate('events.actorId')
             .populate('events.mobId')
-            .populate('events.eventId')
             .populate('events.requiredQuestId')
             .populate('events.activateQuestId')
             .populate('events.rewards.value');
@@ -59,17 +58,12 @@ async function createOrUpdateQuest(req, res) {
                         details: 'Kill events must have mobId and quantity (minimum 1)'
                     });
                 }
-            } else if (event.eventType === 'event') {
-                if (!event.eventId) {
-                    return res.status(400).json({ 
-                        error: 'Invalid event data',
-                        details: 'Event type events must have an eventId'
-                    });
-                }
+            } else if (event.eventType === 'stage') {
+                // Stage type only uses base properties, no additional validation needed
             } else {
                 return res.status(400).json({ 
                     error: 'Invalid event type',
-                    details: 'Event type must be "chat", "kill", or "event"'
+                    details: 'Event type must be "chat", "kill", or "stage"'
                 });
             }
 

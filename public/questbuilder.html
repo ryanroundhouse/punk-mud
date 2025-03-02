@@ -97,11 +97,68 @@
 
         .event-controls {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
+            gap: 1rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            margin-bottom: 1rem;
+        }
+
+        .event-controls select,
+        .event-controls textarea,
+        .event-controls input {
+            width: 100%;
+            padding: 0.8rem;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+        }
+
+        .event-controls textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .event-controls .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .event-controls label {
+            color: var(--neon-blue);
+            margin-bottom: 0.25rem;
+        }
+
+        .event-controls #eventType {
+            width: 200px;
+        }
+
+        #chatEventFields,
+        #killEventFields,
+        #stageEventFields {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+        }
+
+        .event-controls .action-button {
+            align-self: flex-start;
             margin-top: 0.5rem;
-            padding-top: 0.5rem;
-            border-top: 1px solid rgba(0, 255, 249, 0.2);
+        }
+
+        .event-hint {
+            color: var(--neon-pink);
+            font-style: italic;
+            font-size: 0.9em;
+            margin: 0.5rem 0;
         }
 
         .end-event-label {
@@ -709,51 +766,47 @@
                                 <select id="eventType" required>
                                     <option value="chat">Chat Event</option>
                                     <option value="kill">Kill Event</option>
-                                    <option value="event">Story Event</option>
+                                    <option value="stage">Stage Event</option>
                                 </select>
                                 
-                                <div class="input-group" id="actorSelection">
-                                    <select id="eventActor">
-                                        <!-- Will be populated with actors -->
-                                    </select>
-                                </div>
-                                
                                 <!-- Chat Event Fields -->
-                                <div id="chatEventFields">
-                                    <textarea 
-                                        id="eventMessage" 
-                                        placeholder="Enter event message"></textarea>
+                                <div id="chatEventFields" style="display: none;">
+                                    <div class="input-group">
+                                        <label>Actor:</label>
+                                        <select id="eventActor">
+                                            <!-- Will be populated with actors -->
+                                        </select>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>Message:</label>
+                                        <textarea id="eventMessage" placeholder="Enter event message"></textarea>
+                                    </div>
                                 </div>
                                 
                                 <!-- Kill Event Fields -->
                                 <div id="killEventFields" style="display: none;">
-                                    <select id="eventMob">
-                                        <!-- Will be populated with mobs -->
-                                    </select>
-                                    <input type="number" 
-                                        id="eventQuantity" 
-                                        placeholder="Quantity to kill"
-                                        min="1" 
-                                        value="1">
+                                    <div class="input-group">
+                                        <label>Mob to Kill:</label>
+                                        <select id="eventMob">
+                                            <!-- Will be populated with mobs -->
+                                        </select>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>Quantity:</label>
+                                        <input type="number" id="eventQuantity" min="1" value="1">
+                                    </div>
                                 </div>
                                 
-                                <!-- Story Event Fields -->
-                                <div id="eventFields" style="display: none;">
-                                    <select id="eventSelect">
-                                        <!-- Will be populated with events -->
-                                    </select>
+                                <!-- Stage Event Fields -->
+                                <div id="stageEventFields" style="display: none;">
+                                    <!-- Stage events don't need additional fields -->
                                 </div>
                                 
-                                <div class="input-group" id="rewardsSection">
-                                    <label>Event Rewards:</label>
-                                    <select id="eventClass">
-                                        <option value="">Select Class Reward</option>
-                                    </select>
+                                <div class="input-group">
+                                    <label>Hint (Optional):</label>
+                                    <textarea id="eventHint" placeholder="Enter optional hint"></textarea>
                                 </div>
                                 
-                                <textarea
-                                    id="eventHint"
-                                    placeholder="Enter optional hint"></textarea>
                                 <button class="action-button" id="addEventBtn">Add Event</button>
                             </div>
                             <div class="event-hint">First event added will be the starting event</div>
@@ -799,6 +852,13 @@
         let allClasses = [];
         let allNodes = [];
 
+        // Add this new function at the top of your script section
+        function generateObjectId() {
+            const timestamp = Math.floor(new Date().getTime() / 1000).toString(16);
+            const randomPart = Math.random().toString(16).substring(2, 14);
+            return timestamp + randomPart.padEnd(16, '0');
+        }
+
         // Populate select elements
         function populateMobSelect() {
             const eventMob = document.getElementById('eventMob');
@@ -811,26 +871,10 @@
             });
         }
 
-        function populateEventSelect() {
-            const eventSelect = document.getElementById('eventSelect');
-            eventSelect.innerHTML = '<option value="">Select Event</option>';
-            allEvents.forEach(event => {
-                const option = document.createElement('option');
-                option.value = event._id;
-                option.textContent = event.title || event._id;
-                eventSelect.appendChild(option);
-            });
-        }
-
         function populateClassSelect() {
-            const eventClass = document.getElementById('eventClass');
-            eventClass.innerHTML = '<option value="">Select Class Reward</option>';
-            allClasses.forEach(classItem => {
-                const option = document.createElement('option');
-                option.value = classItem._id;
-                option.textContent = classItem.name;
-                eventClass.appendChild(option);
-            });
+            // We'll only populate class selects when creating reward entries
+            // This function is kept for reference but doesn't need to populate anything on load
+            allClasses = allClasses || [];  // Ensure allClasses is initialized
         }
 
         function populateNodeSelect() {
@@ -845,6 +889,834 @@
                 });
             });
         }
+
+        // Check authentication
+        window.onload = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/auth/verify-token', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                // Load everything sequentially to avoid race conditions
+                await loadActors();
+                await loadMobs();
+                await loadClasses();
+                await loadQuests();
+                await loadNodes();
+                
+                // Trigger event type change handler to set initial state
+                const eventTypeSelect = document.getElementById('eventType');
+                eventTypeSelect.dispatchEvent(new Event('change'));
+
+                // Start in "new quest" state
+                newQuestBtn.click();
+            } catch (error) {
+                console.error('Authentication error:', error);
+                window.location.href = '/';
+            }
+        };
+
+        // Load actors for event source selection
+        async function loadActors() {
+            try {
+                console.log('Attempting to fetch actors from /api/actors...');
+                const response = await fetch('/api/actors', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                console.log('Fetch response status:', response.status);
+                console.log('Fetch response:', response);
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load actors - Status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('Actors data received:', data);
+                
+                allActors = data;
+                
+                // Populate actor dropdown
+                const eventActor = document.getElementById('eventActor');
+                eventActor.innerHTML = '<option value="">Select Actor</option>';
+                allActors.forEach(actor => {
+                    const option = document.createElement('option');
+                    option.value = actor._id;
+                    option.textContent = actor.name;
+                    eventActor.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Detailed error loading actors:', {
+                    error: error,
+                    message: error.message,
+                    stack: error.stack,
+                    token: localStorage.getItem('token') ? 'Token exists' : 'No token'
+                });
+                alert('Failed to load actors. Please try refreshing the page.');
+            }
+        }
+
+        // Load mobs
+        async function loadMobs() {
+            try {
+                console.log('Attempting to fetch mobs from /api/mobs...');
+                const response = await fetch('/api/mobs', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                console.log('Fetch response status:', response.status);
+                console.log('Fetch response:', response);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load mobs - Status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Mobs data received:', data);
+                
+                allMobs = data;
+                populateMobSelect();
+            } catch (error) {
+                console.error('Detailed error loading mobs:', {
+                    error: error,
+                    message: error.message,
+                    stack: error.stack,
+                    token: localStorage.getItem('token') ? 'Token exists' : 'No token'
+                });
+                alert('Failed to load mobs. Please try refreshing the page.');
+            }
+        }
+
+        // Load classes
+        async function loadClasses() {
+            try {
+                const response = await fetch('/api/classes', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load classes - Status: ${response.status}`);
+                }
+                
+                allClasses = await response.json();
+            } catch (error) {
+                console.error('Error loading classes:', error);
+                alert('Failed to load classes. Please try refreshing the page.');
+            }
+        }
+
+        // Load existing quests
+        async function loadQuests() {
+            try {
+                const response = await fetch('/api/quests', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load quests - Status: ${response.status}`);
+                }
+                
+                allQuests = await response.json();
+                filterAndDisplayQuests();
+            } catch (error) {
+                console.error('Detailed error loading quests:', {
+                    error: error,
+                    message: error.message,
+                    stack: error.stack,
+                    token: localStorage.getItem('token') ? 'Token exists' : 'No token'
+                });
+                alert('Failed to load quests. Please try refreshing the page.');
+            }
+        }
+
+        // Load nodes
+        async function loadNodes() {
+            try {
+                const response = await fetch('/api/nodes/public', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load nodes - Status: ${response.status}`);
+                }
+                
+                allNodes = await response.json();
+                populateNodeSelect();
+            } catch (error) {
+                console.error('Error loading nodes:', error);
+                alert('Failed to load nodes. Please try refreshing the page.');
+            }
+        }
+
+        // Filter and display quests
+        function filterAndDisplayQuests() {
+            const filterValue = questFilter.value.toLowerCase();
+            const questsListPanel = document.getElementById('questsListPanel');
+            questsListPanel.innerHTML = '';
+            
+            allQuests
+                .filter(quest => 
+                    quest.title.toLowerCase().includes(filterValue)
+                )
+                .forEach(quest => {
+                    const questEntry = document.createElement('div');
+                    questEntry.className = 'quest-entry';
+                    questEntry.dataset.questId = quest._id;
+                    questEntry.innerHTML = `
+                        <div class="quest-entry-title">${quest.title}</div>
+                        <div class="quest-entry-events">${quest.events.length} events</div>
+                    `;
+                    questEntry.addEventListener('click', () => loadQuestData(quest));
+                    questsListPanel.appendChild(questEntry);
+                });
+        }
+
+        // Add filter event listener
+        questFilter.addEventListener('input', filterAndDisplayQuests);
+
+        // Add event to quest
+        addEventBtn.addEventListener('click', () => {
+            const eventType = document.getElementById('eventType').value;
+            let eventData = {
+                eventType,
+                hint: document.getElementById('eventHint').value,
+                isStart: eventsList.children.length === 0
+            };
+
+            switch(eventType) {
+                case 'chat':
+                    const chatActorId = document.getElementById('eventActor').value;
+                    const message = document.getElementById('eventMessage').value;
+
+                    if (!chatActorId || !message) {
+                        alert('Please select an actor and enter a message');
+                        return;
+                    }
+
+                    eventData = {
+                        ...eventData,
+                        actorId: chatActorId,
+                        message
+                    };
+                    break;
+
+                case 'kill':
+                    const mobId = document.getElementById('eventMob').value;
+                    const quantity = parseInt(document.getElementById('eventQuantity').value);
+
+                    if (!mobId || !quantity || quantity < 1) {
+                        alert('Please select a mob and enter a valid quantity');
+                        return;
+                    }
+
+                    eventData = {
+                        ...eventData,
+                        mobId,
+                        quantity
+                    };
+                    break;
+
+                case 'stage':
+                    // Stage type has no additional data to collect
+                    break;
+            }
+
+            const eventEntry = createEventEntry(eventData);
+            eventsList.appendChild(eventEntry);
+            updateEventTargets();
+            
+            // Clear inputs
+            document.getElementById('eventHint').value = '';
+            if (eventType === 'chat') {
+                document.getElementById('eventMessage').value = '';
+            } else if (eventType === 'kill') {
+                document.getElementById('eventQuantity').value = '1';
+            }
+        });
+
+        function createEventEntry(eventData) {
+            const eventEntry = document.createElement('div');
+            eventEntry.className = 'quest-event';
+            eventEntry.dataset.eventId = eventData.eventId || generateObjectId();
+            eventEntry.dataset.isStart = eventData.isStart || false;
+            eventEntry.dataset.isEnd = eventData.isEnd || false;
+            // Convert any 'conversation' type to 'chat'
+            eventEntry.dataset.eventType = eventData.eventType === 'conversation' ? 'chat' : eventData.eventType;
+            
+            // Create the base HTML structure
+            eventEntry.innerHTML = `
+                <span class="event-handle">⋮⋮</span>
+                <div class="event-content">
+                    ${getEventTypeSpecificHTML({ ...eventData, eventType: eventEntry.dataset.eventType })}
+                    <div class="input-group">
+                        <label>Hint:</label>
+                        <textarea class="event-hint-input" placeholder="Enter optional hint">${eventData.hint || ''}</textarea>
+                    </div>
+                </div>
+                <div class="event-id">
+                    ID: ${eventEntry.dataset.eventId}
+                    <span class="copy-id-btn" title="Copy ID">📋</span>
+                </div>
+                <span class="remove-event">×</span>
+                <div class="event-choices"></div>
+                <div class="event-controls">
+                    <label class="end-event-label">
+                        <input type="checkbox" class="end-event-checkbox" ${eventData.isEnd ? 'checked' : ''}>
+                        Mark as quest end
+                    </label>
+                    <button class="action-button add-choice-btn">Add Choice</button>
+                </div>
+            `;
+
+            // Add rewards section before event-choices div
+            const rewardsHtml = `
+                <div class="rewards-container">
+                    <label>Rewards:</label>
+                    <div class="rewards-list">
+                        ${(eventData.rewards || []).map(reward => createRewardEntry(reward)).join('')}
+                    </div>
+                    <button class="action-button" onclick="addReward(this)">Add Reward</button>
+                </div>
+            `;
+
+            // Add node event overrides section before event-choices div
+            const nodeOverridesHtml = `
+                <div class="node-override-section">
+                    <div class="node-override-header">
+                        <div class="node-override-title">Node Event Overrides</div>
+                        <div class="add-node-override" onclick="addNodeOverride(this)">+</div>
+                    </div>
+                    <div class="node-override-list">
+                        ${(eventData.nodeEventOverrides || []).map(override => createNodeOverrideEntry(override)).join('')}
+                    </div>
+                </div>
+            `;
+
+            // Insert rewards section before event-choices
+            const eventChoices = eventEntry.querySelector('.event-choices');
+            eventChoices.insertAdjacentHTML('beforebegin', rewardsHtml);
+            
+            // Insert node overrides section before event-choices
+            eventChoices.insertAdjacentHTML('beforebegin', nodeOverridesHtml);
+
+            // Add event handlers
+            addEventEntryHandlers(eventEntry);
+
+            return eventEntry;
+        }
+
+        function getEventTypeSpecificHTML(eventData) {
+            switch(eventData.eventType) {
+                case 'chat':
+                    return `
+                        <div class="input-group">
+                            <label>Actor:</label>
+                            <select class="event-actor-select">
+                                ${allActors.map(actor => `
+                                    <option value="${actor._id}" ${actor._id === eventData.actorId ? 'selected' : ''}>
+                                        ${actor.name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Message:</label>
+                            <textarea class="event-message-input" placeholder="Enter event message">${eventData.message || ''}</textarea>
+                        </div>
+                    `;
+                case 'kill':
+                    return `
+                        <div class="input-group">
+                            <label>Mob to Kill:</label>
+                            <select class="event-mob-select">
+                                ${allMobs.map(mob => `
+                                    <option value="${mob._id}" ${mob._id === eventData.mobId ? 'selected' : ''}>
+                                        ${mob.name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Quantity:</label>
+                            <input type="number" class="event-quantity-input" min="1" value="${eventData.quantity || 1}">
+                        </div>
+                    `;
+                case 'stage':
+                    return ''; // Stage type has no specific fields
+                default:
+                    return '';
+            }
+        }
+
+        function addChoiceToEvent(eventEntry) {
+            const choicesContainer = eventEntry.querySelector('.event-choices');
+            const choiceEntry = document.createElement('div');
+            choiceEntry.className = 'choice-entry';
+            
+            // Create select element with all event IDs
+            const targetSelect = document.createElement('select');
+            targetSelect.className = 'choice-target-select';
+            targetSelect.style.width = '100%'; // Make the select take full width since it's the only input
+            updateEventTargets(targetSelect);
+
+            choiceEntry.innerHTML = `
+                <span class="remove-choice">×</span>
+            `;
+            
+            // Insert select before the remove button
+            choiceEntry.insertBefore(targetSelect, choiceEntry.querySelector('.remove-choice'));
+
+            choiceEntry.querySelector('.remove-choice').addEventListener('click', () => {
+                choiceEntry.remove();
+            });
+
+            choicesContainer.appendChild(choiceEntry);
+        }
+
+        function updateEventTargets(specificSelect = null) {
+            const events = Array.from(eventsList.querySelectorAll('.quest-event'));
+            const options = events.map(event => {
+                const hintText = event.querySelector('.event-hint-input').value || 'No hint';
+                const eventId = event.dataset.eventId;
+                const eventType = event.dataset.eventType;
+                
+                // Create a descriptive option that includes event type, hint, and ID
+                return `
+                    <option value="${eventId}">
+                        [${eventType.toUpperCase()}] ${hintText.substring(0, 30)}${hintText.length > 30 ? '...' : ''} (ID: ${eventId})
+                    </option>
+                `;
+            }).join('');
+
+            if (specificSelect) {
+                specificSelect.innerHTML = `
+                    <option value="">Select target event...</option>
+                    ${options}
+                `;
+            } else {
+                document.querySelectorAll('.choice-target-select').forEach(select => {
+                    const currentValue = select.value;
+                    select.innerHTML = `
+                        <option value="">Select target event...</option>
+                        ${options}
+                    `;
+                    select.value = currentValue;
+                });
+            }
+        }
+
+        // Drag and drop handlers
+        function handleDragStart(e) {
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', '');
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.quest-event').forEach(entry => {
+                entry.classList.remove('drag-over');
+            });
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            const draggingItem = document.querySelector('.dragging');
+            if (draggingItem === this) return;
+
+            document.querySelectorAll('.quest-event').forEach(entry => {
+                entry.classList.remove('drag-over');
+            });
+            this.classList.add('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const draggingItem = document.querySelector('.dragging');
+            if (draggingItem === this) return;
+
+            const allItems = [...eventsList.querySelectorAll('.quest-event')];
+            const draggedIndex = allItems.indexOf(draggingItem);
+            const droppedIndex = allItems.indexOf(this);
+
+            if (draggedIndex < droppedIndex) {
+                this.parentNode.insertBefore(draggingItem, this.nextSibling);
+            } else {
+                this.parentNode.insertBefore(draggingItem, this);
+            }
+
+            // Update start event after reordering
+            updateStartEvent();
+        }
+
+        // Add this new function
+        function updateStartEvent() {
+            const allEvents = eventsList.querySelectorAll('.quest-event');
+            allEvents.forEach((event, index) => {
+                event.dataset.isStart = (index === 0).toString();
+            });
+        }
+
+        // Load quest data
+        function loadQuestData(quest) {
+            document.getElementById('questForm').dataset.questId = quest._id;
+            deleteQuestBtn.classList.remove('hidden');
+            
+            document.getElementById('questTitle').value = quest.title;
+            document.getElementById('journalDescription').value = quest.journalDescription;
+            document.getElementById('experiencePoints').value = quest.experiencePoints || 0;
+            
+            // Clear existing events
+            eventsList.innerHTML = '';
+
+            // First, create all events without choices
+            quest.events.forEach(event => {
+                // Convert old 'conversation' type to 'chat'
+                const eventType = event.eventType === 'conversation' ? 'chat' : event.eventType;
+                
+                let eventData = {
+                    eventId: event._id,
+                    eventType: eventType,
+                    hint: event.hint,
+                    isStart: event.isStart,
+                    isEnd: event.isEnd,
+                    rewards: event.rewards || [],
+                    nodeEventOverrides: event.nodeEventOverrides || []
+                };
+
+                switch(eventType) {
+                    case 'chat':
+                        eventData = {
+                            ...eventData,
+                            actorId: event.actorId,
+                            message: event.message
+                        };
+                        break;
+                    case 'kill':
+                        const mobId = event.mobId._id || event.mobId;
+                        eventData = {
+                            ...eventData,
+                            mobId: mobId,
+                            quantity: event.quantity
+                        };
+                        break;
+                    case 'stage':
+                        eventData = {
+                            ...eventData
+                        };
+                        break;
+                }
+
+                const eventEntry = createEventEntry(eventData);
+                eventsList.appendChild(eventEntry);
+            });
+
+            // Update event targets now that all events are created
+            updateEventTargets();
+
+            // Now add choices to events
+            quest.events.forEach((event, index) => {
+                if (!event.isEnd && event.choices && event.choices.length > 0) {
+                    const eventEntry = eventsList.children[index];
+                    const choicesContainer = eventEntry.querySelector('.event-choices');
+                    
+                    event.choices.forEach(choice => {
+                        const choiceEntry = document.createElement('div');
+                        choiceEntry.className = 'choice-entry';
+                        
+                        const targetSelect = document.createElement('select');
+                        targetSelect.className = 'choice-target-select';
+                        targetSelect.style.width = '100%';
+                        updateEventTargets(targetSelect);
+                        targetSelect.value = choice.nextEventId;
+
+                        choiceEntry.innerHTML = `
+                            <span class="remove-choice">×</span>
+                        `;
+                        
+                        // Insert select before the remove button
+                        choiceEntry.insertBefore(targetSelect, choiceEntry.querySelector('.remove-choice'));
+
+                        choiceEntry.querySelector('.remove-choice').addEventListener('click', () => {
+                            choiceEntry.remove();
+                        });
+
+                        choicesContainer.appendChild(choiceEntry);
+                    });
+                }
+
+                // Add node event overrides if they exist
+                if (event.nodeEventOverrides && event.nodeEventOverrides.length > 0) {
+                    const eventEntry = eventsList.children[index];
+                    const nodeOverrideList = eventEntry.querySelector('.node-override-list');
+                    nodeOverrideList.innerHTML = '';
+                    
+                    event.nodeEventOverrides.forEach(override => {
+                        const overrideEntry = document.createElement('div');
+                        overrideEntry.className = 'node-override-item';
+                        overrideEntry.innerHTML = createNodeOverrideEntry(override).trim();
+                        nodeOverrideList.appendChild(overrideEntry);
+                        
+                        // Add node events if they exist
+                        if (override.events && override.events.length > 0) {
+                            const nodeEventList = overrideEntry.querySelector('.node-event-list');
+                            nodeEventList.innerHTML = '';
+                            
+                            override.events.forEach(nodeEvent => {
+                                const nodeEventEntry = document.createElement('div');
+                                nodeEventEntry.className = 'node-event-item';
+                                nodeEventEntry.innerHTML = createNodeEventEntry(nodeEvent).trim();
+                                nodeEventList.appendChild(nodeEventEntry);
+                            });
+                        }
+                    });
+                }
+            });
+
+            // Highlight selected quest
+            document.querySelectorAll('.quest-entry').forEach(entry => {
+                entry.style.backgroundColor = '';
+                if (entry.dataset.questId === quest._id) {
+                    entry.style.backgroundColor = 'rgba(0, 255, 249, 0.2)';
+                }
+            });
+        }
+
+        // Clear form for new quest
+        newQuestBtn.addEventListener('click', () => {
+            document.getElementById('questForm').dataset.questId = '';
+            deleteQuestBtn.classList.add('hidden');
+            document.getElementById('questTitle').value = '';
+            document.getElementById('journalDescription').value = '';
+            document.getElementById('experiencePoints').value = '0';
+            eventsList.innerHTML = '';
+        });
+
+        // Save quest
+        saveQuestBtn.addEventListener('click', async () => {
+            try {
+                // Validate form
+                const title = document.getElementById('questTitle').value;
+                const journalDescription = document.getElementById('journalDescription').value;
+                const experiencePoints = parseInt(document.getElementById('experiencePoints').value) || 0;
+                
+                if (!title || !journalDescription) {
+                    alert('Please fill in all required fields');
+                    return;
+                }
+
+                if (experiencePoints < 0) {
+                    alert('Experience points cannot be negative');
+                    return;
+                }
+
+                const events = Array.from(eventsList.querySelectorAll('.quest-event')).map(event => {
+                    const eventType = event.dataset.eventType;
+                    const baseEvent = {
+                        _id: event.dataset.eventId,
+                        eventType,
+                        hint: event.querySelector('.event-hint-input').value,
+                        choices: Array.from(event.querySelectorAll('.choice-entry'))
+                            .map(choice => ({
+                                nextEventId: choice.querySelector('.choice-target-select').value
+                            })),
+                        isStart: event.dataset.isStart === 'true',
+                        isEnd: event.dataset.isEnd === 'true',
+                        rewards: Array.from(event.querySelectorAll('.reward-entry'))
+                            .map(reward => ({
+                                type: reward.querySelector('.reward-type-select').value,
+                                value: reward.querySelector('.reward-value-select').value,
+                                valueRef: 'Class'
+                            })),
+                        nodeEventOverrides: Array.from(event.querySelectorAll('.node-override-item'))
+                            .map((override) => {
+                                const nodeAddress = override.querySelector('.node-address-select').value;
+                                if (!nodeAddress) {
+                                    return null;
+                                }
+                                
+                                const events = Array.from(override.querySelectorAll('.node-event-item'))
+                                    .map((nodeEvent) => {
+                                        const mobId = nodeEvent.querySelector('.node-event-mob-select').value;
+                                        const chance = parseInt(nodeEvent.querySelector('.node-event-chance-input').value) || 100;
+                                        
+                                        if (!mobId) {
+                                            return null;
+                                        }
+                                        
+                                        return {
+                                            mobId,
+                                            chance
+                                        };
+                                    })
+                                    .filter(Boolean);
+                                
+                                return {
+                                    nodeAddress,
+                                    events
+                                };
+                            })
+                            .filter(Boolean)
+                    };
+
+                    let eventData;
+                    switch(eventType) {
+                        case 'chat':
+                            const actorId = event.querySelector('.event-actor-select').value;
+                            const message = event.querySelector('.event-message-input').value;
+                            
+                            // Validate chat event fields
+                            if (!actorId || !message.trim()) {
+                                throw new Error(`Chat event is missing required fields (actor or message) - Event ID: ${event.dataset.eventId}`);
+                            }
+                            
+                            eventData = {
+                                ...baseEvent,
+                                actorId,
+                                message
+                            };
+                            break;
+                        case 'kill':
+                            const mobId = event.querySelector('.event-mob-select').value;
+                            const quantity = parseInt(event.querySelector('.event-quantity-input').value);
+                            
+                            // Validate kill event fields
+                            if (!mobId || !quantity || quantity < 1) {
+                                throw new Error(`Kill event is missing required fields or has invalid quantity - Event ID: ${event.dataset.eventId}`);
+                            }
+                            
+                            eventData = {
+                                ...baseEvent,
+                                mobId,
+                                quantity
+                            };
+                            break;
+                        case 'stage':
+                            eventData = {
+                                ...baseEvent
+                            };
+                            break;
+                        default:
+                            throw new Error(`Invalid event type: ${eventType}`);
+                    }
+                    return eventData;
+                });
+
+                if (events.length === 0) {
+                    alert('Quest must have at least one event');
+                    return;
+                }
+
+                const questData = {
+                    _id: document.getElementById('questForm').dataset.questId || undefined,
+                    title,
+                    journalDescription,
+                    experiencePoints,
+                    events
+                };
+
+                const response = await fetch('/api/quests', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(questData)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.details || errorData.error || 'Failed to save quest');
+                }
+
+                alert('Quest saved successfully!');
+                await loadQuests();
+            } catch (error) {
+                console.error('Error saving quest:', error);
+                alert('Error saving quest: ' + error.message);
+            }
+        });
+
+        // Delete quest
+        deleteQuestBtn.addEventListener('click', async () => {
+            const questId = document.getElementById('questForm').dataset.questId;
+            if (!questId) return;
+            
+            const questTitle = document.getElementById('questTitle').value;
+            const eventCount = eventsList.querySelectorAll('.quest-event').length;
+            
+            const confirmDelete = confirm(
+                `Are you sure you want to delete the quest "${questTitle}"?\n\n` +
+                `This quest has ${eventCount} event${eventCount !== 1 ? 's' : ''}.\n\n` +
+                `This action cannot be undone.`
+            );
+            
+            if (confirmDelete) {
+                try {
+                    const response = await fetch(`/api/quests/${questId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        alert('Quest deleted successfully');
+                        newQuestBtn.click();
+                        loadQuests();
+                    } else {
+                        throw new Error('Failed to delete quest');
+                    }
+                } catch (error) {
+                    console.error('Error deleting quest:', error);
+                    alert('Error deleting quest');
+                }
+            }
+        });
+
+        // Add hamburger menu functionality at the end
+        const hamburgerButton = document.querySelector('.hamburger-button');
+        const menuContent = document.querySelector('.menu-content');
+
+        hamburgerButton.addEventListener('click', () => {
+            menuContent.classList.toggle('show');
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!hamburgerButton.contains(e.target) && !menuContent.contains(e.target)) {
+                menuContent.classList.remove('show');
+            }
+        });
+
+        // Highlight current page in menu
+        document.querySelectorAll('.menu-content a').forEach(link => {
+            if (link.href === window.location.href) {
+                link.style.color = 'var(--neon-pink)';
+            }
+        });
 
         function addEventEntryHandlers(eventEntry) {
             // Add drag and drop handlers
@@ -976,15 +1848,20 @@
             return `
                 <div class="reward-entry">
                     <select class="reward-type-select">
-                        <option value="class" ${reward.type === 'class' ? 'selected' : ''}>Class</option>
+                        <option value="gainClass" ${reward.type === 'gainClass' ? 'selected' : ''}>Class</option>
                     </select>
                     <select class="reward-value-select">
                         <option value="">Select Class</option>
-                        ${allClasses.map(classItem => `
-                            <option value="${classItem._id}" ${classItem._id === reward.value ? 'selected' : ''}>
-                                ${classItem.name}
-                            </option>
-                        `).join('')}
+                        ${allClasses.map(classItem => {
+                            // Handle both string and object ID comparison
+                            const isSelected = reward.value === classItem._id || 
+                                            (reward.value && reward.value._id === classItem._id);
+                            return `
+                                <option value="${classItem._id}" ${isSelected ? 'selected' : ''}>
+                                    ${classItem.name}
+                                </option>
+                            `;
+                        }).join('')}
                     </select>
                     <span class="remove-reward" onclick="this.closest('.reward-entry').remove()">×</span>
                 </div>
@@ -998,878 +1875,31 @@
             rewardsList.appendChild(rewardEntry.firstElementChild);
         }
 
-        // Check authentication
-        window.onload = async () => {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                window.location.href = '/';
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/auth/verify-token', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Invalid token');
-                }
-
-                // Load everything sequentially to avoid race conditions
-                await loadActors();
-                await loadMobs();
-                await loadEvents();
-                await loadClasses();
-                await loadQuests();
-                await loadNodes();
-                
-                // Trigger event type change handler to set initial state
-                const eventTypeSelect = document.getElementById('eventType');
-                eventTypeSelect.dispatchEvent(new Event('change'));
-
-                // Start in "new quest" state
-                newQuestBtn.click();
-            } catch (error) {
-                console.error('Authentication error:', error);
-                window.location.href = '/';
-            }
-        };
-
-        // Load actors for event source selection
-        async function loadActors() {
-            try {
-                console.log('Attempting to fetch actors from /api/actors...');
-                const response = await fetch('/api/actors', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-                console.log('Fetch response status:', response.status);
-                console.log('Fetch response:', response);
-
-                if (!response.ok) {
-                    throw new Error(`Failed to load actors - Status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                console.log('Actors data received:', data);
-                
-                allActors = data;
-                
-                // Populate actor dropdown
-                const eventActor = document.getElementById('eventActor');
-                eventActor.innerHTML = '<option value="">Select Actor</option>';
-                allActors.forEach(actor => {
-                    const option = document.createElement('option');
-                    option.value = actor._id;
-                    option.textContent = actor.name;
-                    eventActor.appendChild(option);
-                });
-            } catch (error) {
-                console.error('Detailed error loading actors:', {
-                    error: error,
-                    message: error.message,
-                    stack: error.stack,
-                    token: localStorage.getItem('token') ? 'Token exists' : 'No token'
-                });
-                alert('Failed to load actors. Please try refreshing the page.');
-            }
-        }
-
-        // Load mobs
-        async function loadMobs() {
-            try {
-                console.log('Attempting to fetch mobs from /api/mobs...');
-                const response = await fetch('/api/mobs', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-                console.log('Fetch response status:', response.status);
-                console.log('Fetch response:', response);
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to load mobs - Status: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                console.log('Mobs data received:', data);
-                
-                allMobs = data;
-                populateMobSelect();
-            } catch (error) {
-                console.error('Detailed error loading mobs:', {
-                    error: error,
-                    message: error.message,
-                    stack: error.stack,
-                    token: localStorage.getItem('token') ? 'Token exists' : 'No token'
-                });
-                alert('Failed to load mobs. Please try refreshing the page.');
-            }
-        }
-
-        // Load events
-        async function loadEvents() {
-            try {
-                const response = await fetch('/api/events', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to load events - Status: ${response.status}`);
-                }
-                
-                allEvents = await response.json();
-                populateEventSelect();
-            } catch (error) {
-                console.error('Error loading events:', error);
-                alert('Failed to load events. Please try refreshing the page.');
-            }
-        }
-
-        // Load classes
-        async function loadClasses() {
-            try {
-                const response = await fetch('/api/classes', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to load classes - Status: ${response.status}`);
-                }
-                
-                allClasses = await response.json();
-                populateClassSelect();
-            } catch (error) {
-                console.error('Error loading classes:', error);
-                alert('Failed to load classes. Please try refreshing the page.');
-            }
-        }
-
-        // Load existing quests
-        async function loadQuests() {
-            try {
-                const response = await fetch('/api/quests', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to load quests - Status: ${response.status}`);
-                }
-                
-                allQuests = await response.json();
-                filterAndDisplayQuests();
-            } catch (error) {
-                console.error('Detailed error loading quests:', {
-                    error: error,
-                    message: error.message,
-                    stack: error.stack,
-                    token: localStorage.getItem('token') ? 'Token exists' : 'No token'
-                });
-                alert('Failed to load quests. Please try refreshing the page.');
-            }
-        }
-
-        // Load nodes
-        async function loadNodes() {
-            try {
-                const response = await fetch('/api/nodes/public', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to load nodes - Status: ${response.status}`);
-                }
-                
-                allNodes = await response.json();
-                populateNodeSelect();
-            } catch (error) {
-                console.error('Error loading nodes:', error);
-                alert('Failed to load nodes. Please try refreshing the page.');
-            }
-        }
-
-        // Filter and display quests
-        function filterAndDisplayQuests() {
-            const filterValue = questFilter.value.toLowerCase();
-            const questsListPanel = document.getElementById('questsListPanel');
-            questsListPanel.innerHTML = '';
+        // Event type change handler
+        document.getElementById('eventType').addEventListener('change', function() {
+            const eventType = this.value;
             
-            allQuests
-                .filter(quest => 
-                    quest.title.toLowerCase().includes(filterValue)
-                )
-                .forEach(quest => {
-                    const questEntry = document.createElement('div');
-                    questEntry.className = 'quest-entry';
-                    questEntry.dataset.questId = quest._id;
-                    questEntry.innerHTML = `
-                        <div class="quest-entry-title">${quest.title}</div>
-                        <div class="quest-entry-events">${quest.events.length} events</div>
-                    `;
-                    questEntry.addEventListener('click', () => loadQuestData(quest));
-                    questsListPanel.appendChild(questEntry);
-                });
-        }
-
-        // Add filter event listener
-        questFilter.addEventListener('input', filterAndDisplayQuests);
-
-        // Add event to quest
-        addEventBtn.addEventListener('click', () => {
-            const eventType = document.getElementById('eventType').value;
-            let eventData = {
-                eventType,
-                hint: document.getElementById('eventHint').value,
-                isStart: eventsList.children.length === 0
-            };
-
+            // Hide all event fields first
+            document.getElementById('chatEventFields').style.display = 'none';
+            document.getElementById('killEventFields').style.display = 'none';
+            document.getElementById('stageEventFields').style.display = 'none';
+            
+            // Show the relevant fields based on event type
             switch(eventType) {
                 case 'chat':
-                    const chatActorId = document.getElementById('eventActor').value;
-                    const message = document.getElementById('eventMessage').value;
-
-                    if (!chatActorId || !message) {
-                        alert('Please select an actor and enter a message');
-                        return;
-                    }
-
-                    eventData = {
-                        ...eventData,
-                        actorId: chatActorId,
-                        message
-                    };
+                    document.getElementById('chatEventFields').style.display = 'block';
                     break;
-
                 case 'kill':
-                    const mobId = document.getElementById('eventMob').value;
-                    const quantity = parseInt(document.getElementById('eventQuantity').value);
-
-                    if (!mobId || !quantity || quantity < 1) {
-                        alert('Please select a mob and enter a valid quantity');
-                        return;
-                    }
-
-                    eventData = {
-                        ...eventData,
-                        mobId,
-                        quantity
-                    };
+                    document.getElementById('killEventFields').style.display = 'block';
                     break;
-
-                case 'event':
-                    const eventId = document.getElementById('eventSelect').value;
-                    if (!eventId) {
-                        alert('Please select an event');
-                        return null;
-                    }
-                    eventData = {
-                        ...eventData,
-                        eventId
-                    };
+                case 'stage':
+                    document.getElementById('stageEventFields').style.display = 'block';
                     break;
             }
-
-            const eventEntry = createEventEntry(eventData);
-            eventsList.appendChild(eventEntry);
-            updateEventTargets();
-            
-            // Clear inputs
-            document.getElementById('eventHint').value = '';
-            if (eventType === 'chat') {
-                document.getElementById('eventMessage').value = '';
-            } else if (eventType === 'kill') {
-                document.getElementById('eventQuantity').value = '1';
-            }
         });
 
-        function createEventEntry(eventData) {
-            const eventEntry = document.createElement('div');
-            eventEntry.className = 'quest-event';
-            eventEntry.dataset.eventId = eventData.eventId || generateObjectId();
-            eventEntry.dataset.isStart = eventData.isStart || false;
-            eventEntry.dataset.isEnd = eventData.isEnd || false;
-            // Convert any 'conversation' type to 'chat'
-            eventEntry.dataset.eventType = eventData.eventType === 'conversation' ? 'chat' : eventData.eventType;
-            
-            // Create the base HTML structure
-            eventEntry.innerHTML = `
-                <span class="event-handle">⋮⋮</span>
-                <div class="event-content">
-                    ${getEventTypeSpecificHTML({ ...eventData, eventType: eventEntry.dataset.eventType })}
-                    <div class="input-group">
-                        <label>Hint:</label>
-                        <textarea class="event-hint-input" placeholder="Enter optional hint">${eventData.hint || ''}</textarea>
-                    </div>
-                </div>
-                <div class="event-id">
-                    ID: ${eventEntry.dataset.eventId}
-                    <span class="copy-id-btn" title="Copy ID">📋</span>
-                </div>
-                <span class="remove-event">×</span>
-                <div class="event-choices"></div>
-                <div class="event-controls">
-                    <label class="end-event-label">
-                        <input type="checkbox" class="end-event-checkbox" ${eventData.isEnd ? 'checked' : ''}>
-                        Mark as quest end
-                    </label>
-                    <button class="action-button add-choice-btn">Add Choice</button>
-                </div>
-            `;
-
-            // Add rewards section before event-choices div
-            const rewardsHtml = `
-                <div class="rewards-container">
-                    <label>Rewards:</label>
-                    <div class="rewards-list">
-                        ${(eventData.rewards || []).map(reward => createRewardEntry(reward)).join('')}
-                    </div>
-                    <button class="action-button" onclick="addReward(this)">Add Reward</button>
-                </div>
-            `;
-
-            // Add node event overrides section before event-choices div
-            const nodeOverridesHtml = `
-                <div class="node-override-section">
-                    <div class="node-override-header">
-                        <div class="node-override-title">Node Event Overrides</div>
-                        <div class="add-node-override" onclick="addNodeOverride(this)">+</div>
-                    </div>
-                    <div class="node-override-list">
-                        ${(eventData.nodeEventOverrides || []).map(override => createNodeOverrideEntry(override)).join('')}
-                    </div>
-                </div>
-            `;
-
-            // Insert rewards section before event-choices
-            const eventChoices = eventEntry.querySelector('.event-choices');
-            eventChoices.insertAdjacentHTML('beforebegin', rewardsHtml);
-            
-            // Insert node overrides section before event-choices
-            eventChoices.insertAdjacentHTML('beforebegin', nodeOverridesHtml);
-
-            // Add event handlers
-            addEventEntryHandlers(eventEntry);
-
-            return eventEntry;
-        }
-
-        function getEventTypeSpecificHTML(eventData) {
-            switch(eventData.eventType) {
-                case 'chat':
-                    return `
-                        <div class="input-group">
-                            <label>Actor:</label>
-                            <select class="event-actor-select">
-                                ${allActors.map(actor => `
-                                    <option value="${actor._id}" ${actor._id === eventData.actorId ? 'selected' : ''}>
-                                        ${actor.name}
-                                    </option>
-                                `).join('')}
-                            </select>
-                        </div>
-                        <div class="input-group">
-                            <label>Message:</label>
-                            <textarea class="event-message-input" placeholder="Enter event message">${eventData.message || ''}</textarea>
-                        </div>
-                    `;
-                case 'kill':
-                    return `
-                        <div class="input-group">
-                            <label>Mob to Kill:</label>
-                            <select class="event-mob-select">
-                                ${allMobs.map(mob => `
-                                    <option value="${mob._id}" ${mob._id === eventData.mobId ? 'selected' : ''}>
-                                        ${mob.name}
-                                    </option>
-                                `).join('')}
-                            </select>
-                        </div>
-                        <div class="input-group">
-                            <label>Quantity:</label>
-                            <input type="number" class="event-quantity-input" min="1" value="${eventData.quantity || 1}">
-                        </div>
-                    `;
-                case 'event':
-                    return `
-                        <div class="input-group">
-                            <label>Event:</label>
-                            <select class="event-event-select">
-                                ${allEvents.map(event => `
-                                    <option value="${event._id}" ${event._id === eventData.eventId ? 'selected' : ''}>
-                                        ${event.title || event._id}
-                                    </option>
-                                `).join('')}
-                            </select>
-                        </div>
-                    `;
-                default:
-                    return '';
-            }
-        }
-
-        function addChoiceToEvent(eventEntry) {
-            const choicesContainer = eventEntry.querySelector('.event-choices');
-            const choiceEntry = document.createElement('div');
-            choiceEntry.className = 'choice-entry';
-            
-            // Create select element with all event IDs
-            const targetSelect = document.createElement('select');
-            targetSelect.className = 'choice-target-select';
-            targetSelect.style.width = '100%'; // Make the select take full width since it's the only input
-            updateEventTargets(targetSelect);
-
-            choiceEntry.innerHTML = `
-                <span class="remove-choice">×</span>
-            `;
-            
-            // Insert select before the remove button
-            choiceEntry.insertBefore(targetSelect, choiceEntry.querySelector('.remove-choice'));
-
-            choiceEntry.querySelector('.remove-choice').addEventListener('click', () => {
-                choiceEntry.remove();
-            });
-
-            choicesContainer.appendChild(choiceEntry);
-        }
-
-        function updateEventTargets(specificSelect = null) {
-            const events = Array.from(eventsList.querySelectorAll('.quest-event'));
-            const options = events.map(event => {
-                // Get the hint text from the event
-                const hintText = event.querySelector('.event-hint-input').value || 'No hint';
-                const eventId = event.dataset.eventId;
-                
-                // Create a descriptive option with hint text and ID
-                return `
-                    <option value="${eventId}">
-                        ${hintText.substring(0, 40)}${hintText.length > 40 ? '...' : ''} - ${eventId}
-                    </option>
-                `;
-            }).join('');
-
-            if (specificSelect) {
-                specificSelect.innerHTML = `
-                    <option value="">Select target event...</option>
-                    ${options}
-                `;
-            } else {
-                document.querySelectorAll('.choice-target-select').forEach(select => {
-                    const currentValue = select.value;
-                    select.innerHTML = `
-                        <option value="">Select target event...</option>
-                        ${options}
-                    `;
-                    select.value = currentValue;
-                });
-            }
-        }
-
-        // Drag and drop handlers
-        function handleDragStart(e) {
-            this.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', '');
-        }
-
-        function handleDragEnd(e) {
-            this.classList.remove('dragging');
-            document.querySelectorAll('.quest-event').forEach(entry => {
-                entry.classList.remove('drag-over');
-            });
-        }
-
-        function handleDragOver(e) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            
-            const draggingItem = document.querySelector('.dragging');
-            if (draggingItem === this) return;
-
-            document.querySelectorAll('.quest-event').forEach(entry => {
-                entry.classList.remove('drag-over');
-            });
-            this.classList.add('drag-over');
-        }
-
-        function handleDrop(e) {
-            e.preventDefault();
-            const draggingItem = document.querySelector('.dragging');
-            if (draggingItem === this) return;
-
-            const allItems = [...eventsList.querySelectorAll('.quest-event')];
-            const draggedIndex = allItems.indexOf(draggingItem);
-            const droppedIndex = allItems.indexOf(this);
-
-            if (draggedIndex < droppedIndex) {
-                this.parentNode.insertBefore(draggingItem, this.nextSibling);
-            } else {
-                this.parentNode.insertBefore(draggingItem, this);
-            }
-
-            // Update start event after reordering
-            updateStartEvent();
-        }
-
-        // Add this new function
-        function updateStartEvent() {
-            const allEvents = eventsList.querySelectorAll('.quest-event');
-            allEvents.forEach((event, index) => {
-                event.dataset.isStart = (index === 0).toString();
-            });
-        }
-
-        // Load quest data
-        function loadQuestData(quest) {
-            document.getElementById('questForm').dataset.questId = quest._id;
-            deleteQuestBtn.classList.remove('hidden');
-            
-            document.getElementById('questTitle').value = quest.title;
-            document.getElementById('journalDescription').value = quest.journalDescription;
-            document.getElementById('experiencePoints').value = quest.experiencePoints || 0;
-            
-            // Clear existing events
-            eventsList.innerHTML = '';
-
-            // Add existing events
-            quest.events.forEach(event => {
-                // Convert old 'conversation' type to 'chat'
-                const eventType = event.eventType === 'conversation' ? 'chat' : event.eventType;
-                
-                let eventData = {
-                    eventId: event._id,
-                    eventType: eventType,
-                    hint: event.hint,
-                    isStart: event.isStart,
-                    isEnd: event.isEnd,
-                    rewards: event.rewards || [],
-                    nodeEventOverrides: event.nodeEventOverrides || []
-                };
-
-                switch(eventType) {
-                    case 'chat':
-                        eventData = {
-                            ...eventData,
-                            actorId: event.actorId,
-                            message: event.message
-                        };
-                        break;
-                    case 'kill':
-                        const mobId = event.mobId._id || event.mobId;
-                        eventData = {
-                            ...eventData,
-                            mobId: mobId,
-                            quantity: event.quantity
-                        };
-                        break;
-                    case 'event':
-                        eventData = {
-                            ...eventData,
-                            eventId: event.eventId
-                        };
-                        break;
-                }
-
-                const eventEntry = createEventEntry(eventData);
-                eventsList.appendChild(eventEntry);
-
-                // Add choices if not an end event
-                if (!event.isEnd && event.choices && event.choices.length > 0) {
-                    event.choices.forEach(choice => {
-                        const choicesContainer = eventEntry.querySelector('.event-choices');
-                        const choiceEntry = document.createElement('div');
-                        choiceEntry.className = 'choice-entry';
-                        choiceEntry.innerHTML = `
-                            <select class="choice-target-select">
-                                <option value="${choice.nextEventId}">Loading...</option>
-                            </select>
-                            <span class="remove-choice">×</span>
-                        `;
-
-                        choiceEntry.querySelector('.remove-choice').addEventListener('click', () => {
-                            choiceEntry.remove();
-                        });
-
-                        choicesContainer.appendChild(choiceEntry);
-                    });
-                }
-
-                // Add node event overrides if they exist
-                if (event.nodeEventOverrides && event.nodeEventOverrides.length > 0) {
-                    const nodeOverrideList = eventEntry.querySelector('.node-override-list');
-                    nodeOverrideList.innerHTML = '';
-                    
-                    event.nodeEventOverrides.forEach(override => {
-                        const overrideEntry = document.createElement('div');
-                        overrideEntry.className = 'node-override-item';
-                        overrideEntry.innerHTML = createNodeOverrideEntry(override).trim();
-                        nodeOverrideList.appendChild(overrideEntry);
-                        
-                        // Add node events if they exist
-                        if (override.events && override.events.length > 0) {
-                            const nodeEventList = overrideEntry.querySelector('.node-event-list');
-                            nodeEventList.innerHTML = '';
-                            
-                            override.events.forEach(nodeEvent => {
-                                const nodeEventEntry = document.createElement('div');
-                                nodeEventEntry.className = 'node-event-item';
-                                nodeEventEntry.innerHTML = createNodeEventEntry(nodeEvent).trim();
-                                nodeEventList.appendChild(nodeEventEntry);
-                            });
-                        }
-                    });
-                }
-            });
-
-            updateEventTargets();
-
-            // Highlight selected quest
-            document.querySelectorAll('.quest-entry').forEach(entry => {
-                entry.style.backgroundColor = '';
-                if (entry.dataset.questId === quest._id) {
-                    entry.style.backgroundColor = 'rgba(0, 255, 249, 0.2)';
-                }
-            });
-        }
-
-        // Clear form for new quest
-        newQuestBtn.addEventListener('click', () => {
-            document.getElementById('questForm').dataset.questId = '';
-            deleteQuestBtn.classList.add('hidden');
-            document.getElementById('questTitle').value = '';
-            document.getElementById('journalDescription').value = '';
-            document.getElementById('experiencePoints').value = '0';
-            eventsList.innerHTML = '';
-        });
-
-        // Save quest
-        saveQuestBtn.addEventListener('click', async () => {
-            try {
-                // Validate form
-                const title = document.getElementById('questTitle').value;
-                const journalDescription = document.getElementById('journalDescription').value;
-                const experiencePoints = parseInt(document.getElementById('experiencePoints').value) || 0;
-                
-                if (!title || !journalDescription) {
-                    alert('Please fill in all required fields');
-                    return;
-                }
-
-                if (experiencePoints < 0) {
-                    alert('Experience points cannot be negative');
-                    return;
-                }
-
-                const events = Array.from(eventsList.querySelectorAll('.quest-event')).map(event => {
-                    const eventType = event.dataset.eventType;
-                    const baseEvent = {
-                        _id: event.dataset.eventId,
-                        eventType,
-                        hint: event.querySelector('.event-hint-input').value,
-                        choices: Array.from(event.querySelectorAll('.choice-entry'))
-                            .map(choice => ({
-                                nextEventId: choice.querySelector('.choice-target-select').value
-                            })),
-                        isStart: event.dataset.isStart === 'true',
-                        isEnd: event.dataset.isEnd === 'true',
-                        rewards: Array.from(event.querySelectorAll('.reward-entry'))
-                            .map(reward => ({
-                                type: reward.querySelector('.reward-type-select').value,
-                                value: reward.querySelector('.reward-value-select').value,
-                                valueRef: 'Class'
-                            })),
-                        nodeEventOverrides: Array.from(event.querySelectorAll('.node-override-item'))
-                            .map((override) => {
-                                const nodeAddress = override.querySelector('.node-address-select').value;
-                                if (!nodeAddress) {
-                                    return null;
-                                }
-                                
-                                const events = Array.from(override.querySelectorAll('.node-event-item'))
-                                    .map((nodeEvent) => {
-                                        const mobId = nodeEvent.querySelector('.node-event-mob-select').value;
-                                        const chance = parseInt(nodeEvent.querySelector('.node-event-chance-input').value) || 100;
-                                        
-                                        if (!mobId) {
-                                            return null;
-                                        }
-                                        
-                                        return {
-                                            mobId,
-                                            chance
-                                        };
-                                    })
-                                    .filter(Boolean);
-                                
-                                return {
-                                    nodeAddress,
-                                    events
-                                };
-                            })
-                            .filter(Boolean)
-                    };
-
-                    let eventData;
-                    switch(eventType) {
-                        case 'chat':
-                            const actorId = event.querySelector('.event-actor-select').value;
-                            const message = event.querySelector('.event-message-input').value;
-                            
-                            // Validate chat event fields
-                            if (!actorId || !message.trim()) {
-                                throw new Error(`Chat event is missing required fields (actor or message) - Event ID: ${event.dataset.eventId}`);
-                            }
-                            
-                            eventData = {
-                                ...baseEvent,
-                                actorId,
-                                message
-                            };
-                            break;
-                        case 'kill':
-                            const mobId = event.querySelector('.event-mob-select').value;
-                            const quantity = parseInt(event.querySelector('.event-quantity-input').value);
-                            
-                            // Validate kill event fields
-                            if (!mobId || !quantity || quantity < 1) {
-                                throw new Error(`Kill event is missing required fields or has invalid quantity - Event ID: ${event.dataset.eventId}`);
-                            }
-                            
-                            eventData = {
-                                ...baseEvent,
-                                mobId,
-                                quantity
-                            };
-                            break;
-                        case 'event':
-                            const eventId = event.querySelector('.event-event-select').value;
-                            
-                            // Validate story event fields
-                            if (!eventId) {
-                                throw new Error(`Story event is missing event selection - Event ID: ${event.dataset.eventId}`);
-                            }
-                            
-                            eventData = {
-                                ...baseEvent,
-                                eventId
-                            };
-                            break;
-                        default:
-                            throw new Error(`Invalid event type: ${eventType}`);
-                    }
-                    return eventData;
-                });
-
-                if (events.length === 0) {
-                    alert('Quest must have at least one event');
-                    return;
-                }
-
-                const questData = {
-                    _id: document.getElementById('questForm').dataset.questId || undefined,
-                    title,
-                    journalDescription,
-                    experiencePoints,
-                    events
-                };
-
-                const response = await fetch('/api/quests', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
-                    body: JSON.stringify(questData)
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.details || errorData.error || 'Failed to save quest');
-                }
-
-                alert('Quest saved successfully!');
-                await loadQuests();
-            } catch (error) {
-                console.error('Error saving quest:', error);
-                alert('Error saving quest: ' + error.message);
-            }
-        });
-
-        // Delete quest
-        deleteQuestBtn.addEventListener('click', async () => {
-            const questId = document.getElementById('questForm').dataset.questId;
-            if (!questId) return;
-            
-            const questTitle = document.getElementById('questTitle').value;
-            const eventCount = eventsList.querySelectorAll('.quest-event').length;
-            
-            const confirmDelete = confirm(
-                `Are you sure you want to delete the quest "${questTitle}"?\n\n` +
-                `This quest has ${eventCount} event${eventCount !== 1 ? 's' : ''}.\n\n` +
-                `This action cannot be undone.`
-            );
-            
-            if (confirmDelete) {
-                try {
-                    const response = await fetch(`/api/quests/${questId}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
-                        }
-                    });
-
-                    if (response.ok) {
-                        alert('Quest deleted successfully');
-                        newQuestBtn.click();
-                        loadQuests();
-                    } else {
-                        throw new Error('Failed to delete quest');
-                    }
-                } catch (error) {
-                    console.error('Error deleting quest:', error);
-                    alert('Error deleting quest');
-                }
-            }
-        });
-
-        // Add this utility function at the top of your script section
-        function generateObjectId() {
-            const timestamp = Math.floor(new Date().getTime() / 1000).toString(16);
-            const randomPart = Math.random().toString(16).substring(2, 14);
-            return timestamp + randomPart.padEnd(16, '0');
-        }
-
-        // Add hamburger menu functionality at the end
-        const hamburgerButton = document.querySelector('.hamburger-button');
-        const menuContent = document.querySelector('.menu-content');
-
-        hamburgerButton.addEventListener('click', () => {
-            menuContent.classList.toggle('show');
-        });
-
-        // Close menu when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!hamburgerButton.contains(e.target) && !menuContent.contains(e.target)) {
-                menuContent.classList.remove('show');
-            }
-        });
-
-        // Highlight current page in menu
-        document.querySelectorAll('.menu-content a').forEach(link => {
-            if (link.href === window.location.href) {
-                link.style.color = 'var(--neon-pink)';
-            }
-        });
+        // Trigger initial event type change
+        document.getElementById('eventType').dispatchEvent(new Event('change'));
     </script>
 </body>
 </html>
