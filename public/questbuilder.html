@@ -109,7 +109,6 @@
         .event-controls select,
         .event-controls textarea,
         .event-controls input {
-            width: 100%;
             padding: 0.8rem;
             background: rgba(0, 255, 249, 0.1);
             border: 1px solid var(--neon-blue);
@@ -167,10 +166,16 @@
             gap: 0.5rem;
             color: var(--neon-pink);
             font-size: 0.9em;
+            width: 100%;
         }
 
         .end-event-checkbox {
             margin: 0;
+            flex: 0 0 auto;
+        }
+
+        .end-event-text {
+            flex: 1;
         }
 
         .quest-event[data-is-end="true"] {
@@ -1170,11 +1175,11 @@
                 <span class="remove-event">×</span>
                 <div class="event-choices"></div>
                 <div class="event-controls">
+                    <button class="action-button add-choice-btn">Add Choice</button>
                     <label class="end-event-label">
                         <input type="checkbox" class="end-event-checkbox" ${eventData.isEnd ? 'checked' : ''}>
-                        Mark as quest end
+                        <span class="end-event-text">Mark as quest end</span>
                     </label>
-                    <button class="action-button add-choice-btn">Add Choice</button>
                 </div>
             `;
 
