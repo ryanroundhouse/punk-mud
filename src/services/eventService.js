@@ -60,10 +60,45 @@ class EventService {
                 logger.debug('Quest requirement check:', {
                     eventId: event._id,
                     requiredQuestId: event.rootNode.requiredQuestId._id,
-                    hasRequiredQuest
+                    hasRequiredQuest,
+                    requiredQuestEventId: event.rootNode.requiredQuestEventId
                 });
 
-                return hasRequiredQuest;
+                // If quest is required but not active, event is not available
+                if (!hasRequiredQuest) {
+                    logger.debug('Event filtered out - required quest not active:', {
+                        eventId: event._id,
+                        requiredQuestId: event.rootNode.requiredQuestId._id
+                    });
+                    return false;
+                }
+
+                // If quest event ID is required, check if user is on that event
+                if (event.rootNode.requiredQuestEventId) {
+                    const userQuest = user.quests.find(q => 
+                        q.questId === event.rootNode.requiredQuestId._id.toString()
+                    );
+                    
+                    const isOnRequiredEvent = userQuest?.currentEventId === event.rootNode.requiredQuestEventId;
+                    
+                    logger.debug('Quest event ID check:', {
+                        eventId: event._id,
+                        requiredQuestEventId: event.rootNode.requiredQuestEventId,
+                        userCurrentEventId: userQuest?.currentEventId,
+                        isOnRequiredEvent
+                    });
+
+                    if (!isOnRequiredEvent) {
+                        logger.debug('Event filtered out - user not on required quest event:', {
+                            eventId: event._id,
+                            requiredQuestEventId: event.rootNode.requiredQuestEventId,
+                            userCurrentEventId: userQuest?.currentEventId
+                        });
+                        return false;
+                    }
+                }
+
+                return true;
             });
 
             logger.debug('Available events after filtering:', {

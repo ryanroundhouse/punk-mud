@@ -17,6 +17,11 @@ const eventNodeSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Quest'
     },
+    // Optional quest event ID that must be active to see this option
+    requiredQuestEventId: {
+        type: String,
+        trim: true
+    },
     // Optional quest to activate when this option is chosen
     activateQuestId: {
         type: mongoose.Schema.Types.ObjectId,

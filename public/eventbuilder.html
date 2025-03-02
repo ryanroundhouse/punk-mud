@@ -347,6 +347,10 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
+                                    <label>Required Quest Event ID:</label>
+                                    <input type="text" class="quest-event-id" placeholder="Quest event ID...">
+                                </div>
+                                <div class="form-group">
                                     <label>Activate Quest:</label>
                                     <select class="quest-select">
                                         <option value="">No Quest to Activate</option>
@@ -469,26 +473,6 @@
             });
         }
 
-        // Update all quest select elements
-        function updateQuestSelects() {
-            document.querySelectorAll('.quest-select').forEach(select => {
-                const currentValue = select.value;
-                const options = allQuests.map(quest => `
-                    <option value="${quest._id}" ${quest._id === currentValue ? 'selected' : ''}>
-                        ${quest.title}
-                    </option>
-                `).join('');
-                
-                select.innerHTML = `
-                    <option value="">No Quest</option>
-                    ${options}
-                `;
-            });
-            
-            // For debugging
-            console.log('Updated quest selects with quests:', allQuests);
-        }
-
         // Load quests
         async function loadQuests() {
             try {
@@ -499,16 +483,49 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to load quests');
+                    throw new Error(`Failed to load quests: ${response.status}`);
                 }
 
                 allQuests = await response.json();
                 console.log('Loaded quests:', allQuests); // For debugging
-                updateQuestSelects();
+                
+                // Update all quest select elements
+                document.querySelectorAll('.quest-select').forEach(select => {
+                    const currentValue = select.value;
+                    select.innerHTML = `
+                        <option value="">No Quest</option>
+                        ${allQuests.map(quest => `
+                            <option value="${quest._id}" ${quest._id === currentValue ? 'selected' : ''}>
+                                ${quest.title}
+                            </option>
+                        `).join('')}
+                    `;
+                });
             } catch (error) {
                 console.error('Error loading quests:', error);
-                alert('Failed to load quests');
+                // Don't show alert, just log the error
+                // This prevents the error from blocking the UI
             }
+        }
+
+        // Update all quest select elements
+        function updateQuestSelects() {
+            if (!allQuests || allQuests.length === 0) {
+                console.warn('No quests available to populate selects');
+                return;
+            }
+
+            document.querySelectorAll('.quest-select').forEach(select => {
+                const currentValue = select.value;
+                select.innerHTML = `
+                    <option value="">No Quest</option>
+                    ${allQuests.map(quest => `
+                        <option value="${quest._id}" ${quest._id === currentValue ? 'selected' : ''}>
+                            ${quest.title}
+                        </option>
+                    `).join('')}
+                `;
+            });
         }
 
         // Load events
@@ -563,22 +580,26 @@
                     <label>Required Quest:</label>
                     <select class="quest-select">
                         <option value="">No Quest Required</option>
-                        ${allQuests.map(quest => `
+                        ${allQuests?.map(quest => `
                             <option value="${quest._id}" ${quest._id === nodeData.requiredQuestId ? 'selected' : ''}>
                                 ${quest.title}
                             </option>
-                        `).join('')}
+                        `).join('') || ''}
                     </select>
+                </div>
+                <div class="form-group">
+                    <label>Required Quest Event ID:</label>
+                    <input type="text" class="quest-event-id" value="${nodeData.requiredQuestEventId || ''}" placeholder="Quest event ID...">
                 </div>
                 <div class="form-group">
                     <label>Activate Quest:</label>
                     <select class="quest-select">
                         <option value="">No Quest to Activate</option>
-                        ${allQuests.map(quest => `
+                        ${allQuests?.map(quest => `
                             <option value="${quest._id}" ${quest._id === nodeData.activateQuestId ? 'selected' : ''}>
                                 ${quest.title}
                             </option>
-                        `).join('')}
+                        `).join('') || ''}
                     </select>
                 </div>
                 <div class="form-group">
@@ -723,6 +744,7 @@
                         prompt: nodeElement.querySelector('.node-prompt').value,
                         restrictions: restrictions.length > 0 ? restrictions : undefined,
                         requiredQuestId: questSelects[0]?.value || undefined,
+                        requiredQuestEventId: nodeElement.querySelector('.quest-event-id').value || undefined,
                         activateQuestId: questSelects[1]?.value || undefined,
                         questCompletionEvents: nodeElement.querySelector('.quest-events').value
                             .split(',')
@@ -734,6 +756,7 @@
                     // Remove undefined fields
                     if (!nodeData.restrictions) delete nodeData.restrictions;
                     if (!nodeData.requiredQuestId) delete nodeData.requiredQuestId;
+                    if (!nodeData.requiredQuestEventId) delete nodeData.requiredQuestEventId;
                     if (!nodeData.activateQuestId) delete nodeData.activateQuestId;
                     if (nodeData.questCompletionEvents.length === 0) delete nodeData.questCompletionEvents;
 
