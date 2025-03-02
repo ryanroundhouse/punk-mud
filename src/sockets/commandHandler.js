@@ -193,7 +193,7 @@ async function handleCommand(socket, data) {
 
 async function handleListCommand(socket, user, target) {
     const nodeUsers = stateService.nodeUsernames.get(user.currentNode) || [];
-    const actorNames = await actorService.getActorsInLocation(user.currentNode);
+    const actors = await actorService.getActorsInLocation(user.currentNode, user._id.toString());
     const mobInstance = stateService.playerMobs.get(user._id.toString());
 
     if (target) {
@@ -212,7 +212,7 @@ async function handleListCommand(socket, user, target) {
         }
         
         // Then check actors
-        const targetActor = await actorService.findActorInLocation(target, user.currentNode);
+        const targetActor = await actorService.findActorInLocation(target, user.currentNode, user._id.toString());
         
         if (targetActor) {
             socket.emit('console response', {
@@ -244,20 +244,36 @@ async function handleListCommand(socket, user, target) {
             message: `Character "${target}" not found in this location.`
         });
     } else {
-        let enemies = [];
+        // No target specified, list everything in the room
+        let response = '';
+        
+        if (nodeUsers.length > 0) {
+            response += 'Players here:\n';
+            response += nodeUsers.map(name => `- ${name}`).join('\n');
+        }
+        
+        if (actors.length > 0) {
+            if (response) response += '\n\n';
+            response += 'NPCs here:\n';
+            response += actors.map(actor => `- ${actor.name}`).join('\n');
+        }
+        
         if (mobInstance) {
-            enemies.push({
-                name: mobInstance.name,
-                level: mobInstance.level
-            });
+            if (response) response += '\n\n';
+            response += 'Enemies here:\n';
+            response += `- ${mobInstance.name}`;
+        }
+        
+        if (!response) {
+            response = 'There is no one else here.';
         }
         
         socket.emit('console response', {
             type: 'list',
+            message: response,
             users: nodeUsers,
-            actors: actorNames,
-            enemies: enemies,
-            playerLevel: user.stats.level
+            actors: actors.map(actor => actor.name),
+            mobs: mobInstance ? [mobInstance.name] : []
         });
     }
 }
@@ -304,67 +320,40 @@ async function handleChatCommand(socket, user, target) {
     }
 
     // If not in an event, try to find an actor in the current location
-    const actor = await actorService.findActorInLocation(target, user.currentNode);
-
+    const actor = await actorService.findActorInLocation(target, user.currentNode, user._id.toString());
+    
     if (actor) {
-        // Try to start an event
-        logger.debug('Attempting to start event:', {
-            userId: user._id,
-            actorId: actor._id,
-            actorName: actor.name
-        });
-        
-        const eventResult = await eventService.handleActorChat(user, actor);
-        
-        logger.debug('Event result:', {
-            hasResult: !!eventResult,
-            message: eventResult?.message
-        });
-
-        if (eventResult) {
+        // Try to start an event for this actor
+        const result = await eventService.handleActorChat(user, actor);
+        if (result) {
             socket.emit('console response', {
                 type: 'event',
-                message: `${actor.name} says: "${eventResult.message}"`,
-                isEndOfEvent: false
+                message: result.message,
+                isEndOfEvent: result.isEnd
             });
             return;
         }
 
-        // Fall back to quest progression if no event available
-        logger.debug('Checking quest progression');
-        const questResponse = await questService.handleQuestProgression(user, actor.id);
-
-        if (questResponse) {
-            socket.emit('console response', { 
-                message: questResponse.message 
-            });
-
-            if (questResponse.isComplete) {
-                socket.emit('console response', { 
-                    message: `Quest completed: ${questResponse.questTitle}`,
-                    type: 'system'
-                });
-            }
-            return;
-        }
-
-        // Regular actor chat
-        logger.debug('Falling back to regular actor chat');
-        const stateKey = `${socket.user.userId}-${actor.id}`;
+        // If no event or event failed to start, fall back to regular chat
+        const stateKey = `${socket.user.userId}-${actor._id}`;
         let currentIndex = stateService.actorChatStates.get(stateKey) || 0;
-        const chatResult = await actorService.getActorChatMessage(actor, stateKey, currentIndex);
+        const sortedMessages = [...actor.chatMessages].sort((a, b) => a.order - b.order);
         
-        logger.debug('Regular chat result:', {
-            stateKey,
-            currentIndex,
-            chatResult
-        });
+        if (!sortedMessages.length) {
+            socket.emit('console response', {
+                type: 'chat',
+                message: `${actor.name} has nothing to say.`
+            });
+            return;
+        }
 
-        stateService.actorChatStates.set(stateKey, chatResult.nextIndex);
+        const message = sortedMessages[currentIndex];
+        currentIndex = (currentIndex + 1) % sortedMessages.length;
+        stateService.actorChatStates.set(stateKey, currentIndex);
 
         socket.emit('console response', {
             type: 'chat',
-            message: `${actor.name} says: "${chatResult.message}"`
+            message: `${actor.name} says: "${message.message}"`
         });
         return;
     }

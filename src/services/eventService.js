@@ -296,7 +296,9 @@ class EventService {
                 logger.debug('Processing quest completion events:', {
                     events: selectedChoice.nextNode.questCompletionEvents,
                     userId: user._id.toString(),
-                    isStoryEvent: activeEvent.isStoryEvent
+                    isStoryEvent: activeEvent.isStoryEvent,
+                    selectedChoiceText: selectedChoice.text,
+                    nextNodeId: selectedChoice.nextNode._id?.toString()
                 });
 
                 const result = await questService.handleQuestProgression(
@@ -304,6 +306,13 @@ class EventService {
                     activeEvent.actorId,
                     selectedChoice.nextNode.questCompletionEvents
                 );
+
+                logger.debug('Quest progression result:', {
+                    userId: user._id.toString(),
+                    result,
+                    questCompletionEvents: selectedChoice.nextNode.questCompletionEvents,
+                    actorId: activeEvent.actorId
+                });
 
                 // Refresh user after quest progression
                 user = await User.findById(userId);

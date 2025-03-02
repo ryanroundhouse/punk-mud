@@ -4,22 +4,58 @@ const questService = require('./questService');
 const User = require('../models/User');
 
 class ActorService {
-    async findActorInLocation(actorName, locationId) {
+    async findActorInLocation(actorName, locationId, userId = null) {
         try {
-            return await Actor.findOne({ 
-                name: new RegExp(`^${actorName}$`, 'i'), 
-                location: locationId 
-            });
+            const actors = await this.getActorsInLocation(locationId, userId);
+            return actors.find(actor => 
+                actor.name.toLowerCase() === actorName.toLowerCase()
+            );
         } catch (error) {
             logger.error('Error finding actor:', error);
             throw error;
         }
     }
 
-    async getActorsInLocation(locationId) {
+    async getActorsInLocation(locationId, userId = null) {
         try {
-            const actors = await Actor.find({ location: locationId });
-            return actors.map(actor => actor.name);
+            // If userId is provided, check for quest actor overrides first
+            if (userId) {
+                const questActorOverrides = await questService.getQuestNodeActorOverrides(userId, locationId);
+                
+                logger.debug('Checking quest actor overrides for location', {
+                    userId,
+                    locationId,
+                    hasQuestOverrides: !!questActorOverrides,
+                    questOverrideCount: questActorOverrides?.length || 0
+                });
+
+                if (questActorOverrides && questActorOverrides.length > 0) {
+                    const overrideActors = await Actor.find({
+                        _id: { $in: questActorOverrides }
+                    });
+
+                    logger.debug('Found quest override actors', {
+                        userId,
+                        locationId,
+                        overrideActorCount: overrideActors.length,
+                        overrideActorNames: overrideActors.map(a => a.name)
+                    });
+
+                    return overrideActors;
+                }
+            }
+
+            // If no overrides found or no userId provided, return regular location actors
+            const regularActors = await Actor.find({ location: locationId });
+            
+            logger.debug('Returning regular actors for location', {
+                locationId,
+                userId: userId || 'none',
+                actorCount: regularActors.length,
+                actorNames: regularActors.map(a => a.name)
+            });
+
+            return regularActors;
         } catch (error) {
             logger.error('Error getting actors in location:', error);
             return [];

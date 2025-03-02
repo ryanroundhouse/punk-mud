@@ -24,10 +24,20 @@ async function moveUser(userId, direction) {
         throw new Error(`No exit to the ${direction}`);
     }
 
-    const targetNode = await Node.findOne({ address: exit.target });
+    // Get the target node with any quest overrides
+    const targetNode = await getNodeWithOverrides(exit.target, userId);
     if (!targetNode) {
         throw new Error('Target location not found');
     }
+
+    logger.debug('Moving user to node with potential overrides:', {
+        userId,
+        fromNode: user.currentNode,
+        toNode: targetNode.address,
+        hasActorOverrides: !!targetNode.actors,
+        actorOverrideCount: targetNode.actors?.length || 0,
+        actorIds: targetNode.actors?.map(a => a.actorId) || []
+    });
 
     const oldNode = user.currentNode;
     user.currentNode = targetNode.address;
@@ -65,7 +75,8 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
         throw new Error('User not found');
     }
 
-    const node = await Node.findOne({ address: nodeAddress });
+    // Use getNodeWithOverrides instead of direct Node.findOne
+    const node = await getNodeWithOverrides(nodeAddress, userId);
     if (!node) {
         throw new Error('Node not found');
     }
@@ -74,7 +85,9 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
         userId,
         nodeAddress,
         inCombat: stateService.isUserInCombat(userId),
-        nodeEvents: node.events?.length || 0
+        nodeEvents: node.events?.length || 0,
+        hasActors: !!node.actors,
+        actorCount: node.actors?.length || 0
     });
 
     // Only process events if not in combat
@@ -250,6 +263,21 @@ async function getNodeWithOverrides(address, userId) {
     // Check for quest-specific node event overrides
     const questNodeEvents = await questService.getQuestNodeEventOverrides(userId, address);
     
+    // Check for quest-specific node actor overrides
+    const questNodeActors = await questService.getQuestNodeActorOverrides(userId, address);
+    
+    logger.debug('Quest node override check results:', {
+        userId,
+        nodeAddress: address,
+        originalActors: node.actors?.length || 0,
+        questActorOverrides: questNodeActors?.length || 0,
+        questActorOverrideDetails: questNodeActors?.map(actor => ({
+            id: actor.actorId,
+            type: actor.type,
+            overrideType: actor.overrideType
+        }))
+    });
+
     // Create a copy of the node to avoid modifying the database object
     const nodeData = node.toObject();
     
@@ -265,6 +293,32 @@ async function getNodeWithOverrides(address, userId) {
         // Add the quest events to the node data
         nodeData.events = questNodeEvents;
     }
+
+    // If there are actor overrides, include them in the node data
+    if (questNodeActors && questNodeActors.length > 0) {
+        logger.debug('Applying quest actor overrides to node data:', {
+            address,
+            userId,
+            originalActors: nodeData.actors?.length || 0,
+            questActorCount: questNodeActors.length,
+            actorOverrideDetails: questNodeActors.map(actor => ({
+                id: actor.actorId,
+                type: actor.type,
+                overrideType: actor.overrideType
+            }))
+        });
+        
+        // Add the quest actors to the node data
+        nodeData.actors = questNodeActors;
+    }
+
+    logger.debug('Final node data after overrides:', {
+        address,
+        userId,
+        hasActors: !!nodeData.actors,
+        actorCount: nodeData.actors?.length || 0,
+        actorIds: nodeData.actors?.map(a => a.actorId) || []
+    });
     
     return nodeData;
 }

@@ -398,6 +398,7 @@
             }
 
             try {
+                // First verify the token
                 const response = await fetch('/api/auth/verify-token', {
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -408,6 +409,20 @@
                     throw new Error('Invalid token');
                 }
 
+                // Then verify builder access
+                const builderResponse = await fetch('/api/events', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!builderResponse.ok) {
+                    // If not a builder, redirect to game
+                    window.location.href = '/game.html';
+                    return;
+                }
+
+                // Load data only if builder access is verified
                 await Promise.all([
                     loadActors(),
                     loadQuests(),
@@ -454,6 +469,26 @@
             });
         }
 
+        // Update all quest select elements
+        function updateQuestSelects() {
+            document.querySelectorAll('.quest-select').forEach(select => {
+                const currentValue = select.value;
+                const options = allQuests.map(quest => `
+                    <option value="${quest._id}" ${quest._id === currentValue ? 'selected' : ''}>
+                        ${quest.title}
+                    </option>
+                `).join('');
+                
+                select.innerHTML = `
+                    <option value="">No Quest</option>
+                    ${options}
+                `;
+            });
+            
+            // For debugging
+            console.log('Updated quest selects with quests:', allQuests);
+        }
+
         // Load quests
         async function loadQuests() {
             try {
@@ -468,26 +503,12 @@
                 }
 
                 allQuests = await response.json();
+                console.log('Loaded quests:', allQuests); // For debugging
                 updateQuestSelects();
             } catch (error) {
                 console.error('Error loading quests:', error);
                 alert('Failed to load quests');
             }
-        }
-
-        // Update all quest select elements
-        function updateQuestSelects() {
-            document.querySelectorAll('.quest-select').forEach(select => {
-                const currentValue = select.value;
-                select.innerHTML = `
-                    <option value="">No Quest</option>
-                    ${allQuests.map(quest => `
-                        <option value="${quest._id}" ${quest._id === currentValue ? 'selected' : ''}>
-                            ${quest.title}
-                        </option>
-                    `).join('')}
-                `;
-            });
         }
 
         // Load events
@@ -515,6 +536,11 @@
         function createEventNode(nodeData = {}) {
             const nodeContainer = document.createElement('div');
             nodeContainer.className = 'event-node';
+            
+            // For debugging
+            console.log('Creating event node with data:', nodeData);
+            console.log('Available quests:', allQuests);
+
             nodeContainer.innerHTML = `
                 <div class="form-group">
                     <label>Response Prompt:</label>
@@ -580,6 +606,9 @@
                     }
                 });
             }
+
+            // Ensure quest selects are properly populated
+            updateQuestSelects();
 
             return nodeContainer;
         }
@@ -649,9 +678,18 @@
             // Clear and rebuild the event tree
             const eventTree = document.getElementById('eventTree');
             eventTree.innerHTML = '';
-            const rootNode = createEventNode(event.rootNode);
+            
+            // Create root node with the event's root node data
+            const rootNode = createEventNode({
+                ...event.rootNode,
+                requiredQuestId: event.rootNode.requiredQuestId?._id || event.rootNode.requiredQuestId,
+                activateQuestId: event.rootNode.activateQuestId?._id || event.rootNode.activateQuestId
+            });
             rootNode.classList.add('root-node');
             eventTree.appendChild(rootNode);
+            
+            // Ensure quest selects are properly populated
+            updateQuestSelects();
         }
 
         // Add event listeners

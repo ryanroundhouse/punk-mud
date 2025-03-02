@@ -10,23 +10,66 @@ class QuestService {
         try {
             const user = await User.findById(userId);
             if (!user || !user.quests) {
+                logger.debug('No user or no quests found for user', { userId });
                 return [];
             }
 
+            logger.debug('Found user with quests', {
+                userId,
+                questCount: user.quests.length,
+                quests: user.quests.map(q => ({
+                    questId: q.questId,
+                    currentEventId: q.currentEventId,
+                    completed: q.completed
+                }))
+            });
+
             const allQuests = await Quest.find();
+            
+            logger.debug('Quests found in database', {
+                userId,
+                questCount: allQuests.length,
+                questIds: allQuests.map(q => q._id.toString()),
+                questTitles: allQuests.map(q => q.title)
+            });
             
             const activeQuests = user.quests
                 .filter(userQuest => !userQuest.completed)
                 .map(userQuest => {
                     const quest = allQuests.find(q => q._id.toString() === userQuest.questId);
-                    if (!quest) return null;
+                    if (!quest) {
+                        logger.debug('Quest not found in database for user quest', {
+                            userId,
+                            userQuestId: userQuest.questId,
+                            availableQuestIds: allQuests.map(q => q._id.toString())
+                        });
+                        return null;
+                    }
 
                     const currentEvent = quest.events.find(e => e._id.toString() === userQuest.currentEventId);
-                    if (!currentEvent) return null;
+                    if (!currentEvent) {
+                        logger.debug('Current event not found for quest', {
+                            userId,
+                            questId: quest._id,
+                            questTitle: quest.title,
+                            currentEventId: userQuest.currentEventId,
+                            availableEventIds: quest.events.map(e => e._id.toString())
+                        });
+                        return null;
+                    }
                     
                     const choices = currentEvent.choices.map(choice => {
                         const nextEvent = quest.events.find(e => e._id.toString() === choice.nextEventId.toString());
-                        if (!nextEvent) return null;
+                        if (!nextEvent) {
+                            logger.debug('Next event not found for choice', {
+                                userId,
+                                questId: quest._id,
+                                questTitle: quest.title,
+                                currentEventId: currentEvent._id,
+                                choiceNextEventId: choice.nextEventId
+                            });
+                            return null;
+                        }
 
                         let hint = nextEvent.hint || 'No hint available';
                         
@@ -46,66 +89,53 @@ class QuestService {
                     }).filter(Boolean);
 
                     return {
+                        questId: quest._id.toString(),
+                        currentEventId: currentEvent._id.toString(),
                         title: quest.title,
-                        hints: choices.length > 0 ? choices : ['No available choices']
+                        hints: choices.length > 0 ? choices : ['No available choices'],
+                        events: quest.events
                     };
                 })
                 .filter(Boolean);
 
+            logger.debug('Final active quests result', {
+                userId,
+                activeQuestCount: activeQuests.length,
+                activeQuests: activeQuests.map(q => q.title)
+            });
+
             return activeQuests;
         } catch (error) {
-            logger.error('Error getting active quests:', error);
+            logger.error('Error getting active quests:', error, { userId });
             throw error;
         }
     }
 
     async getQuestNodeEventOverrides(userId, nodeAddress) {
         try {
-            logger.debug('getQuestNodeEventOverrides called', {
-                userId,
-                nodeAddress
-            });
+            const nodeEventOverrides = [];
 
-            const user = await User.findById(userId);
-            if (!user || !user.quests || user.quests.length === 0) {
-                logger.debug('No quests found for user', {
-                    userId,
-                    hasUser: !!user,
-                    questCount: user?.quests?.length || 0
-                });
+            // Get active quests for user
+            const activeUserQuests = await this.getActiveQuests(userId);
+            if (!activeUserQuests || activeUserQuests.length === 0) {
                 return null;
             }
-
-            // Get all active quests for the user
-            const activeUserQuests = user.quests.filter(userQuest => !userQuest.completed);
-            if (activeUserQuests.length === 0) {
-                logger.debug('No active quests found for user', {
-                    userId,
-                    totalQuests: user.quests.length,
-                    activeQuests: 0
-                });
-                return null;
-            }
-
-            logger.debug('Found active quests for user', {
-                userId,
-                activeQuestCount: activeUserQuests.length,
-                questIds: activeUserQuests.map(q => q.questId)
-            });
 
             // Get all quest details
-            const questIds = activeUserQuests.map(uq => uq.questId);
-            const quests = await Quest.find({ _id: { $in: questIds } })
-                .populate('events.nodeEventOverrides.events.mobId');
-
-            logger.debug('Retrieved quest details', {
-                userId,
-                requestedQuestIds: questIds.length,
-                retrievedQuests: quests.length
+            const quests = await Quest.find({
+                _id: { $in: activeUserQuests.map(q => q.questId) }
             });
 
-            // Collect all node event overrides for the specified node
-            let nodeEventOverrides = [];
+            if (!quests || quests.length === 0) {
+                return null;
+            }
+
+            logger.debug('Processing quests for node event overrides', {
+                userId,
+                nodeAddress,
+                activeQuestCount: activeUserQuests.length,
+                questCount: quests.length
+            });
 
             for (const userQuest of activeUserQuests) {
                 const quest = quests.find(q => q._id.toString() === userQuest.questId);
@@ -222,6 +252,112 @@ class QuestService {
         }
     }
 
+    async getQuestNodeActorOverrides(userId, nodeAddress) {
+        try {
+            const nodeActorOverrides = [];
+
+            // Get active quests for user
+            const activeUserQuests = await this.getActiveQuests(userId);
+            if (!activeUserQuests || activeUserQuests.length === 0) {
+                logger.debug('No active quests found for user', { userId });
+                return null;
+            }
+
+            logger.debug('Processing quests for node actor overrides', {
+                userId,
+                nodeAddress,
+                activeQuestCount: activeUserQuests.length,
+                questTitles: activeUserQuests.map(q => q.title)
+            });
+
+            for (const userQuest of activeUserQuests) {
+                logger.debug('Processing quest for node actor overrides', {
+                    userId,
+                    questId: userQuest.questId,
+                    questTitle: userQuest.title,
+                    currentEventId: userQuest.currentEventId,
+                    nodeAddress
+                });
+
+                // Find the current event for this quest
+                const currentEvent = userQuest.events.find(e => 
+                    e._id.toString() === userQuest.currentEventId
+                );
+
+                if (!currentEvent) {
+                    logger.debug('Current event not found for quest', {
+                        userId,
+                        questId: userQuest.questId,
+                        questTitle: userQuest.title,
+                        currentEventId: userQuest.currentEventId
+                    });
+                    continue;
+                }
+
+                logger.debug('Found current event for quest', {
+                    userId,
+                    questId: userQuest.questId,
+                    eventId: currentEvent._id,
+                    hasNodeActorOverrides: !!currentEvent.nodeActorOverrides,
+                    nodeActorOverrideCount: currentEvent.nodeActorOverrides?.length || 0,
+                    nodeActorOverrides: currentEvent.nodeActorOverrides?.map(o => ({
+                        nodeAddress: o.nodeAddress,
+                        actorId: o.actorId
+                    }))
+                });
+
+                if (!currentEvent.nodeActorOverrides) {
+                    continue;
+                }
+
+                // Check if this event has actor overrides for the specified node
+                const nodeOverrides = currentEvent.nodeActorOverrides.filter(
+                    override => override.nodeAddress === nodeAddress
+                );
+
+                if (nodeOverrides.length > 0) {
+                    logger.debug('Found node actor overrides for address', {
+                        userId,
+                        questId: userQuest.questId,
+                        questTitle: userQuest.title,
+                        nodeAddress,
+                        overrideCount: nodeOverrides.length,
+                        overrides: nodeOverrides.map(o => ({
+                            nodeAddress: o.nodeAddress,
+                            actorId: o.actorId
+                        }))
+                    });
+
+                    nodeActorOverrides.push(...nodeOverrides.map(override => override.actorId));
+                } else {
+                    logger.debug('No node actor overrides found for address', {
+                        userId,
+                        questId: userQuest.questId,
+                        questTitle: userQuest.title,
+                        nodeAddress,
+                        availableOverrideAddresses: currentEvent.nodeActorOverrides.map(o => o.nodeAddress)
+                    });
+                }
+            }
+
+            logger.debug('Final node actor overrides result', {
+                userId,
+                nodeAddress,
+                overrideCount: nodeActorOverrides.length,
+                hasOverrides: nodeActorOverrides.length > 0,
+                overrides: nodeActorOverrides
+            });
+
+            return nodeActorOverrides.length > 0 ? nodeActorOverrides : null;
+        } catch (error) {
+            logger.error('Error getting quest node actor overrides:', error, {
+                userId,
+                nodeAddress
+            });
+            return null;
+        }
+    }
+
     async handleQuestProgression(user, actorId, completionEventIds = [], questToActivate = null) {
         try {
             // Add validation at the start
@@ -254,14 +390,16 @@ class QuestService {
                     userQuests: user.quests.map(q => ({
                         questId: q.questId,
                         currentEventId: q.currentEventId,
-                        completed: q.completed
+                        completed: q.completed,
+                        completedEventIds: q.completedEventIds
                     }))
                 });
                 
                 for (const userQuest of user.quests) {
                     if (userQuest.completed) {
                         logger.debug('Skipping completed quest:', {
-                            questId: userQuest.questId
+                            questId: userQuest.questId,
+                            completedAt: userQuest.completedAt
                         });
                         continue;
                     }
@@ -269,7 +407,8 @@ class QuestService {
                     const quest = allQuests.find(q => q._id.toString() === userQuest.questId);
                     if (!quest) {
                         logger.debug('Quest not found:', {
-                            questId: userQuest.questId
+                            questId: userQuest.questId,
+                            allQuestIds: allQuests.map(q => q._id.toString())
                         });
                         continue;
                     }
@@ -281,7 +420,9 @@ class QuestService {
                     
                     if (!currentEvent) {
                         logger.debug('Current event not found:', {
-                            currentEventId: userQuest.currentEventId
+                            currentEventId: userQuest.currentEventId,
+                            questId: quest._id.toString(),
+                            availableEventIds: quest.events.map(e => e._id.toString())
                         });
                         continue;
                     }
@@ -290,7 +431,11 @@ class QuestService {
                         eventId: currentEvent._id.toString(),
                         eventType: currentEvent.eventType,
                         hasChoices: !!currentEvent.choices,
-                        choicesCount: currentEvent.choices?.length
+                        choicesCount: currentEvent.choices?.length,
+                        choices: currentEvent.choices?.map(c => ({
+                            nextEventId: c.nextEventId.toString(),
+                            matchesCompletion: completionEventIds.includes(c.nextEventId.toString())
+                        }))
                     });
 
                     // Check if current event has a choice leading to our completion event
@@ -301,7 +446,9 @@ class QuestService {
                     if (nextEventChoice) {
                         logger.debug('Found matching next event choice:', {
                             currentEventId: currentEvent._id.toString(),
-                            nextEventId: nextEventChoice.nextEventId.toString()
+                            nextEventId: nextEventChoice.nextEventId.toString(),
+                            questId: quest._id.toString(),
+                            questTitle: quest.title
                         });
 
                         // Progress to the next event
@@ -314,6 +461,13 @@ class QuestService {
                         );
 
                         if (nextEvent) {
+                            logger.debug('Found next event:', {
+                                eventId: nextEvent._id.toString(),
+                                isEnd: nextEvent.isEnd,
+                                hasRewards: !!nextEvent.rewards?.length,
+                                rewardCount: nextEvent.rewards?.length || 0
+                            });
+
                             // Add reward handling here
                             await this.handleEventRewards(user, nextEvent);
 
@@ -346,12 +500,25 @@ class QuestService {
                                     userQuestStatus: userQuest
                                 });
 
+                                // Save the user's state before returning
+                                await user.save();
+
                                 return questUpdates;
                             } else {
                                 logger.debug('Next event is not an end event:', {
                                     eventId: nextEvent._id.toString(),
                                     isEnd: nextEvent.isEnd
                                 });
+                                
+                                // Save the quest progression
+                                await user.save();
+                                
+                                // Return the quest update
+                                return [{
+                                    type: 'quest_progress',
+                                    questTitle: quest.title,
+                                    isComplete: false
+                                }];
                             }
                         }
                     } else {
@@ -701,5 +868,6 @@ module.exports = {
     getActiveQuests: questService.getActiveQuests.bind(questService),
     handleQuestProgression: questService.handleQuestProgression.bind(questService),
     handleMobKill: questService.handleMobKill.bind(questService),
-    getQuestNodeEventOverrides: questService.getQuestNodeEventOverrides.bind(questService)
+    getQuestNodeEventOverrides: questService.getQuestNodeEventOverrides.bind(questService),
+    getQuestNodeActorOverrides: questService.getQuestNodeActorOverrides.bind(questService)
 }; 

@@ -1249,10 +1249,24 @@
                 </div>
             `;
 
+            // Add node actor overrides section
+            const nodeActorOverridesHtml = `
+                <div class="node-override-section">
+                    <div class="node-override-header">
+                        <div class="node-override-title">Node Actor Overrides</div>
+                        <div class="add-node-actor-override" onclick="addNodeActorOverride(this)">+</div>
+                    </div>
+                    <div class="node-actor-override-list">
+                        ${(eventData.nodeActorOverrides || []).map(override => createNodeActorOverrideEntry(override)).join('')}
+                    </div>
+                </div>
+            `;
+
             // Insert rewards and node overrides sections before event-controls
             const eventControls = eventEntry.querySelector('.event-controls');
             eventControls.insertAdjacentHTML('beforebegin', rewardsHtml);
             eventControls.insertAdjacentHTML('beforebegin', nodeOverridesHtml);
+            eventControls.insertAdjacentHTML('beforebegin', nodeActorOverridesHtml);
 
             // Add event handlers
             addEventEntryHandlers(eventEntry);
@@ -1437,7 +1451,8 @@
                     isStart: event.isStart,
                     isEnd: event.isEnd,
                     rewards: event.rewards || [],
-                    nodeEventOverrides: event.nodeEventOverrides || []
+                    nodeEventOverrides: event.nodeEventOverrides || [],
+                    nodeActorOverrides: event.nodeActorOverrides || []
                 };
 
                 switch(eventType) {
@@ -1612,6 +1627,21 @@
                                 return {
                                     nodeAddress,
                                     events
+                                };
+                            })
+                            .filter(Boolean),
+                        nodeActorOverrides: Array.from(event.querySelector('.node-actor-override-list').children)
+                            .filter(override => override.classList.contains('node-override-item'))
+                            .map((override) => {
+                                const nodeAddress = override.querySelector('.node-address-select').value;
+                                const actorId = override.querySelector('.node-actor-select').value;
+                                if (!nodeAddress || !actorId) {
+                                    return null;
+                                }
+                                
+                                return {
+                                    nodeAddress,
+                                    actorId
                                 };
                             })
                             .filter(Boolean)
@@ -1971,6 +2001,43 @@
 
         // Trigger initial event type change
         document.getElementById('eventType').dispatchEvent(new Event('change'));
+
+        function createNodeActorOverrideEntry(override = {}) {
+            return `
+                <div class="node-override-item">
+                    <span class="remove-node-override" onclick="this.closest('.node-override-item').remove()">×</span>
+                    <div class="input-group">
+                        <label>Node:</label>
+                        <select class="node-address-select">
+                            <option value="">Select Node</option>
+                            ${allNodes.map(node => `
+                                <option value="${node.address}" ${node.address === override.nodeAddress ? 'selected' : ''}>
+                                    ${node.name} (${node.address})
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Actor:</label>
+                        <select class="node-actor-select">
+                            <option value="">Select Actor</option>
+                            ${allActors.map(actor => `
+                                <option value="${actor._id}" ${actor._id === override.actorId ? 'selected' : ''}>
+                                    ${actor.name}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+                </div>
+            `;
+        }
+
+        function addNodeActorOverride(button) {
+            const nodeActorOverrideList = button.closest('.node-override-section').querySelector('.node-actor-override-list');
+            const overrideEntry = document.createElement('div');
+            overrideEntry.innerHTML = createNodeActorOverrideEntry();
+            nodeActorOverrideList.appendChild(overrideEntry.firstElementChild);
+        }
     </script>
 </body>
 </html>
