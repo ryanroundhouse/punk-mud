@@ -160,6 +160,23 @@
             margin: 0.5rem 0;
         }
 
+        .event-choices {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 2px solid var(--neon-blue);
+            background: rgba(0, 255, 249, 0.05);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .event-choices:not(:empty) {
+            margin-top: 1rem;
+        }
+
+        .event-choices:empty {
+            display: none;
+        }
+
         .end-event-label {
             display: flex;
             align-items: center;
@@ -167,11 +184,17 @@
             color: var(--neon-pink);
             font-size: 0.9em;
             width: 100%;
+            padding: 0.5rem;
+            margin-top: 0.5rem;
+            background: rgba(255, 46, 136, 0.05);
+            border: 1px solid var(--neon-pink);
+            border-radius: 5px;
         }
 
         .end-event-checkbox {
             margin: 0;
             flex: 0 0 auto;
+            cursor: pointer;
         }
 
         .end-event-text {
@@ -191,27 +214,6 @@
         .input-group label {
             color: var(--neon-blue);
             font-size: 0.9em;
-        }
-
-        .event-content {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            width: 100%;
-        }
-
-        .event-choices {
-            margin-top: 1rem;
-            padding-top: 1rem;
-            border-top: 2px solid var(--neon-blue);
-        }
-
-        .event-choices:not(:empty) {
-            margin-top: 1rem;
-        }
-
-        .event-choices:empty {
-            display: none;
         }
 
         .event-message-input,
@@ -309,15 +311,49 @@
             display: flex;
             gap: 1rem;
             align-items: center;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
         }
 
-        #eventQuantity {
-            width: 100px;
+        #killEventFields .input-group {
+            flex: 1;
+            margin: 0;
+        }
+
+        #killEventFields .event-mob-select {
+            width: 100%;
             background: rgba(0, 255, 249, 0.1);
             border: 1px solid var(--neon-blue);
             padding: 0.8rem;
             border-radius: 5px;
             color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+        }
+
+        #killEventFields .event-quantity-input {
+            width: 150px;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        #killEventFields .event-quantity-input:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        #killEventFields .event-quantity-input::-webkit-inner-spin-button,
+        #killEventFields .event-quantity-input::-webkit-outer-spin-button {
+            opacity: 1;
+            height: 20px;
+            background: var(--neon-pink);
+            cursor: pointer;
         }
 
         .event-type-select {
@@ -391,14 +427,6 @@
         .quest-event[data-is-end="true"] {
             border-color: var(--neon-pink);
             box-shadow: 0 0 10px rgba(255, 46, 136, 0.3);
-        }
-
-        .event-choices {
-            margin-left: 2rem;
-            padding: 1rem;
-            border-left: 2px solid var(--neon-pink);
-            margin-top: 1rem;
-            background: rgba(255, 46, 136, 0.05);
         }
 
         .event-message-input,
@@ -618,7 +646,8 @@
             opacity: 1;
         }
 
-        .number-input {
+        .number-input,
+        #killEventFields .event-quantity-input {
             width: 150px;
             background: rgba(0, 255, 249, 0.1);
             border: 1px solid var(--neon-blue);
@@ -627,11 +656,24 @@
             color: var(--terminal-green);
             font-family: 'Courier New', monospace;
             font-size: 1rem;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .number-input:focus,
+        #killEventFields .event-quantity-input:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-blue);
         }
 
         .number-input::-webkit-inner-spin-button,
-        .number-input::-webkit-outer-spin-button {
+        .number-input::-webkit-outer-spin-button,
+        #killEventFields .event-quantity-input::-webkit-inner-spin-button,
+        #killEventFields .event-quantity-input::-webkit-outer-spin-button {
             opacity: 1;
+            height: 20px;
+            background: var(--neon-pink);
+            cursor: pointer;
         }
 
         .rewards-container {
@@ -1173,17 +1215,17 @@
                     <span class="copy-id-btn" title="Copy ID">📋</span>
                 </div>
                 <span class="remove-event">×</span>
-                <div class="event-choices"></div>
                 <div class="event-controls">
                     <button class="action-button add-choice-btn">Add Choice</button>
-                    <label class="end-event-label">
-                        <input type="checkbox" class="end-event-checkbox" ${eventData.isEnd ? 'checked' : ''}>
-                        <span class="end-event-text">Mark as quest end</span>
-                    </label>
+                    <div class="event-choices"></div>
                 </div>
+                <label class="end-event-label">
+                    <input type="checkbox" class="end-event-checkbox" ${eventData.isEnd ? 'checked' : ''}>
+                    <span class="end-event-text">Mark as quest end</span>
+                </label>
             `;
 
-            // Add rewards section before event-choices div
+            // Add rewards section before event-controls div
             const rewardsHtml = `
                 <div class="rewards-container">
                     <label>Rewards:</label>
@@ -1194,7 +1236,7 @@
                 </div>
             `;
 
-            // Add node event overrides section before event-choices div
+            // Add node event overrides section before event-controls div
             const nodeOverridesHtml = `
                 <div class="node-override-section">
                     <div class="node-override-header">
@@ -1207,12 +1249,10 @@
                 </div>
             `;
 
-            // Insert rewards section before event-choices
-            const eventChoices = eventEntry.querySelector('.event-choices');
-            eventChoices.insertAdjacentHTML('beforebegin', rewardsHtml);
-            
-            // Insert node overrides section before event-choices
-            eventChoices.insertAdjacentHTML('beforebegin', nodeOverridesHtml);
+            // Insert rewards and node overrides sections before event-controls
+            const eventControls = eventEntry.querySelector('.event-controls');
+            eventControls.insertAdjacentHTML('beforebegin', rewardsHtml);
+            eventControls.insertAdjacentHTML('beforebegin', nodeOverridesHtml);
 
             // Add event handlers
             addEventEntryHandlers(eventEntry);
@@ -1253,7 +1293,7 @@
                         </div>
                         <div class="input-group">
                             <label>Quantity:</label>
-                            <input type="number" class="event-quantity-input" min="1" value="${eventData.quantity || 1}">
+                            <input type="number" class="number-input" min="1" value="${eventData.quantity || 1}">
                         </div>
                     `;
                 case 'stage':
