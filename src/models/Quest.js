@@ -10,12 +10,6 @@ const questSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    experiencePoints: {
-        type: Number,
-        required: true,
-        min: 0,
-        default: 0
-    },
     events: [{
         _id: {
             type: mongoose.Schema.Types.ObjectId,
@@ -59,17 +53,16 @@ const questSchema = new mongoose.Schema({
             type: {
                 type: String,
                 required: true,
-                enum: ['gainClass'],
+                enum: ['gainClass', 'experiencePoints'],
                 default: 'gainClass'
             },
             value: {
-                type: mongoose.Schema.Types.ObjectId,
-                required: true,
-                refPath: 'events.rewards.valueRef'
+                type: mongoose.Schema.Types.Mixed,
+                required: true
             },
             valueRef: {
                 type: String,
-                required: true,
+                required: function() { return this.type === 'gainClass'; },
                 enum: ['Class'],
                 default: 'Class'
             }

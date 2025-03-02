@@ -750,16 +750,6 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="experiencePoints">Experience Points:</label>
-                        <input type="number" 
-                               id="experiencePoints" 
-                               min="0" 
-                               value="0" 
-                               required 
-                               class="number-input">
-                    </div>
-
-                    <div class="form-group">
                         <label>Quest Events:</label>
                         <div id="eventsContainer">
                             <div class="event-controls">
@@ -1386,7 +1376,6 @@
             
             document.getElementById('questTitle').value = quest.title;
             document.getElementById('journalDescription').value = quest.journalDescription;
-            document.getElementById('experiencePoints').value = quest.experiencePoints || 0;
             
             // Clear existing events
             eventsList.innerHTML = '';
@@ -1510,7 +1499,6 @@
             deleteQuestBtn.classList.add('hidden');
             document.getElementById('questTitle').value = '';
             document.getElementById('journalDescription').value = '';
-            document.getElementById('experiencePoints').value = '0';
             eventsList.innerHTML = '';
         });
 
@@ -1520,15 +1508,9 @@
                 // Validate form
                 const title = document.getElementById('questTitle').value;
                 const journalDescription = document.getElementById('journalDescription').value;
-                const experiencePoints = parseInt(document.getElementById('experiencePoints').value) || 0;
                 
                 if (!title || !journalDescription) {
                     alert('Please fill in all required fields');
-                    return;
-                }
-
-                if (experiencePoints < 0) {
-                    alert('Experience points cannot be negative');
                     return;
                 }
 
@@ -1545,19 +1527,28 @@
                         isStart: event.dataset.isStart === 'true',
                         isEnd: event.dataset.isEnd === 'true',
                         rewards: Array.from(event.querySelectorAll('.reward-entry'))
-                            .map(reward => ({
-                                type: reward.querySelector('.reward-type-select').value,
-                                value: reward.querySelector('.reward-value-select').value,
-                                valueRef: 'Class'
-                            })),
-                        nodeEventOverrides: Array.from(event.querySelectorAll('.node-override-item'))
+                            .map(reward => {
+                                const type = reward.querySelector('.reward-type-select').value;
+                                const valueElement = reward.querySelector(type === 'experiencePoints' ? '.reward-value-input' : '.reward-value-select');
+                                const value = valueElement.value;
+                                
+                                return {
+                                    type,
+                                    value: type === 'experiencePoints' ? parseInt(value) : value,
+                                    valueRef: type === 'gainClass' ? 'Class' : undefined
+                                };
+                            }),
+                        nodeEventOverrides: Array.from(event.querySelector('.node-override-list').children)
+                            .filter(override => override.classList.contains('node-override-item'))
                             .map((override) => {
                                 const nodeAddress = override.querySelector('.node-address-select').value;
                                 if (!nodeAddress) {
                                     return null;
                                 }
                                 
-                                const events = Array.from(override.querySelectorAll('.node-event-item'))
+                                // Get only the direct child node-event-items to prevent nested duplicates
+                                const events = Array.from(override.querySelector('.node-event-list').children)
+                                    .filter(el => el.classList.contains('node-event-item'))
                                     .map((nodeEvent) => {
                                         const mobId = nodeEvent.querySelector('.node-event-mob-select').value;
                                         const chance = parseInt(nodeEvent.querySelector('.node-event-chance-input').value) || 100;
@@ -1633,7 +1624,6 @@
                     _id: document.getElementById('questForm').dataset.questId || undefined,
                     title,
                     journalDescription,
-                    experiencePoints,
                     events
                 };
 
@@ -1845,27 +1835,63 @@
         }
 
         function createRewardEntry(reward = {}) {
+            const isExpPoints = reward.type === 'experiencePoints';
             return `
                 <div class="reward-entry">
-                    <select class="reward-type-select">
+                    <select class="reward-type-select" onchange="handleRewardTypeChange(this)">
                         <option value="gainClass" ${reward.type === 'gainClass' ? 'selected' : ''}>Class</option>
+                        <option value="experiencePoints" ${isExpPoints ? 'selected' : ''}>Experience Points</option>
                     </select>
-                    <select class="reward-value-select">
-                        <option value="">Select Class</option>
-                        ${allClasses.map(classItem => {
-                            // Handle both string and object ID comparison
-                            const isSelected = reward.value === classItem._id || 
-                                            (reward.value && reward.value._id === classItem._id);
-                            return `
-                                <option value="${classItem._id}" ${isSelected ? 'selected' : ''}>
-                                    ${classItem.name}
-                                </option>
-                            `;
-                        }).join('')}
-                    </select>
+                    ${isExpPoints ? `
+                        <input type="number" 
+                               class="reward-value-input number-input" 
+                               min="0" 
+                               value="${reward.value || 0}" 
+                               placeholder="Enter XP amount"
+                               style="width: 150px;">
+                    ` : `
+                        <select class="reward-value-select">
+                            <option value="">Select Class</option>
+                            ${allClasses.map(classItem => {
+                                const isSelected = reward.value === classItem._id || 
+                                                (reward.value && reward.value._id === classItem._id);
+                                return `
+                                    <option value="${classItem._id}" ${isSelected ? 'selected' : ''}>
+                                        ${classItem.name}
+                                    </option>
+                                `;
+                            }).join('')}
+                        </select>
+                    `}
                     <span class="remove-reward" onclick="this.closest('.reward-entry').remove()">×</span>
                 </div>
             `;
+        }
+
+        function handleRewardTypeChange(select) {
+            const rewardEntry = select.closest('.reward-entry');
+            const isExpPoints = select.value === 'experiencePoints';
+            const valueContainer = rewardEntry.querySelector('.reward-value-select, .reward-value-input');
+            
+            if (valueContainer) {
+                valueContainer.outerHTML = isExpPoints ? `
+                    <input type="number" 
+                           class="reward-value-input number-input" 
+                           min="0" 
+                           value="0" 
+                           placeholder="Enter XP amount"
+                           style="width: 150px;">
+                ` : `
+                    <select class="reward-value-select">
+                        <option value="">Select Class</option>
+                        ${allClasses.map(classItem => `
+                            <option value="${classItem._id}">
+                                ${classItem.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                `;
+            }
         }
 
         function addReward(button) {

@@ -18,20 +18,12 @@ async function getQuests(req, res) {
 }
 
 async function createOrUpdateQuest(req, res) {
-    const { _id, title, journalDescription, events, experiencePoints } = req.body;
+    const { _id, title, journalDescription, events } = req.body;
     
     try {
         // Validate basic fields
         if (!title || !journalDescription || !events || !Array.isArray(events)) {
             return res.status(400).json({ error: 'Missing required fields' });
-        }
-
-        // Validate experience points
-        if (experiencePoints < 0) {
-            return res.status(400).json({ 
-                error: 'Invalid experience points',
-                details: 'Experience points cannot be negative'
-            });
         }
 
         // Validate each event
@@ -139,6 +131,15 @@ async function createOrUpdateQuest(req, res) {
                                 details: 'Specified class does not exist'
                             });
                         }
+                    } else if (reward.type === 'experiencePoints') {
+                        // Validate experience points value
+                        const expPoints = parseInt(reward.value);
+                        if (isNaN(expPoints) || expPoints < 0) {
+                            return res.status(400).json({
+                                error: 'Invalid reward data',
+                                details: 'Experience points must be a non-negative number'
+                            });
+                        }
                     }
                 }
             }
@@ -188,7 +189,6 @@ async function createOrUpdateQuest(req, res) {
 
             quest.title = title;
             quest.journalDescription = journalDescription;
-            quest.experiencePoints = experiencePoints;
             quest.events = updatedEvents;
             await quest.save();
         } else {
@@ -201,7 +201,6 @@ async function createOrUpdateQuest(req, res) {
             quest = new Quest({
                 title,
                 journalDescription,
-                experiencePoints,
                 events: eventsWithIds
             });
             await quest.save();
