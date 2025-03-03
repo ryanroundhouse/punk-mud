@@ -236,11 +236,64 @@ class StateService {
 
     // Event state methods
     setActiveEvent(userId, eventId, currentNode, actorId, isStoryEvent = false) {
+        // Create a deep clone of the current node to avoid reference issues
+        const clonedNode = JSON.parse(JSON.stringify(currentNode));
+        
+        // Ensure the node has an ID
+        if (!clonedNode._id) {
+            clonedNode._id = `generated_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`;
+        }
+        
+        // Get the existing event state to track history
+        const existingEvent = this.activeEvents.get(userId);
+        let nodeHistory = [];
+        
+        // If we already have an event for this user, track the history
+        if (existingEvent && existingEvent.eventId === eventId) {
+            // Preserve existing history or initialize it
+            nodeHistory = existingEvent.nodeHistory || [];
+            
+            // Add the current node to history if it's not already the last item
+            const lastHistoryNode = nodeHistory.length > 0 ? nodeHistory[nodeHistory.length - 1] : null;
+            if (!lastHistoryNode || lastHistoryNode.nodeId !== existingEvent.currentNode._id?.toString()) {
+                nodeHistory.push({
+                    nodeId: existingEvent.currentNode._id?.toString(),
+                    prompt: existingEvent.currentNode.prompt?.substring(0, 50) + '...',
+                    timestamp: Date.now()
+                });
+            }
+        }
+        
+        // Check if the node has choices with questCompletionEvents
+        if (clonedNode && clonedNode.choices && clonedNode.choices.length > 0) {
+            // Find a reference questCompletionEvents array if any exist
+            let referenceEvents = null;
+            let found = false;
+            
+            for (const choice of clonedNode.choices) {
+                if (choice.nextNode && choice.nextNode.questCompletionEvents && choice.nextNode.questCompletionEvents.length > 0) {
+                    referenceEvents = choice.nextNode.questCompletionEvents;
+                    found = true;
+                    break;
+                }
+            }
+            
+            // If we found a reference, apply it to all choices that don't have questCompletionEvents
+            if (found && referenceEvents) {
+                for (const choice of clonedNode.choices) {
+                    if (choice.nextNode && (!choice.nextNode.questCompletionEvents || choice.nextNode.questCompletionEvents.length === 0)) {
+                        choice.nextNode.questCompletionEvents = JSON.parse(JSON.stringify(referenceEvents));
+                    }
+                }
+            }
+        }
+        
         this.activeEvents.set(userId, {
             eventId,
-            currentNode,
+            currentNode: clonedNode,
             actorId,
-            isStoryEvent
+            isStoryEvent,
+            nodeHistory: nodeHistory
         });
     }
 
