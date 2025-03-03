@@ -75,10 +75,16 @@ const questSchema = new mongoose.Schema({
                 ref: 'Node'
             },
             events: [{
+                // Either mobId or eventId must be present, but not both
                 mobId: {
                     type: mongoose.Schema.Types.ObjectId,
-                    required: true,
+                    required: function() { return !this.eventId; },
                     ref: 'Mob'
+                },
+                eventId: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    required: function() { return !this.mobId; },
+                    ref: 'Event'
                 },
                 chance: {
                     type: Number,

@@ -86,20 +86,40 @@ async function createOrUpdateQuest(req, res) {
                     }
 
                     for (const nodeEvent of override.events) {
-                        if (!nodeEvent.mobId) {
+                        if (!nodeEvent.mobId && !nodeEvent.eventId) {
                             return res.status(400).json({
                                 error: 'Invalid node event override',
-                                details: 'Each node event must have a mobId'
+                                details: 'Each node event must have either a mobId or eventId'
                             });
                         }
 
-                        // Verify the mob exists
-                        const mobExists = await mongoose.model('Mob').exists({ _id: nodeEvent.mobId });
-                        if (!mobExists) {
+                        if (nodeEvent.mobId && nodeEvent.eventId) {
                             return res.status(400).json({
                                 error: 'Invalid node event override',
-                                details: `Mob with ID "${nodeEvent.mobId}" does not exist`
+                                details: 'Node event cannot have both mobId and eventId'
                             });
+                        }
+
+                        // Verify the mob exists if mobId is present
+                        if (nodeEvent.mobId) {
+                            const mobExists = await mongoose.model('Mob').exists({ _id: nodeEvent.mobId });
+                            if (!mobExists) {
+                                return res.status(400).json({
+                                    error: 'Invalid node event override',
+                                    details: `Mob with ID "${nodeEvent.mobId}" does not exist`
+                                });
+                            }
+                        }
+
+                        // Verify the event exists if eventId is present
+                        if (nodeEvent.eventId) {
+                            const eventExists = await mongoose.model('Event').exists({ _id: nodeEvent.eventId });
+                            if (!eventExists) {
+                                return res.status(400).json({
+                                    error: 'Invalid node event override',
+                                    details: `Event with ID "${nodeEvent.eventId}" does not exist`
+                                });
+                            }
                         }
 
                         if (nodeEvent.chance < 0 || nodeEvent.chance > 100) {

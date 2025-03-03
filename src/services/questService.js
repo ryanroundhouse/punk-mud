@@ -197,14 +197,22 @@ class QuestService {
                     });
 
                     if (nodeOverride.events && nodeOverride.events.length > 0) {
-                        // Convert the events to the format expected by mobService
+                        // Convert the events to the format expected by nodeService
                         const formattedEvents = nodeOverride.events.map(event => {
-                            const mobId = event.mobId && (event.mobId._id || event.mobId);
-                            return {
-                                mobId: mobId,
-                                chance: event.chance
-                            };
-                        });
+                            if (event.mobId) {
+                                const mobId = event.mobId._id || event.mobId;
+                                return {
+                                    mobId: mobId,
+                                    chance: event.chance
+                                };
+                            } else if (event.eventId) {
+                                return {
+                                    eventId: event.eventId._id || event.eventId,
+                                    chance: event.chance
+                                };
+                            }
+                            return null;
+                        }).filter(Boolean);
 
                         logger.debug('Formatted node override events', {
                             userId,
@@ -438,91 +446,94 @@ class QuestService {
                         }))
                     });
 
-                    // Check if current event has a choice leading to our completion event
-                    const nextEventChoice = currentEvent.choices?.find(choice => 
+                    // Find ALL choices leading to completion events
+                    const nextEventChoices = currentEvent.choices?.filter(choice => 
                         completionEventIds.includes(choice.nextEventId.toString())
                     );
 
-                    if (nextEventChoice) {
-                        logger.debug('Found matching next event choice:', {
+                    if (nextEventChoices && nextEventChoices.length > 0) {
+                        logger.debug('Found matching next event choices:', {
                             currentEventId: currentEvent._id.toString(),
-                            nextEventId: nextEventChoice.nextEventId.toString(),
+                            nextEventIds: nextEventChoices.map(c => c.nextEventId.toString()),
                             questId: quest._id.toString(),
                             questTitle: quest.title
                         });
 
-                        // Progress to the next event
-                        userQuest.completedEventIds.push(currentEvent._id.toString());
-                        userQuest.currentEventId = nextEventChoice.nextEventId.toString();
+                        // Process each matching choice
+                        for (const nextEventChoice of nextEventChoices) {
+                            // Progress to the next event
+                            userQuest.completedEventIds.push(currentEvent._id.toString());
+                            userQuest.currentEventId = nextEventChoice.nextEventId.toString();
 
-                        // If this is an end event, complete the quest
-                        const nextEvent = quest.events.find(e => 
-                            e._id.toString() === nextEventChoice.nextEventId.toString()
-                        );
+                            // If this is an end event, complete the quest
+                            const nextEvent = quest.events.find(e => 
+                                e._id.toString() === nextEventChoice.nextEventId.toString()
+                            );
 
-                        if (nextEvent) {
-                            logger.debug('Found next event:', {
-                                eventId: nextEvent._id.toString(),
-                                isEnd: nextEvent.isEnd,
-                                hasRewards: !!nextEvent.rewards?.length,
-                                rewardCount: nextEvent.rewards?.length || 0
-                            });
-
-                            // Add reward handling here
-                            await this.handleEventRewards(user, nextEvent);
-
-                            if (nextEvent.isEnd) {
-                                logger.debug('Found end event:', {
+                            if (nextEvent) {
+                                logger.debug('Found next event:', {
                                     eventId: nextEvent._id.toString(),
-                                    questId: quest._id.toString(),
-                                    questTitle: quest.title
+                                    isEnd: nextEvent.isEnd,
+                                    hasRewards: !!nextEvent.rewards?.length,
+                                    rewardCount: nextEvent.rewards?.length || 0
                                 });
 
-                                userQuest.completed = true;
-                                userQuest.completedAt = new Date();
-                                
-                                // Always send completion message first
-                                messageService.sendSuccessMessage(
-                                    user._id.toString(),
-                                    `Quest "${quest.title}" completed!`
-                                );
+                                // Add reward handling here
+                                await this.handleEventRewards(user, nextEvent);
 
-                                questUpdates.push({
-                                    type: 'quest_complete',
-                                    questTitle: quest.title
-                                });
+                                if (nextEvent.isEnd) {
+                                    logger.debug('Found end event:', {
+                                        eventId: nextEvent._id.toString(),
+                                        questId: quest._id.toString(),
+                                        questTitle: quest.title
+                                    });
 
-                                // Add debug logging for quest completion
-                                logger.debug('Quest completed and saved:', {
-                                    questId: quest._id.toString(),
-                                    questTitle: quest.title,
-                                    userId: user._id.toString(),
-                                    userQuestStatus: userQuest
-                                });
+                                    userQuest.completed = true;
+                                    userQuest.completedAt = new Date();
+                                    
+                                    // Always send completion message first
+                                    messageService.sendSuccessMessage(
+                                        user._id.toString(),
+                                        `Quest "${quest.title}" completed!`
+                                    );
 
-                                // Save the user's state before returning
-                                await user.save();
+                                    questUpdates.push({
+                                        type: 'quest_complete',
+                                        questTitle: quest.title
+                                    });
 
-                                return questUpdates;
-                            } else {
-                                logger.debug('Next event is not an end event:', {
-                                    eventId: nextEvent._id.toString(),
-                                    isEnd: nextEvent.isEnd
-                                });
-                                
-                                // Save the quest progression
-                                await user.save();
-                                
-                                // Return the quest update
-                                return [{
-                                    type: 'quest_progress',
-                                    questTitle: quest.title,
-                                    isComplete: false
-                                }];
+                                    // Add debug logging for quest completion
+                                    logger.debug('Quest completed and saved:', {
+                                        questId: quest._id.toString(),
+                                        questTitle: quest.title,
+                                        userId: user._id.toString(),
+                                        userQuestStatus: userQuest
+                                    });
+
+                                    // Save the user's state before returning
+                                    await user.save();
+
+                                    return questUpdates;
+                                } else {
+                                    logger.debug('Next event is not an end event:', {
+                                        eventId: nextEvent._id.toString(),
+                                        isEnd: nextEvent.isEnd
+                                    });
+                                    
+                                    // Save the quest progression
+                                    await user.save();
+                                    
+                                    // Add the quest update
+                                    questUpdates.push({
+                                        type: 'quest_progress',
+                                        questTitle: quest.title,
+                                        isComplete: false
+                                    });
+                                }
                             }
                         }
                     } else {
-                        logger.debug('No matching next event choice found in current event choices');
+                        logger.debug('No matching next event choices found in current event choices');
                     }
                 }
             } else {

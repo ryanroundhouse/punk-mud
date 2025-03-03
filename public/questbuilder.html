@@ -950,6 +950,7 @@
                 await loadActors();
                 await loadMobs();
                 await loadClasses();
+                await loadEvents();
                 await loadQuests();
                 await loadNodes();
                 
@@ -1055,6 +1056,26 @@
             } catch (error) {
                 console.error('Error loading classes:', error);
                 alert('Failed to load classes. Please try refreshing the page.');
+            }
+        }
+
+        // Load events
+        async function loadEvents() {
+            try {
+                const response = await fetch('/api/events', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load events - Status: ${response.status}`);
+                }
+                
+                allEvents = await response.json();
+            } catch (error) {
+                console.error('Error loading events:', error);
+                alert('Failed to load events. Please try refreshing the page.');
             }
         }
 
@@ -1606,21 +1627,21 @@
                                     return null;
                                 }
                                 
-                                // Get only the direct child node-event-items to prevent nested duplicates
                                 const events = Array.from(override.querySelector('.node-event-list').children)
                                     .filter(el => el.classList.contains('node-event-item'))
                                     .map((nodeEvent) => {
-                                        const mobId = nodeEvent.querySelector('.node-event-mob-select').value;
+                                        const type = nodeEvent.querySelector('.node-event-type-select').value;
                                         const chance = parseInt(nodeEvent.querySelector('.node-event-chance-input').value) || 100;
                                         
-                                        if (!mobId) {
-                                            return null;
+                                        if (type === 'mob') {
+                                            const mobId = nodeEvent.querySelector('.node-event-mob-select').value;
+                                            if (!mobId) return null;
+                                            return { mobId, chance };
+                                        } else {
+                                            const eventId = nodeEvent.querySelector('.node-event-event-select').value;
+                                            if (!eventId) return null;
+                                            return { eventId, chance };
                                         }
-                                        
-                                        return {
-                                            mobId,
-                                            chance
-                                        };
                                     })
                                     .filter(Boolean);
                                 
@@ -1874,14 +1895,29 @@
         function createNodeEventEntry(nodeEvent = {}) {
             return `
                 <div class="node-event-item">
-                    <select class="node-event-mob-select">
-                        <option value="">Select Mob</option>
-                        ${allMobs.map(mob => `
-                            <option value="${mob._id}" ${mob._id === nodeEvent.mobId ? 'selected' : ''}>
-                                ${mob.name}
-                            </option>
-                        `).join('')}
+                    <select class="node-event-type-select" onchange="handleNodeEventTypeChange(this)">
+                        <option value="mob" ${!nodeEvent.eventId ? 'selected' : ''}>Mob</option>
+                        <option value="event" ${nodeEvent.eventId ? 'selected' : ''}>Event</option>
                     </select>
+                    ${!nodeEvent.eventId ? `
+                        <select class="node-event-mob-select">
+                            <option value="">Select Mob</option>
+                            ${allMobs.map(mob => `
+                                <option value="${mob._id}" ${mob._id === nodeEvent.mobId ? 'selected' : ''}>
+                                    ${mob.name}
+                                </option>
+                            `).join('')}
+                        </select>
+                    ` : `
+                        <select class="node-event-event-select">
+                            <option value="">Select Event</option>
+                            ${allEvents.map(event => `
+                                <option value="${event._id}" ${event._id === nodeEvent.eventId ? 'selected' : ''}>
+                                    ${event.title || event.name || event._id}
+                                </option>
+                            `).join('')}
+                        </select>
+                    `}
                     <div class="input-group">
                         <label>Chance (%):</label>
                         <input type="number" 
@@ -1893,6 +1929,34 @@
                     <span class="remove-node-event" onclick="this.closest('.node-event-item').remove()">×</span>
                 </div>
             `;
+        }
+
+        function handleNodeEventTypeChange(select) {
+            const nodeEventItem = select.closest('.node-event-item');
+            const isMob = select.value === 'mob';
+            const selectContainer = nodeEventItem.querySelector('.node-event-mob-select, .node-event-event-select');
+            
+            if (selectContainer) {
+                selectContainer.outerHTML = isMob ? `
+                    <select class="node-event-mob-select">
+                        <option value="">Select Mob</option>
+                        ${allMobs.map(mob => `
+                            <option value="${mob._id}">
+                                ${mob.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                ` : `
+                    <select class="node-event-event-select">
+                        <option value="">Select Event</option>
+                        ${allEvents.map(event => `
+                            <option value="${event._id}">
+                                ${event.title || event.name || event._id}
+                            </option>
+                        `).join('')}
+                    </select>
+                `;
+            }
         }
 
         function addNodeOverride(button) {
