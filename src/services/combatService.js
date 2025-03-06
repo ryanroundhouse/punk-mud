@@ -332,9 +332,14 @@ function selectMobMove(mobInstance) {
     };
 }
 
+// Helper function to send HP status update
+function sendHPStatus(userId, currentHP, maxHP) {
+    messageService.sendPlayerStatusMessage(userId, `HP: ${currentHP}/${maxHP}`);
+}
+
 // New function to execute combat moves
 async function executeCombatMoves(readyMoves, user, mobInstance) {
-    let deathHandled = false;  // Add this at the start of the function
+    let deathHandled = false;
 
     // Add initial health logging
     logger.debug('Combat starting health levels:', {
@@ -452,6 +457,9 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
             }
             if (mobResult.damage > 0) {
                 user.stats.currentHitpoints -= mobResult.damage;
+                // Send HP status update after taking damage
+                sendHPStatus(user._id.toString(), user.stats.currentHitpoints, user.stats.hitpoints);
+                
                 // Check for player death immediately after taking damage
                 if (user.stats.currentHitpoints <= 0) {
                     logger.debug('Player died from mob attack', {
@@ -615,6 +623,9 @@ async function handleFleeCommand(user) {
         // Apply mob's damage
         if (mobResult.damage > 0) {
             user.stats.currentHitpoints -= mobResult.damage;
+            // Send HP status update after taking damage during flee
+            sendHPStatus(user._id.toString(), user.stats.currentHitpoints, user.stats.hitpoints);
+            
             await User.findByIdAndUpdate(user._id, {
                 'stats.currentHitpoints': user.stats.currentHitpoints
             });

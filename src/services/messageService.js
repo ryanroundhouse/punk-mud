@@ -59,6 +59,10 @@ class MessageService {
     sendChatMessage(userId, message) {
         return this.sendConsoleResponse(userId, message, 'chat');
     }
+
+    sendPlayerStatusMessage(userId, message) {
+        return this.sendConsoleResponse(userId, message, 'playerStatus');
+    }
 }
 
 const messageService = new MessageService();

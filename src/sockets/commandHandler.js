@@ -192,9 +192,39 @@ async function handleCommand(socket, data) {
 }
 
 async function handleListCommand(socket, user, target) {
+    logger.debug('Starting handleListCommand', {
+        userId: user._id.toString(),
+        currentNode: user.currentNode,
+        hasTarget: !!target
+    });
+
+    // Wait a short time for any pending mob spawns to complete
+    logger.debug('Checking for mob before delay', {
+        userId: user._id.toString(),
+        hasMob: stateService.playerMobs.has(user._id.toString()),
+        mobDetails: stateService.playerMobs.get(user._id.toString())
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    logger.debug('Checking for mob after delay', {
+        userId: user._id.toString(),
+        hasMob: stateService.playerMobs.has(user._id.toString()),
+        mobDetails: stateService.playerMobs.get(user._id.toString())
+    });
+
     const nodeUsers = stateService.nodeUsernames.get(user.currentNode) || [];
     const actors = await actorService.getActorsInLocation(user.currentNode, user._id.toString());
     const mobInstance = stateService.playerMobs.get(user._id.toString());
+
+    logger.debug('Room contents gathered', {
+        userId: user._id.toString(),
+        userCount: nodeUsers.length,
+        actorCount: actors.length,
+        hasMob: !!mobInstance,
+        mobName: mobInstance?.name,
+        mobInstanceId: mobInstance?.instanceId
+    });
 
     if (target) {
         // Check players first
@@ -267,13 +297,22 @@ async function handleListCommand(socket, user, target) {
         if (!response) {
             response = 'There is no one else here.';
         }
+
+        logger.debug('Sending list response', {
+            userId: user._id.toString(),
+            responseLength: response.length,
+            hasUsers: nodeUsers.length > 0,
+            hasActors: actors.length > 0,
+            hasMob: !!mobInstance,
+            response: response
+        });
         
         socket.emit('console response', {
             type: 'list',
             message: response,
             users: nodeUsers,
             actors: actors.map(actor => actor.name),
-            mobs: mobInstance ? [mobInstance.name] : []
+            enemies: mobInstance ? [{name: mobInstance.name, level: mobInstance.level}] : [],
         });
     }
 }
@@ -435,9 +474,17 @@ async function handleRestCommand(socket, user) {
         }
 
         const result = await userService.healUser(user._id);
+        
+        // Send both the success message and the playerStatus update
         socket.emit('console response', {
             type: 'success',
             message: `You rest and recover your health. (HP restored to ${result.healed})`
+        });
+        
+        // Send the playerStatus message to update the health bar
+        socket.emit('console response', {
+            type: 'playerStatus',
+            message: `HP: ${result.healed}/${result.healed}`
         });
     } catch (error) {
         socket.emit('console response', {

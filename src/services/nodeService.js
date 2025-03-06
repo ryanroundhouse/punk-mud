@@ -70,6 +70,12 @@ async function moveUser(userId, direction) {
 }
 
 async function handlePlayerNodeConnection(userId, nodeAddress) {
+    logger.debug('Starting handlePlayerNodeConnection', {
+        userId,
+        nodeAddress,
+        timestamp: new Date().toISOString()
+    });
+
     const user = await User.findById(userId);
     if (!user) {
         throw new Error('User not found');
@@ -87,11 +93,18 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
         inCombat: stateService.isUserInCombat(userId),
         nodeEvents: node.events?.length || 0,
         hasActors: !!node.actors,
-        actorCount: node.actors?.length || 0
+        actorCount: node.actors?.length || 0,
+        timestamp: new Date().toISOString()
     });
 
     // Only process events if not in combat
     if (!stateService.isUserInCombat(userId)) {
+        logger.debug('Clearing previous mob before spawn check', {
+            userId,
+            hadPreviousMob: stateService.playerMobs.has(userId),
+            timestamp: new Date().toISOString()
+        });
+        
         mobService.clearUserMob(userId);
         
         // Check for quest-specific node event overrides
@@ -102,7 +115,8 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
             nodeAddress,
             hasQuestOverrides: !!questNodeEvents,
             questEventCount: questNodeEvents?.length || 0,
-            originalNodeEventCount: node.events?.length || 0
+            originalNodeEventCount: node.events?.length || 0,
+            timestamp: new Date().toISOString()
         });
         
         let result = { mobSpawn: null, storyEvent: null };
@@ -115,10 +129,30 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
         // Calculate total spawn chance
         const totalChance = eventsToUse.reduce((sum, event) => sum + event.chance, 0);
         
+        logger.debug('Event spawn calculation:', {
+            userId,
+            nodeAddress,
+            totalChance,
+            eventCount: eventsToUse.length,
+            events: eventsToUse.map(e => ({
+                mobId: e.mobId,
+                eventId: e.eventId,
+                chance: e.chance
+            })),
+            timestamp: new Date().toISOString()
+        });
+        
         if (totalChance === 100) {
             // When total chance is 100%, ensure one event triggers
             const roll = Math.random() * 100;
             let chanceSum = 0;
+            
+            logger.debug('Processing 100% total chance events:', {
+                userId,
+                roll,
+                totalChance,
+                timestamp: new Date().toISOString()
+            });
             
             // Find which event should trigger based on the roll
             for (const event of eventsToUse) {
@@ -126,9 +160,29 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
                 if (roll < chanceSum) {
                     if (event.mobId) {
                         // Handle mob spawn
+                        logger.debug('Attempting to spawn mob:', {
+                            userId,
+                            mobEventId: event.mobId,
+                            roll,
+                            chanceSum,
+                            timestamp: new Date().toISOString()
+                        });
+                        
                         const mobInstance = await mobService.loadMobFromEvent(event);
+                        logger.debug('Mob load result:', {
+                            userId,
+                            mobEventId: event.mobId,
+                            mobLoaded: !!mobInstance,
+                            mobName: mobInstance?.name,
+                            timestamp: new Date().toISOString()
+                        });
                         if (mobInstance) {
-                            logger.debug(`Spawning mob instance ${mobInstance.instanceId} (${mobInstance.name}) for user ${userId}`);
+                            logger.debug('Setting mob in state service', {
+                                userId,
+                                mobInstanceId: mobInstance.instanceId,
+                                mobName: mobInstance.name,
+                                timestamp: new Date().toISOString()
+                            });
                             stateService.playerMobs.set(userId, mobInstance);
                             result.mobSpawn = mobInstance;
                             await publishSystemMessage(

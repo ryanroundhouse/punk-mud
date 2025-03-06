@@ -7,6 +7,8 @@ const { handleCommand } = require('./commandHandler');
 const { handleChat } = require('./chatHandler');
 const User = require('../models/User');
 const { handlePlayerNodeConnection } = require('../services/nodeService');
+const messageService = require('../services/messageService');
+const userService = require('../services/userService');
 
 function socketHandler(io) {
     // Add socket.io authentication
@@ -41,6 +43,11 @@ function socketHandler(io) {
                 
                 // Check for mob spawn on connection
                 await handlePlayerNodeConnection(socket.user.userId, user.currentNode);
+
+                // Send character HP status after connection
+                const userDetails = await userService.getUser(socket.user.userId);
+                const hpStatus = `HP: ${userDetails.stats.currentHitpoints}/${userDetails.stats.hitpoints}`;
+                messageService.sendPlayerStatusMessage(socket.user.userId, hpStatus);
             }
         } catch (err) {
             logger.error('Error fetching user location:', err);
