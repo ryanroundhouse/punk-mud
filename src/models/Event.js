@@ -39,6 +39,11 @@ const eventNodeSchema = new mongoose.Schema({
         },
         nextNode: {
             type: mongoose.Schema.Types.Mixed  // This allows for recursive structure
+        },
+        // Optional mob to spawn and initiate combat with when this choice is selected
+        mobId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Mob'
         }
     }]
 }, { _id: false });

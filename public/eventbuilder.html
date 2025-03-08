@@ -400,6 +400,7 @@
         let allEvents = [];
         let allActors = [];
         let allQuests = [];
+        let allMobs = [];
 
         // Check authentication and load data
         window.onload = async () => {
@@ -438,6 +439,7 @@
                 await Promise.all([
                     loadActors(),
                     loadQuests(),
+                    loadMobs(),
                     loadEvents()
                 ]);
                 
@@ -536,6 +538,27 @@
             });
         }
 
+        // Load mobs
+        async function loadMobs() {
+            try {
+                const response = await fetch('/api/mobs', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load mobs');
+                }
+
+                allMobs = await response.json();
+                console.log('Loaded mobs:', allMobs); // For debugging
+            } catch (error) {
+                console.error('Error loading mobs:', error);
+                // Don't show alert, just log the error
+            }
+        }
+
         // Load events
         async function loadEvents() {
             try {
@@ -629,7 +652,19 @@
                 nodeData.choices.forEach(choice => {
                     const choiceContainer = addChoice(nodeContainer.querySelector('.node-choices'));
                     choiceContainer.querySelector('.choice-text').value = choice.text;
-                    if (choice.nextNode) {
+                    
+                    // Handle mob selection if present
+                    if (choice.mobId) {
+                        const mobSelect = choiceContainer.querySelector('.mob-select');
+                        const mobId = typeof choice.mobId === 'object' ? choice.mobId._id : choice.mobId;
+                        mobSelect.value = mobId;
+                        
+                        // Trigger the change event to disable the add response button
+                        const event = new Event('change');
+                        mobSelect.dispatchEvent(event);
+                    }
+                    // Otherwise handle next node if it exists
+                    else if (choice.nextNode) {
                         const nextNode = createEventNode(choice.nextNode);
                         choiceContainer.querySelector('.next-node-container').appendChild(nextNode);
                     }
@@ -652,6 +687,18 @@
                     <label>Choice Text:</label>
                     <textarea class="choice-text" required></textarea>
                 </div>
+                <div class="form-group">
+                    <label>Combat Mob (optional):</label>
+                    <select class="mob-select">
+                        <option value="">No Combat</option>
+                        ${allMobs.map(mob => `
+                            <option value="${mob._id}">${mob.name}</option>
+                        `).join('')}
+                    </select>
+                    <p class="help-text" style="color: var(--neon-blue); font-size: 0.8rem; margin-top: 0.3rem;">
+                        If a mob is selected, this choice will be a leaf node that spawns the mob and initiates combat.
+                    </p>
+                </div>
                 <div class="next-node-container"></div>
                 <button class="action-button add-response-btn">Add Response</button>
             `;
@@ -667,10 +714,36 @@
             // Add response button handler
             choiceContainer.querySelector('.add-response-btn').addEventListener('click', (e) => {
                 e.preventDefault();
+                const mobSelect = choiceContainer.querySelector('.mob-select');
                 const nextNodeContainer = choiceContainer.querySelector('.next-node-container');
+                
+                // If a mob is selected, don't allow adding a response node
+                if (mobSelect.value) {
+                    alert('Cannot add a response to a combat choice. This choice will spawn a mob and initiate combat.');
+                    return;
+                }
+                
                 if (!nextNodeContainer.querySelector('.event-node')) {
                     const nextNode = createEventNode();
                     nextNodeContainer.appendChild(nextNode);
+                }
+            });
+            
+            // Add mob select change handler to disable/enable response button
+            const mobSelect = choiceContainer.querySelector('.mob-select');
+            mobSelect.addEventListener('change', () => {
+                const addResponseBtn = choiceContainer.querySelector('.add-response-btn');
+                const nextNodeContainer = choiceContainer.querySelector('.next-node-container');
+                
+                if (mobSelect.value) {
+                    // If a mob is selected, disable the add response button and remove any existing response
+                    addResponseBtn.disabled = true;
+                    addResponseBtn.style.opacity = '0.5';
+                    nextNodeContainer.innerHTML = '';
+                } else {
+                    // If no mob is selected, enable the add response button
+                    addResponseBtn.disabled = false;
+                    addResponseBtn.style.opacity = '1';
                 }
             });
 
@@ -776,10 +849,18 @@
                             text: choiceElement.querySelector('.choice-text').value
                         };
 
-                        // Get next node if it exists
-                        const nextNodeElement = choiceElement.querySelector('.next-node-container .event-node');
-                        if (nextNodeElement) {
-                            choiceData.nextNode = getNodeData(nextNodeElement);
+                        // Get mobId if selected
+                        const mobSelect = choiceElement.querySelector('.mob-select');
+                        if (mobSelect && mobSelect.value) {
+                            choiceData.mobId = mobSelect.value;
+                        }
+                        // Only get next node if no mob is selected
+                        else {
+                            // Get next node if it exists
+                            const nextNodeElement = choiceElement.querySelector('.next-node-container .event-node');
+                            if (nextNodeElement) {
+                                choiceData.nextNode = getNodeData(nextNodeElement);
+                            }
                         }
 
                         nodeData.choices.push(choiceData);

@@ -68,35 +68,62 @@ async function createOrUpdateNode(req, res) {
         }
 
         if (id) {
-            const existingNode = await Node.findById(id);
-            if (!existingNode) {
-                return res.status(404).json({ error: 'Node not found' });
+            // Check if another node with the same address exists (excluding the current node)
+            const duplicateNode = await Node.findOne({ 
+                address: address, 
+                _id: { $ne: id } 
+            });
+            
+            if (duplicateNode) {
+                return res.status(400).json({ 
+                    error: 'Duplicate address', 
+                    details: `Another node with address "${address}" already exists` 
+                });
             }
 
-            existingNode.name = name;
-            existingNode.address = address;
-            existingNode.description = description;
-            existingNode.image = image;
-            existingNode.exits = exits;
-            existingNode.events = events;
-            existingNode.isRestPoint = isRestPoint;
+            // Use findByIdAndUpdate to avoid race conditions
+            const updatedNode = await Node.findByIdAndUpdate(
+                id,
+                {
+                    name,
+                    address,
+                    description,
+                    image,
+                    exits,
+                    events,
+                    isRestPoint
+                },
+                { new: true, runValidators: true }
+            );
             
-            await existingNode.save();
-            return res.json(existingNode);
-        }
+            if (!updatedNode) {
+                return res.status(404).json({ error: 'Node not found' });
+            }
+            
+            return res.json(updatedNode);
+        } else {
+            // Check if a node with this address already exists
+            const existingNode = await Node.findOne({ address });
+            if (existingNode) {
+                return res.status(400).json({ 
+                    error: 'Duplicate address', 
+                    details: `A node with address "${address}" already exists` 
+                });
+            }
 
-        const node = new Node({
-            name,
-            address,
-            description,
-            image,
-            exits,
-            events,
-            isRestPoint
-        });
-        
-        await node.save();
-        res.status(201).json(node);
+            const node = new Node({
+                name,
+                address,
+                description,
+                image,
+                exits,
+                events,
+                isRestPoint
+            });
+            
+            await node.save();
+            res.status(201).json(node);
+        }
     } catch (error) {
         logger.error('Error saving node:', error);
         res.status(500).json({ error: error.message });

@@ -9,6 +9,33 @@ async function getEvents(req, res) {
             .populate('actorId')
             .populate('rootNode.requiredQuestId')
             .populate('rootNode.activateQuestId');
+        
+        // We need to manually populate mob references in choices at any level
+        // This is a recursive function to populate mobId in all choices
+        const populateMobIds = async (node) => {
+            if (!node || !node.choices) return;
+            
+            for (const choice of node.choices) {
+                if (choice.mobId) {
+                    try {
+                        const Mob = mongoose.model('Mob');
+                        choice.mobId = await Mob.findById(choice.mobId);
+                    } catch (err) {
+                        logger.error('Error populating mob reference:', err);
+                    }
+                }
+                
+                if (choice.nextNode) {
+                    await populateMobIds(choice.nextNode);
+                }
+            }
+        };
+        
+        // Populate mob references for all events
+        for (const event of events) {
+            await populateMobIds(event.rootNode);
+        }
+        
         res.json(events);
     } catch (error) {
         logger.error('Error fetching events:', error);
@@ -50,8 +77,19 @@ async function validateNode(node) {
             if (!choice.text) {
                 throw new Error('Each choice must have text');
             }
+            
+            // A choice can have either a nextNode or a mobId, but not both
+            if (choice.nextNode && choice.mobId) {
+                throw new Error('A choice cannot have both a nextNode and a mobId');
+            }
+            
             if (choice.nextNode) {
                 validateNode(choice.nextNode);
+            }
+            
+            // Validate mobId if present (just check if it's a valid ObjectId)
+            if (choice.mobId && !mongoose.Types.ObjectId.isValid(choice.mobId)) {
+                throw new Error('Invalid mobId format');
             }
         });
     }
@@ -105,6 +143,28 @@ async function createOrUpdateEvent(req, res) {
         await event.populate('rootNode.requiredQuestId');
         await event.populate('rootNode.activateQuestId');
         
+        // Populate mob references
+        const populateMobIds = async (node) => {
+            if (!node || !node.choices) return;
+            
+            for (const choice of node.choices) {
+                if (choice.mobId) {
+                    try {
+                        const Mob = mongoose.model('Mob');
+                        choice.mobId = await Mob.findById(choice.mobId);
+                    } catch (err) {
+                        logger.error('Error populating mob reference:', err);
+                    }
+                }
+                
+                if (choice.nextNode) {
+                    await populateMobIds(choice.nextNode);
+                }
+            }
+        };
+        
+        await populateMobIds(event.rootNode);
+        
         res.status(_id ? 200 : 201).json(event);
     } catch (error) {
         logger.error('Error saving event:', error);
@@ -122,6 +182,28 @@ async function getEventById(req, res) {
         if (!event) {
             return res.status(404).json({ error: 'Event not found' });
         }
+        
+        // Reuse the populateMobIds function to populate mob references
+        const populateMobIds = async (node) => {
+            if (!node || !node.choices) return;
+            
+            for (const choice of node.choices) {
+                if (choice.mobId) {
+                    try {
+                        const Mob = mongoose.model('Mob');
+                        choice.mobId = await Mob.findById(choice.mobId);
+                    } catch (err) {
+                        logger.error('Error populating mob reference:', err);
+                    }
+                }
+                
+                if (choice.nextNode) {
+                    await populateMobIds(choice.nextNode);
+                }
+            }
+        };
+        
+        await populateMobIds(event.rootNode);
         
         res.json(event);
     } catch (error) {

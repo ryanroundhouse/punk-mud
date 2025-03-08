@@ -299,6 +299,8 @@
                 }
                 
                 nodes = await response.json();
+                console.log('Loaded nodes:', nodes);
+                console.log('Number of nodes loaded:', nodes.length);
                 
                 // Calculate node positions
                 calculateNodePositions();
@@ -320,6 +322,7 @@
                 }
                 
                 currentNode = await response.json();
+                console.log('Current node:', currentNode);
                 
                 // Force a redraw after getting current location
                 drawMap();
@@ -334,11 +337,105 @@
             
             // Start with any node
             const startNode = nodes[0];
+            console.log('Starting node for position calculation:', startNode);
+            
+            if (!startNode) {
+                console.error('No nodes available to calculate positions');
+                return;
+            }
+            
+            if (!startNode.exits || startNode.exits.length === 0) {
+                console.warn('Starting node has no exits:', startNode);
+            }
+            
+            // First attempt: try to place nodes starting from the first node
             placeNode(startNode, 0, 0, grid);
+            
+            // Check if all nodes were positioned
+            let unpositionedNodes = nodes.filter(node => !('x' in node && 'y' in node));
+            
+            // If there are still unpositioned nodes, try to position them
+            if (unpositionedNodes.length > 0) {
+                console.warn(`First pass: ${unpositionedNodes.length} nodes were not positioned. Attempting to position them manually.`);
+                
+                // Try to find a node that has exits and is already positioned
+                const positionedNodeWithExits = nodes.find(node => 
+                    'x' in node && 'y' in node && node.exits && node.exits.length > 0
+                );
+                
+                if (positionedNodeWithExits) {
+                    console.log('Found positioned node with exits:', positionedNodeWithExits);
+                    
+                    // Try to position remaining nodes using this node as a starting point
+                    unpositionedNodes.forEach(node => {
+                        if (!('x' in node) && !('y' in node)) {
+                            // Check if this node is a target of any exit from the positioned node
+                            const isTarget = positionedNodeWithExits.exits.some(exit => exit.target === node.address);
+                            
+                            if (isTarget) {
+                                // Find the exit that points to this node
+                                const exit = positionedNodeWithExits.exits.find(e => e.target === node.address);
+                                let nextX = positionedNodeWithExits.x / NODE_SPACING;
+                                let nextY = positionedNodeWithExits.y / NODE_SPACING;
+                                
+                                switch(exit.direction.toLowerCase()) {
+                                    case 'north': nextY--; break;
+                                    case 'south': nextY++; break;
+                                    case 'east': nextX++; break;
+                                    case 'west': nextX--; break;
+                                    case 'up': nextY--; break;
+                                    case 'down': nextY++; break;
+                                }
+                                
+                                placeNode(node, nextX, nextY, grid);
+                            }
+                        }
+                    });
+                }
+                
+                // Final pass: position any remaining nodes in a grid layout
+                unpositionedNodes = nodes.filter(node => !('x' in node && 'y' in node));
+                if (unpositionedNodes.length > 0) {
+                    console.warn(`Second pass: ${unpositionedNodes.length} nodes still not positioned. Positioning them in a grid.`);
+                    
+                    // Position remaining nodes in a grid layout
+                    const gridSize = Math.ceil(Math.sqrt(unpositionedNodes.length));
+                    unpositionedNodes.forEach((node, index) => {
+                        const row = Math.floor(index / gridSize);
+                        const col = index % gridSize;
+                        
+                        // Find a free position in the grid
+                        let posX = col * 2;
+                        let posY = row * 2;
+                        
+                        // Check if position is already taken
+                        while ([...grid.values()].some(pos => pos.x === posX && pos.y === posY)) {
+                            posX++;
+                        }
+                        
+                        console.log(`Manually positioning node ${node.name} at (${posX}, ${posY})`);
+                        grid.set(node.address, { x: posX, y: posY });
+                        node.x = posX * NODE_SPACING;
+                        node.y = posY * NODE_SPACING;
+                    });
+                }
+            }
+            
+            // Log how many nodes were actually positioned
+            console.log('Grid after positioning:', [...grid.entries()]);
+            console.log('Number of nodes positioned:', grid.size);
+            
+            // Check for nodes that weren't positioned (should be 0 now)
+            unpositionedNodes = nodes.filter(node => !('x' in node && 'y' in node));
+            if (unpositionedNodes.length > 0) {
+                console.warn('Nodes without positions after all attempts:', unpositionedNodes);
+            }
         }
 
         function placeNode(node, x, y, grid) {
             if (!node || grid.has(node.address)) return;
+            
+            console.log(`Placing node ${node.name} (${node.address}) at position (${x}, ${y})`);
             
             // Place the current node
             grid.set(node.address, { x, y });
@@ -346,10 +443,15 @@
             node.y = y * NODE_SPACING;
             
             // Place connected nodes
-            if (node.exits) {
+            if (node.exits && node.exits.length > 0) {
+                console.log(`Node ${node.name} has ${node.exits.length} exits:`, node.exits);
+                
                 node.exits.forEach(exit => {
                     const targetNode = nodes.find(n => n.address === exit.target);
-                    if (!targetNode) return;
+                    if (!targetNode) {
+                        console.warn(`Target node not found for exit: ${exit.direction} -> ${exit.target}`);
+                        return;
+                    }
                     
                     let nextX = x, nextY = y;
                     
@@ -360,17 +462,26 @@
                         case 'west': nextX--; break;
                         case 'up': nextY--; break;
                         case 'down': nextY++; break;
+                        default:
+                            console.warn(`Unknown direction: ${exit.direction} for exit from ${node.name} to ${targetNode.name}`);
                     }
                     
                     if (!grid.has(targetNode.address)) {
                         placeNode(targetNode, nextX, nextY, grid);
+                    } else {
+                        console.log(`Node ${targetNode.name} already placed at position (${grid.get(targetNode.address).x}, ${grid.get(targetNode.address).y})`);
                     }
                 });
+            } else {
+                console.warn(`Node ${node.name} has no exits or exits array is empty`);
             }
         }
 
         function drawMap() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            console.log('Drawing map with', nodes.length, 'nodes');
+            console.log('Nodes with positions:', nodes.filter(node => 'x' in node && 'y' in node).length);
             
             // Apply transformations
             ctx.save();
@@ -383,6 +494,8 @@
                         const targetNode = nodes.find(n => n.address === exit.target);
                         if (targetNode) {
                             drawConnection(node, targetNode, exit.direction);
+                        } else {
+                            console.warn(`Target node not found for connection: ${node.name} -> ${exit.target}`);
                         }
                     });
                 }
@@ -390,7 +503,11 @@
             
             // Draw nodes
             nodes.forEach(node => {
-                drawNode(node);
+                if ('x' in node && 'y' in node) {
+                    drawNode(node);
+                } else {
+                    console.warn(`Node ${node.name} has no position coordinates`);
+                }
             });
             
             ctx.restore();
