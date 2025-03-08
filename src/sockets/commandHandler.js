@@ -484,7 +484,7 @@ async function handleRestCommand(socket, user) {
         // Send the playerStatus message to update the health bar
         socket.emit('console response', {
             type: 'playerStatus',
-            message: `HP: ${result.healed}/${result.healed}`
+            message: `HP: ${result.healed}/${result.healed} | Energy: ${user.stats.energy}/${user.stats.energy}`
         });
     } catch (error) {
         socket.emit('console response', {

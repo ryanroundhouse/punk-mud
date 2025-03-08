@@ -333,8 +333,8 @@ function selectMobMove(mobInstance) {
 }
 
 // Helper function to send HP status update
-function sendHPStatus(userId, currentHP, maxHP) {
-    messageService.sendPlayerStatusMessage(userId, `HP: ${currentHP}/${maxHP}`);
+function sendHPStatus(userId, currentHP, maxHP, currentEnergy, maxEnergy) {
+    messageService.sendPlayerStatusMessage(userId, `HP: ${currentHP}/${maxHP} | Energy: ${currentEnergy}/${maxEnergy}`);
 }
 
 // New function to execute combat moves
@@ -458,7 +458,7 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
             if (mobResult.damage > 0) {
                 user.stats.currentHitpoints -= mobResult.damage;
                 // Send HP status update after taking damage
-                sendHPStatus(user._id.toString(), user.stats.currentHitpoints, user.stats.hitpoints);
+                sendHPStatus(user._id.toString(), user.stats.currentHitpoints, user.stats.hitpoints, user.stats.currentEnergy, user.stats.energy);
                 
                 // Check for player death immediately after taking damage
                 if (user.stats.currentHitpoints <= 0) {
@@ -624,7 +624,7 @@ async function handleFleeCommand(user) {
         if (mobResult.damage > 0) {
             user.stats.currentHitpoints -= mobResult.damage;
             // Send HP status update after taking damage during flee
-            sendHPStatus(user._id.toString(), user.stats.currentHitpoints, user.stats.hitpoints);
+            sendHPStatus(user._id.toString(), user.stats.currentHitpoints, user.stats.hitpoints, user.stats.currentEnergy, user.stats.energy);
             
             await User.findByIdAndUpdate(user._id, {
                 'stats.currentHitpoints': user.stats.currentHitpoints

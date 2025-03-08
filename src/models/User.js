@@ -65,7 +65,9 @@ const userSchema = new mongoose.Schema({
         tech: { type: Number, default: 1 },
         luck: { type: Number, default: 1 },
         experience: { type: Number, default: 0 },
-        level: { type: Number, default: 1 }
+        level: { type: Number, default: 1 },
+        energy: { type: Number, default: 30 },
+        currentEnergy: { type: Number, default: 30 }
     },
     activeEffects: {
         type: [activeEffectSchema],

@@ -80,6 +80,15 @@
             text-shadow: 0 0 5px var(--neon-pink);
         }
 
+        .health-label + .energy-bar {
+            margin-left: 0.5rem;
+        }
+
+        .health-label:nth-of-type(2) {
+            color: var(--neon-blue);
+            text-shadow: 0 0 5px var(--neon-blue);
+        }
+
         .health-bar {
             width: 200px;
             height: 20px;
@@ -90,12 +99,21 @@
             position: relative;
         }
 
+        .energy-bar {
+            border-color: var(--neon-blue);
+        }
+
         .health-fill {
             height: 100%;
             background: var(--neon-pink);
             width: 100%;
             transition: width 0.3s ease;
             box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .energy-bar .health-fill {
+            background: var(--neon-blue);
+            box-shadow: 0 0 10px var(--neon-blue);
         }
 
         .health-text {
@@ -108,6 +126,11 @@
             text-shadow: 0 0 2px black;
             font-weight: bold;
             z-index: 1;
+        }
+
+        .energy-bar .health-text {
+            color: black;
+            text-shadow: none;
         }
 
         .game-container {
@@ -575,6 +598,11 @@
             <span class="health-label">HP</span>
             <div class="health-bar">
                 <div class="health-text">100/100</div>
+                <div class="health-fill"></div>
+            </div>
+            <span class="health-label">EP</span>
+            <div class="health-bar energy-bar">
+                <div class="health-text">30/30</div>
                 <div class="health-fill"></div>
             </div>
         </div>
@@ -1774,31 +1802,60 @@
 
         // Add the updateHealthBar function
         function updateHealthBar(message) {
-            // Extract current and max HP from the message (format: "HP: current/max")
-            const match = message.match(/HP: (\d+)\/(\d+)/);
-            if (!match) return;
+            // Extract current and max HP from the message (format: "HP: current/max | Energy: current/max")
+            const hpMatch = message.match(/HP: (\d+)\/(\d+)/);
+            const energyMatch = message.match(/Energy: (\d+)\/(\d+)/);
+            
+            if (hpMatch) {
+                const currentHP = parseInt(hpMatch[1]);
+                const maxHP = parseInt(hpMatch[2]);
+                const hpPercentage = (currentHP / maxHP) * 100;
 
-            const currentHP = parseInt(match[1]);
-            const maxHP = parseInt(match[2]);
-            const percentage = (currentHP / maxHP) * 100;
+                // Update the health bar fill
+                const healthBars = document.querySelectorAll('.health-bar');
+                const healthFill = healthBars[0].querySelector('.health-fill');
+                const healthText = healthBars[0].querySelector('.health-text');
 
-            // Update the health bar fill
-            const healthFill = document.querySelector('.health-fill');
-            const healthText = document.querySelector('.health-text');
+                healthFill.style.width = `${hpPercentage}%`;
+                healthText.textContent = `${currentHP}/${maxHP}`;
 
-            healthFill.style.width = `${percentage}%`;
-            healthText.textContent = `${currentHP}/${maxHP}`;
+                // Update colors based on health percentage
+                if (hpPercentage <= 25) {
+                    healthFill.style.background = 'var(--neon-red)';
+                    healthFill.style.boxShadow = '0 0 10px var(--neon-red)';
+                } else if (hpPercentage <= 50) {
+                    healthFill.style.background = '#ffa500';
+                    healthFill.style.boxShadow = '0 0 10px #ffa500';
+                } else {
+                    healthFill.style.background = 'var(--neon-pink)';
+                    healthFill.style.boxShadow = '0 0 10px var(--neon-pink)';
+                }
+            }
 
-            // Update colors based on health percentage
-            if (percentage <= 25) {
-                healthFill.style.background = 'var(--neon-red)';
-                healthFill.style.boxShadow = '0 0 10px var(--neon-red)';
-            } else if (percentage <= 50) {
-                healthFill.style.background = '#ffa500';
-                healthFill.style.boxShadow = '0 0 10px #ffa500';
-            } else {
-                healthFill.style.background = 'var(--neon-pink)';
-                healthFill.style.boxShadow = '0 0 10px var(--neon-pink)';
+            if (energyMatch) {
+                const currentEnergy = parseInt(energyMatch[1]);
+                const maxEnergy = parseInt(energyMatch[2]);
+                const energyPercentage = (currentEnergy / maxEnergy) * 100;
+
+                // Update the energy bar fill
+                const healthBars = document.querySelectorAll('.health-bar');
+                const energyFill = healthBars[1].querySelector('.health-fill');
+                const energyText = healthBars[1].querySelector('.health-text');
+
+                energyFill.style.width = `${energyPercentage}%`;
+                energyText.textContent = `${currentEnergy}/${maxEnergy}`;
+
+                // Update colors based on energy percentage
+                if (energyPercentage <= 25) {
+                    energyFill.style.background = 'var(--neon-red)';
+                    energyFill.style.boxShadow = '0 0 10px var(--neon-red)';
+                } else if (energyPercentage <= 50) {
+                    energyFill.style.background = '#ffa500';
+                    energyFill.style.boxShadow = '0 0 10px #ffa500';
+                } else {
+                    energyFill.style.background = 'var(--neon-blue)';
+                    energyFill.style.boxShadow = '0 0 10px var(--neon-blue)';
+                }
             }
         }
     </script>
