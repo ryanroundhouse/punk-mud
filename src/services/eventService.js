@@ -433,7 +433,113 @@ class EventService {
                 nextNodeHasChoices: clonedChoice.nextNode?.choices?.length > 0,
                 questCompletionEvents: clonedChoice.nextNode?.questCompletionEvents || [],
                 hasActivateQuest: !!clonedChoice.nextNode?.activateQuestId,
+                hasMobId: !!clonedChoice.mobId
             });
+
+            // Check if this choice has a mobId for combat
+            if (clonedChoice.mobId) {
+                logger.debug('Combat mob choice selected', {
+                    userId,
+                    mobId: clonedChoice.mobId,
+                    choiceText: clonedChoice.text
+                });
+
+                // Clear the active event since we're transitioning to combat
+                stateService.clearActiveEvent(userId);
+
+                // Create a mock event object with the mobId for the loadMobFromEvent function
+                const mockEvent = {
+                    mobId: clonedChoice.mobId
+                };
+
+                // Import required services
+                const mobService = require('./mobService');
+                const combatService = require('./combatService');
+                const messageService = require('./messageService');
+
+                try {
+                    // Load the mob from the event
+                    const mobInstance = await mobService.loadMobFromEvent(mockEvent);
+                    
+                    if (!mobInstance) {
+                        logger.error('Failed to load mob for combat', {
+                            userId,
+                            mobId: clonedChoice.mobId
+                        });
+                        return {
+                            message: clonedChoice.text + "\n\nYou were going to encounter a creature, but it seems to have fled.",
+                            isEnd: true
+                        };
+                    }
+
+                    // Store the mob instance for the user
+                    stateService.setPlayerMob(userId, mobInstance);
+
+                    // Set the user's combat state
+                    stateService.setUserCombatState(userId, {
+                        mobInstanceId: mobInstance.instanceId,
+                        mobName: mobInstance.name
+                    });
+
+                    // Send combat initiation messages - don't include the mob name in the message
+                    // since it will be displayed by the combat system
+                    messageService.sendCombatMessage(
+                        userId,
+                        `${clonedChoice.text}\n\nA hostile creature attacks you!`,
+                        'Type ? to see available combat commands.'
+                    );
+
+                    // Announce combat to the room
+                    messageService.sendConsoleResponse(
+                        user.currentNode,
+                        {
+                            type: 'chat',
+                            username: 'SYSTEM',
+                            message: `${user.avatarName} engages in combat with ${mobInstance.name}!`,
+                            timestamp: new Date()
+                        }
+                    );
+
+                    try {
+                        // Process combat until user input is required
+                        await combatService.processCombatUntilInput(user, mobInstance);
+                    } catch (combatError) {
+                        // Log detailed error information but continue - don't fail the entire event
+                        logger.error('Error in processCombatUntilInput:', {
+                            error: combatError.message,
+                            stack: combatError.stack,
+                            userId: userId,
+                            mobId: mobInstance.mobId,
+                            mobName: mobInstance.name
+                        });
+                        // We don't return an error here, just log it and continue
+                    }
+
+                    // Return success even if processCombatUntilInput had an error
+                    // The combat state is already set up, so the player can continue
+                    return {
+                        message: null, // Don't send an additional message, the combat message was already sent
+                        isEnd: true,
+                        combatInitiated: true
+                    };
+                } catch (error) {
+                    logger.error('Error initiating combat from event choice', {
+                        error: error.message,
+                        stack: error.stack,
+                        userId: userId,
+                        mobId: clonedChoice.mobId
+                    });
+                    
+                    // Clean up any partial combat state
+                    stateService.clearPlayerMob(userId);
+                    stateService.clearUserCombatState(userId);
+                    
+                    return {
+                        message: clonedChoice.text + "\n\nSomething went wrong with the encounter.",
+                        isEnd: true
+                    };
+                }
+            }
 
             // Validate the next node structure
             if (clonedChoice.nextNode) {
