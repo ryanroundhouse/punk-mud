@@ -493,46 +493,34 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
         }
     });
 
-    // Process mob's action if they're still alive
-    if (mobInstance.stats.currentHitpoints <= 0) {
-        mobResult.message += ` ${mobInstance.name} has been defeated!`;
-        
-        // Award experience points
-        try {
-            const experiencePoints = mobInstance.experiencePoints || 10;
-            const experienceResult = await userService.awardExperience(user._id.toString(), experiencePoints);
-            if (experienceResult.success) {
-                mobResult.message += `\nYou gained ${experiencePoints} experience points!`;
-            }
-        } catch (error) {
-            logger.error('Error awarding experience points:', error);
-        }
-    }
-
     // Decrement rounds on existing effects AFTER all damage is applied
     stateService.updateCombatantEffects(user._id.toString(), true);
     stateService.updateCombatantEffects(mobInstance.instanceId, true);
 
-    const userCurrentHP = user.stats.currentHitpoints;
-    const mobCurrentHP = mobInstance.stats.currentHitpoints;
-
-    // Handle victory/defeat conditions
-    if (mobCurrentHP <= 0) {
+    // Process mob's action if they're still alive
+    if (mobInstance.stats.currentHitpoints <= 0) {
+        // Clear combat state
         stateService.clearUserCombatState(user._id.toString());
+        stateService.clearCombatDelay(user._id.toString());
+        stateService.clearCombatantEffects(user._id.toString());
         
-        const mobId = mobInstance._id || mobInstance.mobId;
-        const questUpdates = await questService.handleMobKill(user, mobId);
-        mobService.clearUserMob(user._id.toString());
-
+        // Construct the combat result message
         let victoryMessage = '';
         if (playerResult.move) {
             victoryMessage = `You use ${playerResult.move.name}! ${playerResult.message}\n`;
         }
-        if (mobResult.message) {
-            victoryMessage += `${mobResult.message}\n`;
-        }
-        victoryMessage += `\nVictory! You have defeated ${mobInstance.name}!`;
-
+        
+        // Add defeat message
+        victoryMessage += ` ${mobInstance.name} has been defeated!`;
+        
+        // Add victory declaration
+        victoryMessage += `\n\nVictory! You have defeated ${mobInstance.name}!`;
+        
+        // Process quest updates
+        const questUpdates = await questService.handleMobKill(user, mobInstance._id || mobInstance.mobId);
+        mobService.clearUserMob(user._id.toString());
+        
+        // Add quest updates if any
         if (questUpdates && questUpdates.length > 0) {
             victoryMessage += '\n\n' + questUpdates
                 .filter(update => update.message)  // Only include updates with messages
@@ -544,8 +532,58 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
                 })
                 .join('\n');
         }
-
+        
+        // Send the victory message first
         messageService.sendCombatMessage(user._id.toString(), victoryMessage);
+        
+        // Then award experience points and send as a separate success message
+        try {
+            const experiencePoints = mobInstance.experiencePoints || 10;
+            logger.debug('Awarding experience points:', { userId: user._id.toString(), amount: experiencePoints });
+            
+            const experienceResult = await userService.awardExperience(user._id.toString(), experiencePoints, true);
+            logger.debug('Experience result:', JSON.stringify(experienceResult));
+            
+            if (experienceResult.success) {
+                // Send XP gain as a success message
+                logger.debug('Sending XP gain message');
+                messageService.sendSuccessMessage(
+                    user._id.toString(), 
+                    `You gained ${experiencePoints} experience points!`
+                );
+                
+                // If there was a level up, send that as a separate success message
+                if (experienceResult.levelUp === true) {
+                    logger.debug('Sending level up message', { 
+                        newLevel: experienceResult.newLevel,
+                        newHP: experienceResult.newHP
+                    });
+                    
+                    // Add a small delay to ensure messages appear in the right order
+                    setTimeout(() => {
+                        // Send level up message directly
+                        const levelUpMessage = `Congratulations! You have reached level ${experienceResult.newLevel}!\n` +
+                                             `All your stats have increased by 1!\n` +
+                                             `Your maximum health is now ${experienceResult.newHP} points.`;
+                        
+                        // Use sendConsoleResponse directly to ensure the message type is set correctly
+                        messageService.sendConsoleResponse(
+                            user._id.toString(),
+                            levelUpMessage,
+                            'success'
+                        );
+                    }, 100);
+                } else {
+                    logger.debug('No level up occurred');
+                }
+            } else {
+                logger.debug('Experience award was not successful', { result: experienceResult });
+            }
+        } catch (error) {
+            logger.error('Error awarding experience points:', error);
+        }
+        
+        // Announce victory to the room
         messageService.sendConsoleResponse(
             user.currentNode,
             {
@@ -556,10 +594,10 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
             }
         );
         return;
-    } else if (userCurrentHP <= 0) {
+    } else if (user.stats.currentHitpoints <= 0) {
         logger.debug('Combat ended - Player defeated', {
-            finalPlayerHP: userCurrentHP,
-            finalMobHP: mobCurrentHP
+            finalPlayerHP: user.stats.currentHitpoints,
+            finalMobHP: mobInstance.stats.currentHitpoints
         });
 
         // First handle death
@@ -578,7 +616,7 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
     }
 
     // Only construct and send combat message if player is still alive
-    if (userCurrentHP > 0) {
+    if (user.stats.currentHitpoints > 0) {
         // Construct combat message
         let combatMessage = '';
         if (playerResult.move) {
@@ -586,8 +624,8 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
             
             // Only show status after player moves
             combatMessage += `\nStatus:\n` +
-                            `${user.avatarName}: ${userCurrentHP} HP\n` +
-                            `${mobInstance.name}: ${mobCurrentHP} HP`;
+                            `${user.avatarName}: ${user.stats.currentHitpoints} HP\n` +
+                            `${mobInstance.name}: ${mobInstance.stats.currentHitpoints} HP`;
         }
         if (mobResult.move) {
             // If there was also a player move, add a newline

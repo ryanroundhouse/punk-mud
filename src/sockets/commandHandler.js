@@ -3,6 +3,7 @@ const nodeService = require('../services/nodeService');
 const stateService = require('../services/stateService');
 const socketService = require('../services/socketService');
 const userService = require('../services/userService');
+const chatService = require('../services/chatService');
 const combatService = require('../services/combatService');
 const actorService = require('../services/actorService');
 const questService = require('../services/questService');
@@ -546,7 +547,7 @@ async function handleFightCommand(user, target) {
         'Type ? to see available combat commands.'
     );
 
-    publishSystemMessage(user.currentNode, `${user.avatarName} engages in combat with ${mobInstance.name}!`);
+    chatService.publishSystemMessage(user.currentNode, `${user.avatarName} engages in combat with ${mobInstance.name}!`);
 }
 
 module.exports = {

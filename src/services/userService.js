@@ -122,7 +122,7 @@ flee.............Attempt to escape combat
         }
     }
 
-    async awardExperience(userId, amount) {
+    async awardExperience(userId, amount, suppressMessage = false) {
         try {
             const user = await User.findById(userId);
             if (!user) {
@@ -162,6 +162,14 @@ flee.............Attempt to escape combat
                 newLevel++;
             }
 
+            // Initialize result object
+            const result = {
+                success: true,
+                levelUp: false,
+                oldLevel: oldLevel,
+                newLevel: newLevel
+            };
+
             // If level changed, update stats
             if (newLevel > oldLevel) {
                 user.stats.level = newLevel;
@@ -182,35 +190,58 @@ flee.............Attempt to escape combat
                 user.stats.hitpoints = baseHP + levelBonus + bodyBonus;
                 user.stats.currentHitpoints = user.stats.hitpoints;
 
-                // Send level up message using messageService
-                try {
-                    logger.debug('Sending level up message for user:', userId);
-                    
-                    messageService.sendSuccessMessage(
-                        userId,
-                        `Congratulations! You have reached level ${user.stats.level}!\n` +
-                        `All your stats have increased by 1!\n` +
-                        `Your maximum health is now ${user.stats.hitpoints} points.`
-                    );
-                    
-                    logger.debug('Level up message sent');
-                } catch (error) {
-                    logger.error('Error sending level up message:', error);
+                // Update result object with level up info
+                result.levelUp = true;
+                result.newHP = user.stats.hitpoints;
+                
+                logger.debug('Level up detected', {
+                    userId,
+                    oldLevel,
+                    newLevel,
+                    newHP: user.stats.hitpoints
+                });
+
+                // Send level up message using messageService if not suppressed
+                if (!suppressMessage) {
+                    try {
+                        logger.debug('Sending level up message for user:', userId);
+                        
+                        messageService.sendSuccessMessage(
+                            userId,
+                            `Congratulations! You have reached level ${user.stats.level}!\n` +
+                            `All your stats have increased by 1!\n` +
+                            `Your maximum health is now ${user.stats.hitpoints} points.`
+                        );
+                        
+                        logger.debug('Level up message sent');
+                    } catch (error) {
+                        logger.error('Error sending level up message:', error);
+                    }
                 }
             }
 
             await user.save();
 
-            return {
-                success: true,
-                experienceGained: amount,
-                totalExperience: user.stats.experience,
-                leveledUp: newLevel > oldLevel,
-                newLevel: user.stats.level
-            };
+            // Add additional information to the result
+            result.experienceGained = amount;
+            result.totalExperience = user.stats.experience;
+            
+            logger.debug('Returning experience result', {
+                userId,
+                success: result.success,
+                levelUp: result.levelUp,
+                oldLevel: result.oldLevel,
+                newLevel: result.newLevel,
+                newHP: result.newHP
+            });
+            
+            return result;
         } catch (error) {
             logger.error('Error awarding experience:', error);
-            throw error;
+            return {
+                success: false,
+                error: error.message
+            };
         }
     }
 
