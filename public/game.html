@@ -41,7 +41,7 @@
             background: transparent;
             padding: 0.5rem;
             display: flex;
-            justify-content: flex-start;
+            justify-content: space-between;
             align-items: center;
             gap: 1rem;
             z-index: 1000;
@@ -60,6 +60,8 @@
             letter-spacing: 1px;
             transition: all 0.3s ease;
             position: relative;
+            margin-left: auto;
+            margin-right: 22px;
         }
 
         .logout-button:hover {
@@ -72,6 +74,7 @@
             display: flex;
             align-items: center;
             gap: 1rem;
+            margin-left: 22px;
         }
 
         .health-label {
@@ -593,7 +596,6 @@
 </head>
 <body>
     <div class="status-bar">
-        <button class="logout-button" id="logoutButton">Disconnect</button>
         <div class="health-container">
             <span class="health-label">HP</span>
             <div class="health-bar">
@@ -606,6 +608,7 @@
                 <div class="health-fill"></div>
             </div>
         </div>
+        <button class="logout-button" id="logoutButton">Disconnect</button>
     </div>
     <div class="game-container">
         <div class="main-panel">
