@@ -49,6 +49,11 @@ const eventSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
+    // Whether this event requires energy to activate
+    requiresEnergy: {
+        type: Boolean,
+        default: true  // By default, events require energy
+    },
     // Optional actor reference
     actorId: {
         type: mongoose.Schema.Types.ObjectId,

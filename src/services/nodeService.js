@@ -7,6 +7,7 @@ const questService = require('./questService');
 const { publishSystemMessage } = require('./chatService');
 const Event = require('../models/Event');
 const eventService = require('./eventService');
+const messageService = require('./messageService');
 
 async function moveUser(userId, direction) {
     const user = await User.findById(userId);
@@ -196,27 +197,71 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
                         // Handle story event
                         const storyEvent = await Event.findById(event.eventId);
                         if (storyEvent) {
-                            logger.debug(`Starting story event ${storyEvent._id} (${storyEvent.title}) for user ${userId}`);
-                            // Set the story event as active
-                            stateService.setActiveEvent(
-                                userId,
-                                storyEvent._id,
-                                storyEvent.rootNode,
-                                null, // No actor for story events
-                                true // Mark as story event
-                            );
-                            result.storyEvent = storyEvent;
-
-                            // Get the socket for this user to send initial prompt
-                            const socket = stateService.getClient(userId);
-                            if (socket) {
-                                // Format and send initial story prompt
-                                const formattedResponse = await eventService.formatEventResponse(storyEvent.rootNode, userId);
-                                socket.emit('console response', {
-                                    type: 'event',
-                                    message: formattedResponse.message,
-                                    isEndOfEvent: formattedResponse.isEnd
+                            // Check if user has enough energy for this story event
+                            const hasEnoughEnergy = storyEvent.requiresEnergy === false || user.stats.currentEnergy >= 1;
+                            
+                            if (!hasEnoughEnergy) {
+                                logger.debug('User has insufficient energy for story event that requires energy', {
+                                    userId,
+                                    currentEnergy: user.stats.currentEnergy,
+                                    eventId: storyEvent._id,
+                                    eventTitle: storyEvent.title,
+                                    requiresEnergy: storyEvent.requiresEnergy
                                 });
+
+                                // Get the socket to send the tired message
+                                const socket = stateService.getClient(userId);
+                                if (socket) {
+                                    socket.emit('console response', {
+                                        type: 'info',
+                                        message: "You notice something interesting might happen, but you're too tired to engage fully right now. Get some sleep."
+                                    });
+                                }
+                            } else {
+                                logger.debug(`Starting story event ${storyEvent._id} (${storyEvent.title}) for user ${userId}`);
+                                
+                                // Deduct energy if the event requires it
+                                if (storyEvent.requiresEnergy === true) {
+                                    // Deduct energy
+                                    user.stats.currentEnergy -= 1;
+                                    await User.findByIdAndUpdate(userId, {
+                                        'stats.currentEnergy': user.stats.currentEnergy
+                                    });
+                                    
+                                    // Send status update after energy deduction
+                                    messageService.sendPlayerStatusMessage(
+                                        userId, 
+                                        `HP: ${user.stats.currentHitpoints}/${user.stats.hitpoints} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
+                                    );
+                                    
+                                    logger.debug('Deducted energy for story event:', {
+                                        userId,
+                                        eventId: storyEvent._id,
+                                        newEnergyLevel: user.stats.currentEnergy
+                                    });
+                                }
+
+                                // Set the story event as active
+                                stateService.setActiveEvent(
+                                    userId,
+                                    storyEvent._id,
+                                    storyEvent.rootNode,
+                                    null, // No actor for story events
+                                    true // Mark as story event
+                                );
+                                result.storyEvent = storyEvent;
+
+                                // Get the socket for this user to send initial prompt
+                                const socket = stateService.getClient(userId);
+                                if (socket) {
+                                    // Format and send initial story prompt
+                                    const formattedResponse = await eventService.formatEventResponse(storyEvent.rootNode, userId);
+                                    socket.emit('console response', {
+                                        type: 'event',
+                                        message: formattedResponse.message,
+                                        isEndOfEvent: formattedResponse.isEnd
+                                    });
+                                }
                             }
                         }
                     }
@@ -253,27 +298,71 @@ async function handlePlayerNodeConnection(userId, nodeAddress) {
                     // Handle story event
                     const storyEvent = await Event.findById(selectedEvent.eventId);
                     if (storyEvent) {
-                        logger.debug(`Starting story event ${storyEvent._id} (${storyEvent.title}) for user ${userId}`);
-                        // Set the story event as active
-                        stateService.setActiveEvent(
-                            userId,
-                            storyEvent._id,
-                            storyEvent.rootNode,
-                            null, // No actor for story events
-                            true // Mark as story event
-                        );
-                        result.storyEvent = storyEvent;
-
-                        // Get the socket for this user to send initial prompt
-                        const socket = stateService.getClient(userId);
-                        if (socket) {
-                            // Format and send initial story prompt
-                            const formattedResponse = await eventService.formatEventResponse(storyEvent.rootNode, userId);
-                            socket.emit('console response', {
-                                type: 'event',
-                                message: formattedResponse.message,
-                                isEndOfEvent: formattedResponse.isEnd
+                        // Check if user has enough energy for this story event
+                        const hasEnoughEnergy = storyEvent.requiresEnergy === false || user.stats.currentEnergy >= 1;
+                        
+                        if (!hasEnoughEnergy) {
+                            logger.debug('User has insufficient energy for story event that requires energy', {
+                                userId,
+                                currentEnergy: user.stats.currentEnergy,
+                                eventId: storyEvent._id,
+                                eventTitle: storyEvent.title,
+                                requiresEnergy: storyEvent.requiresEnergy
                             });
+
+                            // Get the socket to send the tired message
+                            const socket = stateService.getClient(userId);
+                            if (socket) {
+                                socket.emit('console response', {
+                                    type: 'info',
+                                    message: "You notice something interesting might happen, but you're too tired to engage fully right now. Get some sleep."
+                                });
+                            }
+                        } else {
+                            logger.debug(`Starting story event ${storyEvent._id} (${storyEvent.title}) for user ${userId}`);
+                            
+                            // Deduct energy if the event requires it
+                            if (storyEvent.requiresEnergy === true) {
+                                // Deduct energy
+                                user.stats.currentEnergy -= 1;
+                                await User.findByIdAndUpdate(userId, {
+                                    'stats.currentEnergy': user.stats.currentEnergy
+                                });
+                                
+                                // Send status update after energy deduction
+                                messageService.sendPlayerStatusMessage(
+                                    userId, 
+                                    `HP: ${user.stats.currentHitpoints}/${user.stats.hitpoints} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
+                                );
+                                
+                                logger.debug('Deducted energy for story event:', {
+                                    userId,
+                                    eventId: storyEvent._id,
+                                    newEnergyLevel: user.stats.currentEnergy
+                                });
+                            }
+
+                            // Set the story event as active
+                            stateService.setActiveEvent(
+                                userId,
+                                storyEvent._id,
+                                storyEvent.rootNode,
+                                null, // No actor for story events
+                                true // Mark as story event
+                            );
+                            result.storyEvent = storyEvent;
+
+                            // Get the socket for this user to send initial prompt
+                            const socket = stateService.getClient(userId);
+                            if (socket) {
+                                // Format and send initial story prompt
+                                const formattedResponse = await eventService.formatEventResponse(storyEvent.rootNode, userId);
+                                socket.emit('console response', {
+                                    type: 'event',
+                                    message: formattedResponse.message,
+                                    isEndOfEvent: formattedResponse.isEnd
+                                });
+                            }
                         }
                     }
                 }

@@ -378,9 +378,9 @@ async function handleChatCommand(socket, user, target) {
         // If no event or event failed to start, fall back to regular chat
         const stateKey = `${socket.user.userId}-${actor._id}`;
         let currentIndex = stateService.actorChatStates.get(stateKey) || 0;
-        const sortedMessages = [...actor.chatMessages].sort((a, b) => a.order - b.order);
-        
-        if (!sortedMessages.length) {
+
+        const chatResult = await actorService.getActorChatMessage(actor, stateKey, currentIndex);
+        if (!chatResult || !chatResult.message) {
             socket.emit('console response', {
                 type: 'chat',
                 message: `${actor.name} has nothing to say.`
@@ -388,13 +388,12 @@ async function handleChatCommand(socket, user, target) {
             return;
         }
 
-        const message = sortedMessages[currentIndex];
-        currentIndex = (currentIndex + 1) % sortedMessages.length;
-        stateService.actorChatStates.set(stateKey, currentIndex);
+        // Update the state with the next index
+        stateService.actorChatStates.set(stateKey, chatResult.nextIndex);
 
         socket.emit('console response', {
             type: 'chat',
-            message: `${actor.name} says: "${message.message}"`
+            message: `${actor.name} says: "${chatResult.message}"`
         });
         return;
     }

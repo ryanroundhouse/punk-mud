@@ -103,6 +103,44 @@ class EventService {
                 return true;
             });
 
+            // If there are available events but user doesn't have energy, show tired message and return false
+            // BUT only if the event requires energy
+            if (availableEvents.length > 0 && user.stats.currentEnergy < 1) {
+                // Get the first available event (the one that would trigger)
+                const event = availableEvents[0];
+                
+                // Only block the event if it requires energy
+                if (event.requiresEnergy !== false) {  // Check explicitly against false since default is true
+                    logger.debug('User has insufficient energy for available event that requires energy', {
+                        userId: user._id.toString(),
+                        currentEnergy: user.stats.currentEnergy,
+                        eventId: event._id,
+                        eventTitle: event.title,
+                        requiresEnergy: event.requiresEnergy
+                    });
+
+                    // Get the socket to send the tired message
+                    const socket = stateService.getClient(user._id.toString());
+                    if (socket) {
+                        socket.emit('console response', {
+                            type: 'info',
+                            message: "You notice something interesting might happen, but you're too tired to engage fully right now. Get some sleep."
+                        });
+                    }
+                    
+                    // Return false to allow fallback to regular chat
+                    return false;
+                }
+                
+                logger.debug('Allowing energy-free event to proceed', {
+                    userId: user._id.toString(),
+                    currentEnergy: user.stats.currentEnergy,
+                    eventId: event._id,
+                    eventTitle: event.title,
+                    requiresEnergy: event.requiresEnergy
+                });
+            }
+
             logger.debug('Available events after filtering:', {
                 count: availableEvents.length
             });

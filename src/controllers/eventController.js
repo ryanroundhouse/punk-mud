@@ -58,7 +58,7 @@ async function validateNode(node) {
 }
 
 async function createOrUpdateEvent(req, res) {
-    const { _id, title, actorId, rootNode } = req.body;
+    const { _id, title, actorId, rootNode, requiresEnergy } = req.body;
     
     try {
         // Validate basic fields
@@ -87,13 +87,15 @@ async function createOrUpdateEvent(req, res) {
             event.title = title;
             event.actorId = actorId;
             event.rootNode = rootNode;
+            event.requiresEnergy = requiresEnergy;
             await event.save();
         } else {
             // Create new event
             event = new Event({
                 title,
                 actorId,
-                rootNode
+                rootNode,
+                requiresEnergy
             });
             await event.save();
         }
