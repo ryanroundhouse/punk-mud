@@ -7,6 +7,8 @@ const combatService = require('../services/combatService');
 const actorService = require('../services/actorService');
 const questService = require('../services/questService');
 const eventService = require('../services/eventService');
+const User = require('../models/User');
+const messageService = require('../services/messageService');
 
 const HELP_TEXT = `
 Available Commands:
@@ -118,7 +120,7 @@ async function handleCommand(socket, data) {
                 break;
 
             case 'fight':
-                await combatService.handleFightCommand(user, data.target);
+                await handleFightCommand(user, data.target);
                 break;
 
             case 'flee':
@@ -484,7 +486,7 @@ async function handleRestCommand(socket, user) {
         // Send the playerStatus message to update the health bar
         socket.emit('console response', {
             type: 'playerStatus',
-            message: `HP: ${result.healed}/${result.healed} | Energy: ${user.stats.energy}/${user.stats.energy}`
+            message: `HP: ${result.healed}/${result.healed} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
         });
     } catch (error) {
         socket.emit('console response', {
@@ -496,6 +498,56 @@ async function handleRestCommand(socket, user) {
 
 async function handleMapCommand(socket, user) {
     // Implementation of handleMapCommand
+}
+
+async function handleFightCommand(user, target) {
+    if (!target) {
+        messageService.sendErrorMessage(user._id.toString(), 'Usage: fight <mob name>');
+        return;
+    }
+
+    if (stateService.userCombatStates.get(user._id.toString())) {
+        messageService.sendErrorMessage(user._id.toString(), 'You are already in combat!');
+        return;
+    }
+
+    // Check if user has enough energy
+    if (user.stats.currentEnergy < 1) {
+        messageService.sendErrorMessage(user._id.toString(), "You're too tired to pick a fight right now.  Get a good night's sleep.");
+        return;
+    }
+
+    const mobInstance = stateService.playerMobs.get(user._id.toString());
+    if (!mobInstance || mobInstance.name.toLowerCase() !== target.toLowerCase()) {
+        messageService.sendErrorMessage(user._id.toString(), `No mob named "${target}" found in current location.`);
+        return;
+    }
+
+    // Deduct energy before initiating combat
+    user.stats.currentEnergy -= 1;
+    await User.findByIdAndUpdate(user._id, {
+        'stats.currentEnergy': user.stats.currentEnergy
+    });
+    
+    // Send status update after energy deduction
+    messageService.sendPlayerStatusMessage(
+        user._id.toString(), 
+        `HP: ${user.stats.currentHitpoints}/${user.stats.hitpoints} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
+    );
+
+    // Update combat state to include health values
+    stateService.userCombatStates.set(user._id.toString(), {
+        mobInstanceId: mobInstance.instanceId,
+        mobName: mobInstance.name
+    });
+
+    messageService.sendCombatMessage(
+        user._id.toString(),
+        `You engage in combat with ${mobInstance.name}!`,
+        'Type ? to see available combat commands.'
+    );
+
+    publishSystemMessage(user.currentNode, `${user.avatarName} engages in combat with ${mobInstance.name}!`);
 }
 
 module.exports = {

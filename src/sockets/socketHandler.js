@@ -46,8 +46,10 @@ function socketHandler(io) {
 
                 // Send character HP status after connection
                 const userDetails = await userService.getUser(socket.user.userId);
-                const hpStatus = `HP: ${userDetails.stats.currentHitpoints}/${userDetails.stats.hitpoints}`;
-                messageService.sendPlayerStatusMessage(socket.user.userId, hpStatus);
+                messageService.sendPlayerStatusMessage(
+                    socket.user.userId, 
+                    `HP: ${userDetails.stats.currentHitpoints}/${userDetails.stats.hitpoints} | Energy: ${userDetails.stats.currentEnergy}/${userDetails.stats.energy}`
+                );
             }
         } catch (err) {
             logger.error('Error fetching user location:', err);

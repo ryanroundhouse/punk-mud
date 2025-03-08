@@ -723,16 +723,6 @@
                     node = await response.json();
                 }
 
-                // Add detailed logging about the node data
-                console.log('Node data received:', {
-                    name: node.name,
-                    address: node.address,
-                    hasEvents: !!node.events,
-                    eventsLength: node.events?.length || 0,
-                    eventsDetails: node.events ? JSON.stringify(node.events) : 'No events',
-                    isRestPoint: node.isRestPoint
-                });
-
                 // Update node display
                 document.getElementById('nodeName').textContent = node.name;
 
@@ -768,19 +758,15 @@
                         
                         if (lsResponse.ok) {
                             const lsData = await lsResponse.json();
-                            console.log('List data for border color:', lsData);
                             
                             // Check if there are actual enemies present
                             if (lsData.enemies && lsData.enemies.length > 0) {
-                                console.log('Setting RED border due to actual mob presence:', lsData.enemies);
                                 nodeImage.style.borderColor = 'var(--neon-red)';
                                 nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
                             } else if (node.isRestPoint) {
-                                console.log('Setting GREEN border due to rest point');
                                 nodeImage.style.borderColor = 'var(--terminal-green)';
                                 nodeImage.style.boxShadow = '0 0 15px var(--terminal-green)';
                             } else {
-                                console.log('Setting default BLUE border - no enemies present');
                                 nodeImage.style.borderColor = 'var(--neon-blue)';
                                 nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
                             }
@@ -788,14 +774,12 @@
                             throw new Error('Failed to get list data');
                         }
                     } catch (error) {
-                        console.error('Error checking for enemies:', error);
                         // Set default border color on error
                         nodeImage.style.borderColor = 'var(--neon-blue)';
                         nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
                     }
                 } else {
                     nodeImage.style.display = 'none';
-                    console.log('No image to display for this node');
                 }
 
                 // Display exits with target node names
@@ -960,7 +944,6 @@
                 const nodeImage = document.getElementById('nodeImage');
 
                 nodeImage.addEventListener('click', function(e) {
-                    console.log('Image clicked', nodeImage.src);
                     e.preventDefault();
                     e.stopPropagation();
                     if (nodeImage.src && nodeImage.src !== window.location.href) {
@@ -1064,7 +1047,6 @@
             });
 
             socket.on('event start', (data) => {
-                console.log('Event started:', data);
                 // Add event start message to terminal
                 const inputLine = terminalInput.parentElement;
                 const responseLine = document.createElement('div');
@@ -1075,7 +1057,6 @@
             });
 
             socket.on('event end', (data) => {
-                console.log('Event ended:', data);
                 // Add event end message to terminal
                 const inputLine = terminalInput.parentElement;
                 const responseLine = document.createElement('div');
@@ -1086,7 +1067,6 @@
             });
 
             socket.on('event choice', (data) => {
-                console.log('Event choice received:', data);
                 // Add event choices to terminal
                 const inputLine = terminalInput.parentElement;
                 const responseLine = document.createElement('div');
@@ -1118,8 +1098,6 @@
 
             // Update the console response handler
             socket.on('console response', (data) => {
-                console.log('Received console response:', data);
-                
                 // Handle playerStatus messages by updating the health bar
                 if (data.type === 'playerStatus') {
                     updateHealthBar(data.message);
@@ -1137,7 +1115,6 @@
                 // Check if this is a movement response or successful flee
                 if ((data.message && data.message.startsWith('You move ')) || 
                     (data.message && data.message.includes('You successfully flee from combat!'))) {
-                    console.log('Movement detected, refreshing location');
                     loadNode();
                 }
                 
@@ -1154,7 +1131,6 @@
                         // Check for death or victory message and refresh node
                         if (data.message.includes('*** YOU HAVE BEEN DEFEATED ***') ||
                             data.message.includes('has been defeated!')) {
-                            console.log('Combat ended, refreshing location');
                             setTimeout(() => loadNode(), 100);
                         }
                         // Check for death message and style it differently
@@ -1811,6 +1787,12 @@
                 const maxHP = parseInt(hpMatch[2]);
                 const hpPercentage = (currentHP / maxHP) * 100;
 
+                console.log('Player Status Update - HP:', {
+                    current: currentHP,
+                    max: maxHP,
+                    percentage: hpPercentage.toFixed(1) + '%'
+                });
+
                 // Update the health bar fill
                 const healthBars = document.querySelectorAll('.health-bar');
                 const healthFill = healthBars[0].querySelector('.health-fill');
@@ -1837,6 +1819,12 @@
                 const maxEnergy = parseInt(energyMatch[2]);
                 const energyPercentage = (currentEnergy / maxEnergy) * 100;
 
+                console.log('Player Status Update - Energy:', {
+                    current: currentEnergy,
+                    max: maxEnergy,
+                    percentage: energyPercentage.toFixed(1) + '%'
+                });
+
                 // Update the energy bar fill
                 const healthBars = document.querySelectorAll('.health-bar');
                 const energyFill = healthBars[1].querySelector('.health-fill');
@@ -1849,12 +1837,15 @@
                 if (energyPercentage <= 25) {
                     energyFill.style.background = 'var(--neon-red)';
                     energyFill.style.boxShadow = '0 0 10px var(--neon-red)';
+                    energyText.style.color = 'white';
                 } else if (energyPercentage <= 50) {
                     energyFill.style.background = '#ffa500';
                     energyFill.style.boxShadow = '0 0 10px #ffa500';
+                    energyText.style.color = 'white';
                 } else {
                     energyFill.style.background = 'var(--neon-blue)';
                     energyFill.style.boxShadow = '0 0 10px var(--neon-blue)';
+                    energyText.style.color = 'black';
                 }
             }
         }

@@ -546,9 +546,14 @@ async function executeCombatMoves(readyMoves, user, mobInstance) {
         }
 
         messageService.sendCombatMessage(user._id.toString(), victoryMessage);
-        publishSystemMessage(
+        messageService.sendConsoleResponse(
             user.currentNode,
-            `${user.avatarName} has defeated ${mobInstance.name}!`
+            {
+                type: 'chat',
+                username: 'SYSTEM',
+                message: `${user.avatarName} has defeated ${mobInstance.name}!`,
+                timestamp: new Date()
+            }
         );
         return;
     } else if (userCurrentHP <= 0) {
@@ -676,7 +681,15 @@ async function handleFleeCommand(user) {
                 `You successfully flee from combat!${statusMessage}`
             );
 
-            publishSystemMessage(oldNode, `${user.avatarName} flees from combat with ${mobInstance.name}!`);
+            messageService.sendConsoleResponse(
+                oldNode,
+                {
+                    type: 'chat',
+                    username: 'SYSTEM',
+                    message: `${user.avatarName} flees from combat with ${mobInstance.name}!`,
+                    timestamp: new Date()
+                }
+            );
         } else {
             messageService.sendCombatMessage(
                 user._id.toString(),
@@ -719,7 +732,15 @@ async function handleFightCommand(user, target) {
         'Type ? to see available combat commands.'
     );
 
-    publishSystemMessage(user.currentNode, `${user.avatarName} engages in combat with ${mobInstance.name}!`);
+    messageService.sendConsoleResponse(
+        user.currentNode,
+        {
+            type: 'chat',
+            username: 'SYSTEM',
+            message: `${user.avatarName} engages in combat with ${mobInstance.name}!`,
+            timestamp: new Date()
+        }
+    );
 }
 
 async function getCombatStatus(userId) {
