@@ -25,6 +25,12 @@ async function getEvents(req, res) {
                     }
                 }
                 
+                // Handle skill check failure node if it exists
+                if (choice.skillCheckStat && choice.failureNode) {
+                    await populateMobIds(choice.failureNode);
+                }
+                
+                // Handle regular next node
                 if (choice.nextNode) {
                     await populateMobIds(choice.nextNode);
                 }
@@ -44,55 +50,73 @@ async function getEvents(req, res) {
 }
 
 async function validateNode(node) {
+    if (!node) {
+        return { valid: false, message: 'Node is required' };
+    }
+
     if (!node.prompt) {
-        throw new Error('Each node must have a prompt');
+        return { valid: false, message: 'Node prompt is required' };
     }
 
-    // Validate restrictions if present
-    if (node.restrictions) {
-        if (!Array.isArray(node.restrictions)) {
-            throw new Error('restrictions must be an array');
-        }
-        const validRestrictions = ['noClass', 'enforcerOnly'];
-        node.restrictions.forEach(restriction => {
-            if (!validRestrictions.includes(restriction)) {
-                throw new Error(`Invalid restriction: ${restriction}`);
-            }
-        });
+    if (!node.choices || !Array.isArray(node.choices) || node.choices.length === 0) {
+        return { valid: false, message: 'Node must have at least one choice' };
     }
 
-    // Validate questCompletionEvents if present
-    if (node.questCompletionEvents) {
-        if (!Array.isArray(node.questCompletionEvents)) {
-            throw new Error('questCompletionEvents must be an array');
-        }
-    }
-
-    if (node.choices) {
-        if (!Array.isArray(node.choices)) {
-            throw new Error('Choices must be an array');
+    for (const choice of node.choices) {
+        if (!choice.text) {
+            return { valid: false, message: 'Choice text is required' };
         }
 
-        node.choices.forEach(choice => {
-            if (!choice.text) {
-                throw new Error('Each choice must have text');
+        // A choice must have either a mobId or a nextNode
+        if (!choice.mobId && !choice.nextNode && !choice.skillCheckStat) {
+            return { valid: false, message: 'Choice must have either a mob, a next node, or a skill check' };
+        }
+
+        // If there's a skill check stat, validate related fields
+        if (choice.skillCheckStat) {
+            // Validate stat is one of the allowed values
+            const validStats = ['body', 'reflexes', 'agility', 'charisma', 'tech', 'luck'];
+            if (!validStats.includes(choice.skillCheckStat)) {
+                return { valid: false, message: `Skill check stat must be one of: ${validStats.join(', ')}` };
             }
             
-            // A choice can have either a nextNode or a mobId, but not both
-            if (choice.nextNode && choice.mobId) {
-                throw new Error('A choice cannot have both a nextNode and a mobId');
+            // Validate target number
+            if (!choice.skillCheckTargetNumber || choice.skillCheckTargetNumber < 1) {
+                return { valid: false, message: 'Skill check must have a valid target number (minimum 1)' };
             }
             
-            if (choice.nextNode) {
-                validateNode(choice.nextNode);
+            // Validate nextNode (success outcome)
+            if (!choice.nextNode) {
+                return { valid: false, message: 'Skill check must have a next node for success outcome' };
             }
             
-            // Validate mobId if present (just check if it's a valid ObjectId)
-            if (choice.mobId && !mongoose.Types.ObjectId.isValid(choice.mobId)) {
-                throw new Error('Invalid mobId format');
+            // Validate failure node
+            if (!choice.failureNode) {
+                return { valid: false, message: 'Skill check must have a failure node' };
             }
-        });
+            
+            // Recursively validate nextNode (success outcome)
+            const nextNodeValidation = await validateNode(choice.nextNode);
+            if (!nextNodeValidation.valid) {
+                return { valid: false, message: `Success outcome: ${nextNodeValidation.message}` };
+            }
+            
+            // Recursively validate failure node
+            const failureNodeValidation = await validateNode(choice.failureNode);
+            if (!failureNodeValidation.valid) {
+                return { valid: false, message: `Failure outcome: ${failureNodeValidation.message}` };
+            }
+        }
+        // If there's no skill check but there is a nextNode, validate it recursively
+        else if (choice.nextNode) {
+            const nextNodeValidation = await validateNode(choice.nextNode);
+            if (!nextNodeValidation.valid) {
+                return { valid: false, message: `Next node: ${nextNodeValidation.message}` };
+            }
+        }
     }
+
+    return { valid: true };
 }
 
 async function createOrUpdateEvent(req, res) {
@@ -157,6 +181,12 @@ async function createOrUpdateEvent(req, res) {
                     }
                 }
                 
+                // Handle skill check failure node if it exists
+                if (choice.skillCheckStat && choice.failureNode) {
+                    await populateMobIds(choice.failureNode);
+                }
+                
+                // Handle regular next node
                 if (choice.nextNode) {
                     await populateMobIds(choice.nextNode);
                 }
@@ -197,6 +227,12 @@ async function getEventById(req, res) {
                     }
                 }
                 
+                // Handle skill check failure node if it exists
+                if (choice.skillCheckStat && choice.failureNode) {
+                    await populateMobIds(choice.failureNode);
+                }
+                
+                // Handle regular next node
                 if (choice.nextNode) {
                     await populateMobIds(choice.nextNode);
                 }

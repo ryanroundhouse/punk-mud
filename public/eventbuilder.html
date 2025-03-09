@@ -289,6 +289,104 @@
         .node-prompt {
             min-height: 80px;
         }
+
+        .skill-check-container {
+            border: 1px solid var(--neon-blue);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 5px;
+            background: rgba(0, 255, 249, 0.05);
+        }
+        
+        .skill-check-details {
+            margin-top: 1rem;
+        }
+        
+        .skill-check-outcomes {
+            margin-top: 1rem;
+        }
+        
+        .skill-check-outcome {
+            border: 1px solid var(--neon-pink);
+            padding: 1rem;
+            border-radius: 5px;
+        }
+        
+        .skill-check-outcome:last-child {
+            border-color: var(--neon-pink);
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        /* Cyberpunk styling for skill check target input */
+        .skill-check-target-container {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        
+        .skill-check-target {
+            width: 100%;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1.2rem;
+            box-sizing: border-box;
+            text-align: center;
+            box-shadow: 0 0 10px rgba(0, 255, 249, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .skill-check-target:focus {
+            outline: none;
+            border-color: var(--neon-pink);
+            box-shadow: 0 0 15px rgba(255, 46, 136, 0.5);
+        }
+        
+        .skill-check-target:hover {
+            background: rgba(0, 255, 249, 0.15);
+        }
+        
+        .skill-check-target-label {
+            position: absolute;
+            top: -10px;
+            left: 10px;
+            background: var(--dark-bg);
+            padding: 0 5px;
+            font-size: 0.8rem;
+            color: var(--neon-blue);
+            z-index: 1;
+        }
+        
+        .skill-check-difficulty {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+            font-size: 0.7rem;
+        }
+        
+        .skill-check-difficulty span:first-child {
+            color: var(--neon-blue);
+        }
+        
+        .skill-check-difficulty span:last-child {
+            color: var(--neon-pink);
+        }
+        
+        /* Custom number input arrows */
+        .skill-check-target::-webkit-inner-spin-button,
+        .skill-check-target::-webkit-outer-spin-button {
+            opacity: 1;
+            height: 2em;
+            width: 1em;
+            background: rgba(0, 255, 249, 0.2);
+            border-radius: 3px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -663,6 +761,46 @@
                         const event = new Event('change');
                         mobSelect.dispatchEvent(event);
                     }
+                    // Handle skill check if present
+                    else if (choice.skillCheckStat) {
+                        const hasSkillCheckBox = choiceContainer.querySelector('.has-skill-check');
+                        hasSkillCheckBox.checked = true;
+                        
+                        // Trigger the change event to show skill check details
+                        const event = new Event('change');
+                        hasSkillCheckBox.dispatchEvent(event);
+                        
+                        // Set skill check values
+                        choiceContainer.querySelector('.skill-check-stat').value = choice.skillCheckStat;
+                        choiceContainer.querySelector('.skill-check-target').value = choice.skillCheckTargetNumber;
+                        
+                        // Initialize the difficulty indicator
+                        updateDifficultyIndicator(choiceContainer.querySelector('.skill-check-target'));
+                        
+                        // Add success node (nextNode) if it exists
+                        if (choice.nextNode) {
+                            const successNode = createEventNode(choice.nextNode);
+                            choiceContainer.querySelector('.next-node-container').appendChild(successNode);
+                            
+                            // Add a label to indicate this is the success outcome
+                            const nextNodeContainer = choiceContainer.querySelector('.next-node-container');
+                            if (nextNodeContainer && !nextNodeContainer.querySelector('.success-outcome-label')) {
+                                const successLabel = document.createElement('p');
+                                successLabel.className = 'success-outcome-label';
+                                successLabel.style.color = 'var(--neon-blue)';
+                                successLabel.style.fontSize = '0.8rem';
+                                successLabel.style.marginBottom = '0.5rem';
+                                successLabel.innerHTML = '<strong>Success Outcome:</strong> This response is shown when the skill check passes.';
+                                nextNodeContainer.insertBefore(successLabel, nextNodeContainer.firstChild);
+                            }
+                        }
+                        
+                        // Add failure node if it exists
+                        if (choice.failureNode) {
+                            const failureNode = createEventNode(choice.failureNode);
+                            choiceContainer.querySelector('.failure-node-container').appendChild(failureNode);
+                        }
+                    }
                     // Otherwise handle next node if it exists
                     else if (choice.nextNode) {
                         const nextNode = createEventNode(choice.nextNode);
@@ -675,6 +813,29 @@
             updateQuestSelects();
 
             return nodeContainer;
+        }
+
+        // Function to update difficulty indicator
+        function updateDifficultyIndicator(input) {
+            const value = parseInt(input.value);
+            const difficultySpans = input.parentNode.querySelector('.skill-check-difficulty').children;
+            
+            // Reset all spans to default color
+            for (let span of difficultySpans) {
+                span.style.color = '';
+            }
+            
+            // Highlight the appropriate difficulty level
+            if (value <= 5) {
+                difficultySpans[0].style.color = 'var(--terminal-green)';
+            } else if (value <= 10) {
+                difficultySpans[1].style.color = 'var(--neon-blue)';
+            } else if (value <= 15) {
+                difficultySpans[2].style.color = 'var(--neon-pink)';
+            } else {
+                difficultySpans[3].style.color = '#ff0000';
+                difficultySpans[3].style.textShadow = '0 0 5px #ff0000';
+            }
         }
 
         // Add choice to event node
@@ -699,6 +860,54 @@
                         If a mob is selected, this choice will be a leaf node that spawns the mob and initiates combat.
                     </p>
                 </div>
+                
+                <div class="form-group skill-check-container">
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="has-skill-check"> Add Skill Check
+                    </label>
+                    
+                    <div class="skill-check-details hidden">
+                        <div class="form-group">
+                            <label>Stat to Check:</label>
+                            <select class="skill-check-stat">
+                                <option value="body">Body</option>
+                                <option value="reflexes">Reflexes</option>
+                                <option value="agility">Agility</option>
+                                <option value="charisma">Charisma</option>
+                                <option value="tech">Tech</option>
+                                <option value="luck">Luck</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="skill-check-target-container">
+                                <span class="skill-check-target-label">TARGET NUMBER</span>
+                                <input type="number" class="skill-check-target" min="1" max="20" value="5">
+                                <div class="skill-check-difficulty">
+                                    <span>EASY</span>
+                                    <span>MEDIUM</span>
+                                    <span>HARD</span>
+                                    <span>EXTREME</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="skill-check-outcomes">
+                            <div class="skill-check-outcome">
+                                <h4 style="color: var(--neon-pink);">Failure Outcome</h4>
+                                <div class="failure-node-container"></div>
+                                <button class="action-button add-failure-response-btn">Add Failure Response</button>
+                                <p class="help-text" style="color: var(--neon-pink); font-size: 0.8rem; margin-top: 0.3rem;">
+                                    This is the path taken when the skill check fails.
+                                </p>
+                            </div>
+                        </div>
+                        <p class="help-text" style="color: var(--neon-blue); font-size: 0.8rem; margin-top: 0.5rem;">
+                            <strong>Note:</strong> Use the "Add Response" button below to add the success outcome (shown when skill check passes).
+                        </p>
+                    </div>
+                </div>
+                
                 <div class="next-node-container"></div>
                 <button class="action-button add-response-btn">Add Response</button>
             `;
@@ -734,18 +943,99 @@
             mobSelect.addEventListener('change', () => {
                 const addResponseBtn = choiceContainer.querySelector('.add-response-btn');
                 const nextNodeContainer = choiceContainer.querySelector('.next-node-container');
+                const skillCheckContainer = choiceContainer.querySelector('.skill-check-container');
                 
                 if (mobSelect.value) {
                     // If a mob is selected, disable the add response button and remove any existing response
                     addResponseBtn.disabled = true;
                     addResponseBtn.style.opacity = '0.5';
                     nextNodeContainer.innerHTML = '';
+                    
+                    // Also disable skill check
+                    skillCheckContainer.style.opacity = '0.5';
+                    skillCheckContainer.querySelector('.has-skill-check').disabled = true;
+                    skillCheckContainer.querySelector('.has-skill-check').checked = false;
+                    skillCheckContainer.querySelector('.skill-check-details').classList.add('hidden');
+                    
+                    // Remove any skill check success note
+                    const successNote = choiceContainer.querySelector('.skill-check-success-note');
+                    if (successNote) {
+                        successNote.remove();
+                    }
                 } else {
                     // If no mob is selected, enable the add response button
                     addResponseBtn.disabled = false;
                     addResponseBtn.style.opacity = '1';
+                    
+                    // Also enable skill check
+                    skillCheckContainer.style.opacity = '1';
+                    skillCheckContainer.querySelector('.has-skill-check').disabled = false;
                 }
             });
+            
+            // Add skill check checkbox handler
+            const hasSkillCheckBox = choiceContainer.querySelector('.has-skill-check');
+            hasSkillCheckBox.addEventListener('change', () => {
+                const skillCheckDetails = choiceContainer.querySelector('.skill-check-details');
+                const addResponseBtn = choiceContainer.querySelector('.add-response-btn');
+                
+                if (hasSkillCheckBox.checked) {
+                    skillCheckDetails.classList.remove('hidden');
+                    // Don't hide the add response button anymore, as it's used for adding the success outcome
+                    
+                    // Clear any existing failure node
+                    choiceContainer.querySelector('.failure-node-container').innerHTML = '';
+                    
+                    // Add explanatory text above the Add Response button
+                    const responseButtonContainer = choiceContainer.querySelector('.add-response-btn').parentNode;
+                    if (!responseButtonContainer.querySelector('.skill-check-success-note')) {
+                        const successNote = document.createElement('p');
+                        successNote.className = 'skill-check-success-note';
+                        successNote.style.color = 'var(--neon-blue)';
+                        successNote.style.fontSize = '0.8rem';
+                        successNote.style.marginTop = '0.5rem';
+                        successNote.style.marginBottom = '0.5rem';
+                        successNote.innerHTML = '<strong>Success Outcome:</strong> Add a response below for what happens when the skill check passes.';
+                        responseButtonContainer.insertBefore(successNote, choiceContainer.querySelector('.add-response-btn'));
+                    }
+                } else {
+                    skillCheckDetails.classList.add('hidden');
+                    
+                    // Clear any existing failure node
+                    choiceContainer.querySelector('.failure-node-container').innerHTML = '';
+                    
+                    // Remove explanatory text if it exists
+                    const successNote = choiceContainer.querySelector('.skill-check-success-note');
+                    if (successNote) {
+                        successNote.remove();
+                    }
+                    
+                    // Also remove any success label that might have been added to the next node container
+                    const successLabel = choiceContainer.querySelector('.success-outcome-label');
+                    if (successLabel) {
+                        successLabel.remove();
+                    }
+                }
+            });
+            
+            // Add failure response button handler
+            choiceContainer.querySelector('.add-failure-response-btn').addEventListener('click', (e) => {
+                e.preventDefault();
+                const failureNodeContainer = choiceContainer.querySelector('.failure-node-container');
+                
+                if (!failureNodeContainer.querySelector('.event-node')) {
+                    const failureNode = createEventNode();
+                    failureNodeContainer.appendChild(failureNode);
+                }
+            });
+
+            // Add event listener to update difficulty indicator
+            choiceContainer.querySelector('.skill-check-target').addEventListener('input', function() {
+                updateDifficultyIndicator(this);
+            });
+            
+            // Initialize the difficulty indicator
+            updateDifficultyIndicator(choiceContainer.querySelector('.skill-check-target'));
 
             container.appendChild(choiceContainer);
             return choiceContainer;
@@ -854,7 +1144,26 @@
                         if (mobSelect && mobSelect.value) {
                             choiceData.mobId = mobSelect.value;
                         }
-                        // Only get next node if no mob is selected
+                        // Check if this choice has a skill check
+                        else if (choiceElement.querySelector('.has-skill-check').checked) {
+                            const skillCheckStat = choiceElement.querySelector('.skill-check-stat').value;
+                            const skillCheckTargetNumber = parseInt(choiceElement.querySelector('.skill-check-target').value);
+                            
+                            // Get next node (success outcome) if it exists
+                            const nextNodeElement = choiceElement.querySelector('.next-node-container .event-node');
+                            if (nextNodeElement) {
+                                choiceData.nextNode = getNodeData(nextNodeElement);
+                            }
+                            
+                            // Get failure node if it exists
+                            const failureNodeElement = choiceElement.querySelector('.failure-node-container .event-node');
+                            const failureNode = failureNodeElement ? getNodeData(failureNodeElement) : undefined;
+                            
+                            choiceData.skillCheckStat = skillCheckStat;
+                            choiceData.skillCheckTargetNumber = skillCheckTargetNumber;
+                            choiceData.failureNode = failureNode;
+                        }
+                        // Only get next node if no mob is selected and no skill check
                         else {
                             // Get next node if it exists
                             const nextNodeElement = choiceElement.querySelector('.next-node-container .event-node');

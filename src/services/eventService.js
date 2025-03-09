@@ -540,6 +540,115 @@ class EventService {
                     };
                 }
             }
+            
+            // Check if this choice has a skill check
+            if (clonedChoice.skillCheckStat && clonedChoice.skillCheckTargetNumber) {
+                logger.debug('Skill check choice selected', {
+                    userId,
+                    stat: clonedChoice.skillCheckStat,
+                    targetNumber: clonedChoice.skillCheckTargetNumber,
+                    choiceText: clonedChoice.text
+                });
+                
+                // Import required services
+                const messageService = require('./messageService');
+                
+                // Get the user's stat value for the skill check
+                const userStatValue = user.stats[clonedChoice.skillCheckStat];
+                
+                // Roll a d20
+                const diceRoll = Math.floor(Math.random() * 20) + 1;
+                
+                // Calculate the total check result
+                const checkResult = userStatValue + diceRoll;
+                
+                // Determine if the check passed or failed
+                const passed = checkResult >= clonedChoice.skillCheckTargetNumber;
+                
+                // Format the skill check result message
+                let resultMessage = `${clonedChoice.text}\n\n`;
+                resultMessage += `SKILL CHECK: ${clonedChoice.skillCheckStat.toUpperCase()} (${userStatValue}) + D20 (${diceRoll}) = ${checkResult} vs ${clonedChoice.skillCheckTargetNumber}\n`;
+                
+                if (passed) {
+                    resultMessage += `SUCCESS! You passed the ${clonedChoice.skillCheckStat} check.\n`;
+                    
+                    // If there's no nextNode (success path), end the event
+                    if (!clonedChoice.nextNode) {
+                        logger.debug('Skill check passed but no success path found, ending event', {
+                            userId,
+                            stat: clonedChoice.skillCheckStat,
+                            roll: diceRoll,
+                            total: checkResult,
+                            target: clonedChoice.skillCheckTargetNumber
+                        });
+                        
+                        stateService.clearActiveEvent(userId);
+                        
+                        // Send the result message
+                        messageService.sendSuccessMessage(userId, resultMessage);
+                        
+                        return {
+                            message: null, // Message already sent
+                            isEnd: true
+                        };
+                    }
+                    
+                    // Continue with the success path (nextNode)
+                    logger.debug('Skill check passed, continuing with success path', {
+                        userId,
+                        stat: clonedChoice.skillCheckStat,
+                        roll: diceRoll,
+                        total: checkResult,
+                        target: clonedChoice.skillCheckTargetNumber
+                    });
+                    
+                    // Send the result message
+                    messageService.sendSuccessMessage(userId, resultMessage);
+                    
+                    // Continue with the nextNode (success path)
+                    // The rest of the function will handle this
+                } else {
+                    resultMessage += `FAILURE! You failed the ${clonedChoice.skillCheckStat} check.\n`;
+                    
+                    // If there's no failureNode, end the event
+                    if (!clonedChoice.failureNode) {
+                        logger.debug('Skill check failed but no failure path found, ending event', {
+                            userId,
+                            stat: clonedChoice.skillCheckStat,
+                            roll: diceRoll,
+                            total: checkResult,
+                            target: clonedChoice.skillCheckTargetNumber
+                        });
+                        
+                        stateService.clearActiveEvent(userId);
+                        
+                        // Send the result message
+                        messageService.sendErrorMessage(userId, resultMessage);
+                        
+                        return {
+                            message: null, // Message already sent
+                            isEnd: true
+                        };
+                    }
+                    
+                    // Continue with the failure path
+                    logger.debug('Skill check failed, continuing with failure path', {
+                        userId,
+                        stat: clonedChoice.skillCheckStat,
+                        roll: diceRoll,
+                        total: checkResult,
+                        target: clonedChoice.skillCheckTargetNumber
+                    });
+                    
+                    // Send the result message
+                    messageService.sendErrorMessage(userId, resultMessage);
+                    
+                    // Replace the nextNode with the failureNode
+                    clonedChoice.nextNode = clonedChoice.failureNode;
+                    
+                    // The rest of the function will handle this
+                }
+            }
 
             // Validate the next node structure
             if (clonedChoice.nextNode) {

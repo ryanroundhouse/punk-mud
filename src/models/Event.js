@@ -44,6 +44,28 @@ const eventNodeSchema = new mongoose.Schema({
         mobId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Mob'
+        },
+        // Optional skill check stat (if this choice requires a skill check)
+        skillCheckStat: {
+            type: String,
+            enum: ['body', 'reflexes', 'agility', 'charisma', 'tech', 'luck']
+        },
+        // Optional skill check target number (required if skillCheckStat is present)
+        skillCheckTargetNumber: {
+            type: Number,
+            min: 1,
+            required: function() {
+                return !!this.skillCheckStat;
+            }
+        },
+        // Optional failure node (required if skillCheckStat is present)
+        // This is the node to navigate to if the skill check fails
+        // If the skill check succeeds, nextNode is used
+        failureNode: {
+            type: mongoose.Schema.Types.Mixed,
+            required: function() {
+                return !!this.skillCheckStat;
+            }
         }
     }]
 }, { _id: false });
