@@ -1644,38 +1644,30 @@
                 return;
             }
             
-            // Check if this is a combat response that should be merged with previous combat responses
-            if (response && response.type === 'combat') {
-                // Get the last entry in history
-                const lastEntry = history.length > 0 ? history[history.length - 1] : null;
-                
-                // If the last entry was also a combat response and from the same command, merge them
-                if (lastEntry && 
-                    lastEntry.response && 
-                    lastEntry.response.type === 'combat' && 
-                    lastEntry.command === command) {
-                    
-                    // Merge the messages
-                    lastEntry.response.message += '\n' + response.message;
-                    
-                    // Update the history with the merged entry
-                    localStorage.setItem(TERMINAL_HISTORY_KEY, JSON.stringify(history));
-                    return;
+            // Get the last entry in history
+            const lastEntry = history.length > 0 ? history[history.length - 1] : null;
+            
+            // Check if this response should be grouped with the previous command
+            if (lastEntry && lastEntry.command === command) {
+                // If the last entry has the same command, add this response to its responses array
+                if (!lastEntry.responses) {
+                    // Convert the old single response format to the new multiple responses format
+                    lastEntry.responses = [lastEntry.response];
+                    delete lastEntry.response;
                 }
-            }
-
-            // Ensure event messages are stored with their type
-            if (response && (response.type === 'event' || response.message?.startsWith('Event:'))) {
-                storableResponse = {
-                    type: 'event',
-                    message: response.message || response
-                };
+                
+                // Add the new response to the array
+                lastEntry.responses.push(storableResponse);
+                
+                // Update the history with the modified entry
+                localStorage.setItem(TERMINAL_HISTORY_KEY, JSON.stringify(history));
+                return;
             }
             
-            // Add as a new entry if not merged
+            // Add as a new entry with responses array
             history.push({ 
                 command, 
-                response: storableResponse, 
+                responses: [storableResponse], 
                 timestamp: new Date().toISOString() 
             });
             
@@ -1687,63 +1679,68 @@
             localStorage.setItem(TERMINAL_HISTORY_KEY, JSON.stringify(history));
         }
 
-        // Update the loadTerminalHistory function to improve scrolling
+        // Update the loadTerminalHistory function to handle multiple responses per command
         function loadTerminalHistory() {
             const history = JSON.parse(localStorage.getItem(TERMINAL_HISTORY_KEY) || '[]');
             const inputLine = terminalInput.parentElement;
             
             // Add each history item to the terminal
             history.forEach(item => {
-                // Add command line
+                // Add command line once per command
                 const commandLine = document.createElement('div');
                 commandLine.style.color = 'var(--terminal-green)';
                 commandLine.textContent = `> ${item.command}`;
                 terminalOutput.insertBefore(commandLine, inputLine);
                 
-                // Add response line with appropriate styling
-                const responseLine = document.createElement('div');
+                // Handle both old format (single response) and new format (responses array)
+                const responses = item.responses || (item.response ? [item.response] : []);
                 
-                // Apply styling based on response type if available
-                if (typeof item.response === 'object') {
-                    switch(item.response.type) {
-                        case 'error':
-                            responseLine.style.color = 'var(--neon-red)';
-                            break;
-                        case 'success':
-                        case 'event':  // Handle event type explicitly
+                // Add each response for this command
+                responses.forEach(response => {
+                    const responseLine = document.createElement('div');
+                    
+                    // Apply styling based on response type if available
+                    if (typeof response === 'object') {
+                        switch(response.type) {
+                            case 'error':
+                                responseLine.style.color = 'var(--neon-red)';
+                                break;
+                            case 'success':
+                            case 'event':  // Handle event type explicitly
+                                responseLine.style.color = 'var(--neon-blue)';
+                                break;
+                            case 'combat':
+                                responseLine.style.color = 'var(--neon-pink)';
+                                break;
+                            default:
+                                responseLine.style.color = 'var(--terminal-green)';
+                        }
+                        
+                        // Check if this is a list response with enemy markup
+                        if (response.type === 'list' && response.hasEnemyMarkup) {
+                            // Process the custom enemy markup
+                            let processedText = response.message.replace(
+                                /<enemy data-color="([^"]+)">([^<]+)<\/enemy>/g, 
+                                '<span style="color: $1">$2</span>'
+                            );
+                            responseLine.innerHTML = processedText;
+                        } else {
+                            responseLine.textContent = response.message || '';
+                        }
+                    } else {
+                        // If response is just a string, check if it's an event message
+                        if (typeof response === 'string' && response.startsWith('Event:')) {
                             responseLine.style.color = 'var(--neon-blue)';
-                            break;
-                        case 'combat':
-                            responseLine.style.color = 'var(--neon-pink)';
-                            break;
-                        default:
+                        } else {
                             responseLine.style.color = 'var(--terminal-green)';
+                        }
+                        responseLine.textContent = response || '';
                     }
                     
-                    // Check if this is a list response with enemy markup
-                    if (item.response.type === 'list' && item.response.hasEnemyMarkup) {
-                        // Process the custom enemy markup
-                        let processedText = item.response.message.replace(
-                            /<enemy data-color="([^"]+)">([^<]+)<\/enemy>/g, 
-                            '<span style="color: $1">$2</span>'
-                        );
-                        responseLine.innerHTML = processedText;
-                    } else {
-                        responseLine.textContent = item.response.message || '';
-                    }
-                } else {
-                    // If response is just a string, check if it's an event message
-                    if (typeof item.response === 'string' && item.response.startsWith('Event:')) {
-                        responseLine.style.color = 'var(--neon-blue)';
-                    } else {
-                        responseLine.style.color = 'var(--terminal-green)';
-                    }
-                    responseLine.textContent = item.response || '';
-                }
-                
-                responseLine.style.fontFamily = 'monospace';
-                responseLine.style.whiteSpace = 'pre-wrap';
-                terminalOutput.insertBefore(responseLine, inputLine);
+                    responseLine.style.fontFamily = 'monospace';
+                    responseLine.style.whiteSpace = 'pre-wrap';
+                    terminalOutput.insertBefore(responseLine, inputLine);
+                });
             });
             
             // Use a more reliable method to ensure the input line is fully visible

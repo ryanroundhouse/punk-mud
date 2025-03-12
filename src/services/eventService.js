@@ -2,10 +2,14 @@ const logger = require('../config/logger');
 const Event = require('../models/Event');
 const stateService = require('./stateService');
 const messageService = require('./messageService');
-const questService = require('./questService');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const util = require('util');
+
+// Add a function to get questService when needed
+function getQuestService() {
+    return require('./questService');
+}
 
 class EventService {
     async handleActorChat(user, actor) {
@@ -230,7 +234,7 @@ class EventService {
                 });
 
                 // Pass the correct parameters
-                await questService.handleQuestProgression(
+                await getQuestService().handleQuestProgression(
                     user,
                     event.actorId,
                     [],  // No completion events
@@ -681,7 +685,7 @@ class EventService {
                     nextNodeId: clonedChoice.nextNode._id?.toString()
                 });
 
-                const result = await questService.handleQuestProgression(
+                const result = await getQuestService().handleQuestProgression(
                     user,
                     activeEvent.actorId,
                     clonedChoice.nextNode.questCompletionEvents
@@ -707,7 +711,7 @@ class EventService {
                     return null;
                 }
 
-                await questService.handleQuestProgression(
+                await getQuestService().handleQuestProgression(
                     user,
                     activeEvent.actorId,
                     [],  // No completion events

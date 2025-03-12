@@ -875,10 +875,4 @@ class QuestService {
 }
 
 const questService = new QuestService();
-module.exports = {
-    getActiveQuests: questService.getActiveQuests.bind(questService),
-    handleQuestProgression: questService.handleQuestProgression.bind(questService),
-    handleMobKill: questService.handleMobKill.bind(questService),
-    getQuestNodeEventOverrides: questService.getQuestNodeEventOverrides.bind(questService),
-    getQuestNodeActorOverrides: questService.getQuestNodeActorOverrides.bind(questService)
-}; 
+module.exports = questService; 
