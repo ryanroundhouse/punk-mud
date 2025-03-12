@@ -1,5 +1,4 @@
 const User = require('../models/User');
-const Move = require('../models/Move');
 const logger = require('../config/logger');
 const socketService = require('./socketService');
 const stateService = require('./stateService');
@@ -7,6 +6,10 @@ const messageService = require('./messageService');
 const Class = require('../models/Class');
 const nodeService = require('./nodeService');
 const mobService = require('./mobService');
+const { publishSystemMessage } = require('./chatService');
+const Event = require('../models/Event');
+const eventService = require('./eventService');
+const questService = require('./questService');
 
 class UserService {
     async getUser(userId) {
@@ -326,6 +329,48 @@ flee.............Attempt to escape combat
             return user.stats.level;
         } catch (error) {
             logger.error('Error getting user level:', error);
+            throw error;
+        }
+    }
+
+    async moveUserToNode(userId, direction, targetNode) {
+        try {
+            const user = await User.findById(userId);
+            if (!user) {
+                throw new Error('User not found');
+            }
+
+            logger.debug('Moving user to node:', {
+                userId,
+                fromNode: user.currentNode,
+                toNode: targetNode.address,
+                hasActorOverrides: !!targetNode.actors,
+                actorOverrideCount: targetNode.actors?.length || 0,
+                actorIds: targetNode.actors?.map(a => a.actorId) || []
+            });
+
+            const oldNode = user.currentNode;
+            user.currentNode = targetNode.address;
+
+            await user.save();
+
+            // Handle node client management
+            stateService.removeUserFromNode(userId, oldNode);
+            stateService.addUserToNode(userId, targetNode.address);
+
+            // Send movement messages
+            await publishSystemMessage(oldNode, `${user.avatarName} has left.`);
+            await publishSystemMessage(
+                targetNode.address,
+                `${user.avatarName} has arrived.`,
+                `You have entered ${targetNode.name}.`,
+                userId
+            );
+
+            // Clear any existing mob and check for new spawn
+            mobService.clearUserMob(userId);
+        } catch (error) {
+            logger.error('Error moving user to node:', error);
             throw error;
         }
     }

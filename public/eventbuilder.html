@@ -426,6 +426,23 @@
                             Requires Energy to Activate
                         </label>
                     </div>
+                    
+                    <div class="form-group">
+                        <label>Event Chances:</label>
+                        <div id="eventChancesContainer">
+                            <p class="help-text" style="color: var(--neon-blue); font-size: 0.8rem; margin-bottom: 1rem;">
+                                Add events with their chances of occurring. Total chances must sum to exactly 100% or be empty.
+                            </p>
+                            <div id="eventChancesList"></div>
+                            <div class="chance-total-container" style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                                <span>Total Chance:</span>
+                                <span id="totalChanceDisplay" style="font-weight: bold;">0%</span>
+                            </div>
+                            <div style="margin-top: 1rem;">
+                                <button class="action-button" id="addEventChanceBtn">Add Event Chance</button>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="form-group">
                         <label>Event Tree:</label>
@@ -499,6 +516,7 @@
         let allActors = [];
         let allQuests = [];
         let allMobs = [];
+        let eventChances = [];
 
         // Check authentication and load data
         window.onload = async () => {
@@ -1068,6 +1086,10 @@
             document.getElementById('actorSelect').value = event.actorId?._id || '';
             document.getElementById('requiresEnergy').checked = event.requiresEnergy !== false;
             
+            // Load event chances
+            eventChances = event.events || [];
+            renderEventChances();
+            
             // Clear and rebuild the event tree
             const eventTree = document.getElementById('eventTree');
             eventTree.innerHTML = '';
@@ -1085,12 +1107,163 @@
             updateQuestSelects();
         }
 
+        // Render event chances
+        function renderEventChances() {
+            const container = document.getElementById('eventChancesList');
+            container.innerHTML = '';
+            
+            eventChances.forEach((chance, index) => {
+                const chanceItem = document.createElement('div');
+                chanceItem.className = 'event-chance-item';
+                chanceItem.style.display = 'flex';
+                chanceItem.style.alignItems = 'center';
+                chanceItem.style.marginBottom = '0.5rem';
+                chanceItem.style.padding = '0.5rem';
+                chanceItem.style.border = '1px solid var(--neon-blue)';
+                chanceItem.style.borderRadius = '5px';
+                chanceItem.style.background = 'rgba(0, 255, 249, 0.05)';
+                
+                chanceItem.innerHTML = `
+                    <div style="flex: 1;">
+                        <div style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">
+                            <div style="flex: 2;">
+                                <label style="color: var(--neon-blue); font-size: 0.8rem;">Type</label>
+                                <select class="event-type-select" style="width: 100%;">
+                                    <option value="mob" ${chance.mobId ? 'selected' : ''}>Mob</option>
+                                    <option value="event" ${chance.eventId ? 'selected' : ''}>Event</option>
+                                </select>
+                            </div>
+                            <div style="flex: 3;">
+                                <label style="color: var(--neon-blue); font-size: 0.8rem;">ID</label>
+                                <select class="event-id-select" style="width: 100%;">
+                                    ${chance.mobId ? 
+                                        allMobs.map(mob => `
+                                            <option value="${mob._id}" ${mob._id === chance.mobId ? 'selected' : ''}>
+                                                ${mob.name}
+                                            </option>
+                                        `).join('') : 
+                                        allEvents.map(event => `
+                                            <option value="${event._id}" ${event._id === chance.eventId ? 'selected' : ''}>
+                                                ${event.title}
+                                            </option>
+                                        `).join('')
+                                    }
+                                </select>
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="color: var(--neon-blue); font-size: 0.8rem;">Chance (%)</label>
+                                <input type="number" class="event-chance-input" value="${chance.chance}" min="1" max="100" style="width: 100%;">
+                            </div>
+                        </div>
+                    </div>
+                    <button class="action-button delete-button" style="margin-left: 0.5rem;">×</button>
+                `;
+                
+                // Add event listeners
+                chanceItem.querySelector('.event-type-select').addEventListener('change', (e) => {
+                    const type = e.target.value;
+                    const idSelect = chanceItem.querySelector('.event-id-select');
+                    
+                    // Update the ID select options based on the type
+                    if (type === 'mob') {
+                        idSelect.innerHTML = allMobs.map(mob => `
+                            <option value="${mob._id}">${mob.name}</option>
+                        `).join('');
+                    } else {
+                        idSelect.innerHTML = allEvents.map(event => `
+                            <option value="${event._id}">${event.title}</option>
+                        `).join('');
+                    }
+                    
+                    // Update the event chance data
+                    if (type === 'mob') {
+                        eventChances[index] = {
+                            mobId: idSelect.value,
+                            chance: parseInt(chanceItem.querySelector('.event-chance-input').value)
+                        };
+                    } else {
+                        eventChances[index] = {
+                            eventId: idSelect.value,
+                            chance: parseInt(chanceItem.querySelector('.event-chance-input').value)
+                        };
+                    }
+                    
+                    updateTotalChance();
+                });
+                
+                chanceItem.querySelector('.event-id-select').addEventListener('change', (e) => {
+                    const type = chanceItem.querySelector('.event-type-select').value;
+                    
+                    // Update the event chance data
+                    if (type === 'mob') {
+                        eventChances[index].mobId = e.target.value;
+                    } else {
+                        eventChances[index].eventId = e.target.value;
+                    }
+                });
+                
+                chanceItem.querySelector('.event-chance-input').addEventListener('input', (e) => {
+                    eventChances[index].chance = parseInt(e.target.value) || 0;
+                    updateTotalChance();
+                });
+                
+                chanceItem.querySelector('.delete-button').addEventListener('click', () => {
+                    eventChances.splice(index, 1);
+                    renderEventChances();
+                    updateTotalChance();
+                });
+                
+                container.appendChild(chanceItem);
+            });
+            
+            updateTotalChance();
+        }
+        
+        // Update total chance display
+        function updateTotalChance() {
+            const totalChance = eventChances.reduce((sum, chance) => sum + (parseInt(chance.chance) || 0), 0);
+            const totalDisplay = document.getElementById('totalChanceDisplay');
+            
+            totalDisplay.textContent = `${totalChance}%`;
+            
+            // Highlight if not 100%
+            if (eventChances.length > 0 && totalChance !== 100) {
+                totalDisplay.style.color = 'var(--neon-pink)';
+            } else {
+                totalDisplay.style.color = 'var(--terminal-green)';
+            }
+        }
+        
+        // Add event chance button
+        document.getElementById('addEventChanceBtn').addEventListener('click', () => {
+            // Default to mob type if available, otherwise event
+            const type = allMobs.length > 0 ? 'mob' : 'event';
+            const id = type === 'mob' ? 
+                (allMobs.length > 0 ? allMobs[0]._id : '') : 
+                (allEvents.length > 0 ? allEvents[0]._id : '');
+            
+            // Calculate remaining chance needed to reach 100%
+            const currentTotal = eventChances.reduce((sum, chance) => sum + (parseInt(chance.chance) || 0), 0);
+            const remainingChance = Math.max(1, 100 - currentTotal);
+            
+            const newChance = type === 'mob' ? 
+                { mobId: id, chance: remainingChance } : 
+                { eventId: id, chance: remainingChance };
+            
+            eventChances.push(newChance);
+            renderEventChances();
+        });
+
         // Add event listeners
         document.getElementById('newEventBtn').addEventListener('click', () => {
             document.getElementById('eventForm').dataset.eventId = '';
             document.getElementById('deleteEventBtn').classList.add('hidden');
             document.getElementById('eventTitle').value = '';
             document.getElementById('actorSelect').value = '';
+            
+            // Clear event chances
+            eventChances = [];
+            renderEventChances();
             
             // Create the root node structure
             const eventTree = document.getElementById('eventTree');
@@ -1106,6 +1279,13 @@
         document.getElementById('saveEventBtn').addEventListener('click', async () => {
             try {
                 const form = document.getElementById('eventForm');
+                
+                // Validate event chances
+                const totalChance = eventChances.reduce((sum, chance) => sum + (parseInt(chance.chance) || 0), 0);
+                if (eventChances.length > 0 && totalChance !== 100) {
+                    alert(`Event chances must sum to exactly 100% (current total: ${totalChance}%)`);
+                    return;
+                }
                 
                 function getNodeData(nodeElement) {
                     const restrictions = Array.from(nodeElement.querySelectorAll('.restriction-checkbox:checked'))
@@ -1183,7 +1363,8 @@
                     title: document.getElementById('eventTitle').value,
                     actorId: document.getElementById('actorSelect').value || undefined,
                     requiresEnergy: document.getElementById('requiresEnergy').checked,
-                    rootNode: getNodeData(document.querySelector('.root-node'))
+                    rootNode: getNodeData(document.querySelector('.root-node')),
+                    events: eventChances.length > 0 ? eventChances : undefined
                 };
 
                 const response = await fetch('/api/events', {
@@ -1196,14 +1377,15 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to save event');
+                    const errorData = await response.json();
+                    throw new Error(errorData.details || 'Failed to save event');
                 }
 
                 alert('Event saved successfully!');
                 await loadEvents();
             } catch (error) {
                 console.error('Error saving event:', error);
-                alert('Failed to save event');
+                alert(`Failed to save event: ${error.message}`);
             }
         });
 

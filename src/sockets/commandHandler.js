@@ -77,7 +77,22 @@ async function handleCommand(socket, data) {
         switch (data.command) {
             case 'move': {
                 const oldNode = user.currentNode;
-                const result = await nodeService.moveUser(socket.user.userId, data.direction);
+                
+                // Get the target node first
+                const targetNode = await nodeService.getNodeByDirection(socket.user.userId, data.direction);
+                // Then move the user to that node
+                await userService.moveUserToNode(socket.user.userId, data.direction, targetNode);
+
+                const nodeEventResult = await nodeService.getNodeEvent(socket.user.userId, targetNode.address);
+                
+                const nodeConnectionResult = {
+                    success: true,
+                    message: `You move ${data.direction} to ${targetNode.name}`,
+                    node: targetNode,
+                    mobSpawn: nodeEventResult.mobSpawn,
+                    storyEvent: nodeEventResult.storyEvent
+                };
+                
                 if (oldNode) {
                     stateService.removeUserFromNode(socket.user.userId, oldNode);
                     await socketService.unsubscribeFromNodeChat(oldNode);
@@ -87,7 +102,7 @@ async function handleCommand(socket, data) {
                 await socketService.subscribeToNodeChat(user.currentNode);
 
                 socket.emit('console response', {
-                    message: result.message,
+                    message: nodeConnectionResult.message,
                     type: 'move'
                 });
                 break;

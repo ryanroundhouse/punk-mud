@@ -119,8 +119,29 @@ async function validateNode(node) {
     return { valid: true };
 }
 
+// Validate that event chances sum to 100% or there are no events
+function validateEventChances(events) {
+    // If there are no events, that's valid
+    if (!events || events.length === 0) {
+        return { valid: true };
+    }
+    
+    // Calculate the sum of all event chances
+    const totalChance = events.reduce((sum, event) => sum + (event.chance || 0), 0);
+    
+    // Check if the total is exactly 100 or there are no events
+    if (totalChance === 100) {
+        return { valid: true };
+    } else {
+        return { 
+            valid: false, 
+            message: `Event chances must sum to exactly 100% (current total: ${totalChance}%)`
+        };
+    }
+}
+
 async function createOrUpdateEvent(req, res) {
-    const { _id, title, actorId, rootNode, requiresEnergy } = req.body;
+    const { _id, title, actorId, rootNode, requiresEnergy, events } = req.body;
     
     try {
         // Validate basic fields
@@ -137,6 +158,15 @@ async function createOrUpdateEvent(req, res) {
                 details: error.message
             });
         }
+        
+        // Validate event chances
+        const chanceValidation = validateEventChances(events);
+        if (!chanceValidation.valid) {
+            return res.status(400).json({ 
+                error: 'Invalid event chances',
+                details: chanceValidation.message
+            });
+        }
 
         let event;
         if (_id) {
@@ -150,6 +180,7 @@ async function createOrUpdateEvent(req, res) {
             event.actorId = actorId;
             event.rootNode = rootNode;
             event.requiresEnergy = requiresEnergy;
+            event.events = events;
             await event.save();
         } else {
             // Create new event
@@ -157,7 +188,8 @@ async function createOrUpdateEvent(req, res) {
                 title,
                 actorId,
                 rootNode,
-                requiresEnergy
+                requiresEnergy,
+                events
             });
             await event.save();
         }

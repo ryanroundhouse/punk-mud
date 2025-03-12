@@ -6,10 +6,9 @@ const socketService = require('../services/socketService');
 const { handleCommand } = require('./commandHandler');
 const { handleChat } = require('./chatHandler');
 const User = require('../models/User');
-const { handlePlayerNodeConnection } = require('../services/nodeService');
 const messageService = require('../services/messageService');
 const userService = require('../services/userService');
-
+const nodeService = require('../services/nodeService');
 function socketHandler(io) {
     // Add socket.io authentication
     io.use((socket, next) => {
@@ -42,7 +41,7 @@ function socketHandler(io) {
                 await socketService.subscribeToNodeChat(user.currentNode);
                 
                 // Check for mob spawn on connection
-                await handlePlayerNodeConnection(socket.user.userId, user.currentNode);
+                await nodeService.getNodeEvent(socket.user.userId, user.currentNode);
 
                 // Send character HP status after connection
                 const userDetails = await userService.getUser(socket.user.userId);

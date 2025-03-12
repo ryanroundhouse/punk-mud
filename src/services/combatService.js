@@ -699,9 +699,16 @@ async function handleFleeCommand(user) {
                 return;
             }
 
+            stateService.clearUserCombatState(user._id.toString());
+            mobService.clearUserMob(user._id.toString());
+
             const randomExit = exits[Math.floor(Math.random() * exits.length)];
             const oldNode = user.currentNode;
-            await nodeService.moveUser(user._id.toString(), randomExit.direction);
+            
+            // Get the target node first
+            const targetNode = await nodeService.getNodeByDirection(user._id.toString(), randomExit.direction);
+            // Then move the user to that node
+            await userService.moveUserToNode(user._id.toString(), randomExit.direction, targetNode);
             
             if (oldNode) {
                 stateService.removeUserFromNode(user._id.toString(), oldNode);
@@ -709,9 +716,6 @@ async function handleFleeCommand(user) {
             }
             stateService.addUserToNode(user._id.toString(), user.currentNode);
             await socketService.subscribeToNodeChat(user.currentNode);
-
-            stateService.clearUserCombatState(user._id.toString());
-            mobService.clearUserMob(user._id.toString());
 
             messageService.sendCombatMessage(
                 user._id.toString(),
