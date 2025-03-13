@@ -6,6 +6,7 @@ const stateService = require('../services/stateService');
 const socketService = require('../services/socketService');
 const { publishSystemMessage } = require('../services/chatService');
 const mongoose = require('mongoose');
+const questService = require('../services/questService');
 
 async function getNodes(req, res) {
     try {
@@ -19,8 +20,71 @@ async function getNodes(req, res) {
 
 async function getPublicNodes(req, res) {
     try {
-        const nodes = await Node.find({}, 'address name description isRestPoint');
-        res.json(nodes);
+        // Get all nodes but only return basic information
+        const nodes = await Node.find({}, 'address name description isRestPoint exits');
+        
+        // Convert to plain objects for manipulation
+        const nodesData = nodes.map(node => node.toObject());
+        
+        // If user is authenticated, filter exits based on their quest progress
+        if (req.user && req.user.userId) {
+            const user = await User.findById(req.user.userId);
+            if (user) {
+                // Get user's quest information
+                const userQuestInfo = await questService.getUserQuestInfo(user._id.toString());
+                
+                // For each node, filter exits based on quest requirements
+                for (const nodeData of nodesData) {
+                    // If the node has exits, filter them
+                    if (nodeData.exits && nodeData.exits.length > 0) {
+                        nodeData.exits = nodeData.exits.filter(exit => {
+                            // If exit has no quest requirements, keep it
+                            if (!exit.requiredQuestId && !exit.requiredQuestEventId) {
+                                return true;
+                            }
+                            
+                            // Check quest requirement
+                            if (exit.requiredQuestId) {
+                                const hasRequiredQuest = userQuestInfo.activeQuestIds && 
+                                    userQuestInfo.activeQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+                                
+                                const hasCompletedQuest = userQuestInfo.completedQuestIds && 
+                                    userQuestInfo.completedQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+                                
+                                if (!hasRequiredQuest && !hasCompletedQuest) {
+                                    logger.debug('Filtering public exit due to missing required quest', {
+                                        userId: user._id.toString(),
+                                        direction: exit.direction,
+                                        requiredQuestId: exit.requiredQuestId
+                                    });
+                                    return false;
+                                }
+                            }
+                            
+                            // Check quest event requirement
+                            if (exit.requiredQuestEventId) {
+                                const hasRequiredQuestEvent = userQuestInfo.completedQuestEventIds && 
+                                    userQuestInfo.completedQuestEventIds.some(id => id.toString() === exit.requiredQuestEventId.toString());
+                                
+                                if (!hasRequiredQuestEvent) {
+                                    logger.debug('Filtering public exit due to missing required quest event', {
+                                        userId: user._id.toString(),
+                                        direction: exit.direction,
+                                        requiredQuestEventId: exit.requiredQuestEventId
+                                    });
+                                    return false;
+                                }
+                            }
+                            
+                            // If all requirements are met, keep the exit
+                            return true;
+                        });
+                    }
+                }
+            }
+        }
+        
+        res.json(nodesData);
     } catch (error) {
         logger.error('Error fetching public nodes:', error);
         res.status(500).json({ error: 'Error fetching nodes' });
@@ -33,6 +97,33 @@ async function createOrUpdateNode(req, res) {
     try {
         if (!name || !address || !description) {
             return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        // Validate exits array
+        if (exits) {
+            for (const exit of exits) {
+                // Validate requiredQuestId if present
+                if (exit.requiredQuestId) {
+                    const questExists = await mongoose.model('Quest').exists({ _id: exit.requiredQuestId });
+                    if (!questExists) {
+                        return res.status(400).json({
+                            error: 'Invalid quest reference',
+                            details: `Quest with ID "${exit.requiredQuestId}" does not exist`
+                        });
+                    }
+                }
+                
+                // Validate requiredQuestEventId if present
+                if (exit.requiredQuestEventId) {
+                    const questEventExists = await mongoose.model('QuestEvent').exists({ _id: exit.requiredQuestEventId });
+                    if (!questEventExists) {
+                        return res.status(400).json({
+                            error: 'Invalid quest event reference',
+                            details: `Quest Event with ID "${exit.requiredQuestEventId}" does not exist`
+                        });
+                    }
+                }
+            }
         }
 
         // Validate events array
@@ -166,12 +257,60 @@ async function getCurrentNode(req, res) {
             await socketService.subscribeToNodeChat(node.address);
         }
 
-        // Check for quest-specific node event overrides
-        const questService = require('../services/questService');
-        const questNodeEvents = await questService.getQuestNodeEventOverrides(user._id.toString(), user.currentNode);
+        // Get user's quest information to filter exits
+        const userQuestInfo = await questService.getUserQuestInfo(user._id.toString());
         
         // Create a copy of the node to avoid modifying the database object
         const nodeData = node.toObject();
+        
+        // Filter exits based on quest requirements
+        if (nodeData.exits && nodeData.exits.length > 0) {
+            nodeData.exits = nodeData.exits.filter(exit => {
+                // If exit has no quest requirements, keep it
+                if (!exit.requiredQuestId && !exit.requiredQuestEventId) {
+                    return true;
+                }
+                
+                // Check quest requirement
+                if (exit.requiredQuestId) {
+                    const hasRequiredQuest = userQuestInfo.activeQuestIds && 
+                        userQuestInfo.activeQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+                    
+                    const hasCompletedQuest = userQuestInfo.completedQuestIds && 
+                        userQuestInfo.completedQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+                    
+                    if (!hasRequiredQuest && !hasCompletedQuest) {
+                        logger.debug('Filtering exit due to missing required quest', {
+                            userId: user._id.toString(),
+                            direction: exit.direction,
+                            requiredQuestId: exit.requiredQuestId
+                        });
+                        return false;
+                    }
+                }
+                
+                // Check quest event requirement
+                if (exit.requiredQuestEventId) {
+                    const hasRequiredQuestEvent = userQuestInfo.completedQuestEventIds && 
+                        userQuestInfo.completedQuestEventIds.some(id => id.toString() === exit.requiredQuestEventId.toString());
+                    
+                    if (!hasRequiredQuestEvent) {
+                        logger.debug('Filtering exit due to missing required quest event', {
+                            userId: user._id.toString(),
+                            direction: exit.direction,
+                            requiredQuestEventId: exit.requiredQuestEventId
+                        });
+                        return false;
+                    }
+                }
+                
+                // If all requirements are met, keep the exit
+                return true;
+            });
+        }
+
+        // Check for quest-specific node event overrides
+        const questNodeEvents = await questService.getQuestNodeEventOverrides(user._id.toString(), user.currentNode);
         
         // If there are quest overrides, include them in the node data
         if (questNodeEvents && questNodeEvents.length > 0) {

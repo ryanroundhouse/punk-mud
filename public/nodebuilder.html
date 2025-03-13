@@ -478,6 +478,69 @@
             font-size: 0.9rem;
             opacity: 0.8;
         }
+
+        .quest-requirements {
+            margin-top: 0.5rem;
+            width: 100%;
+        }
+
+        .quest-requirements summary {
+            color: var(--neon-blue);
+            cursor: pointer;
+            padding: 0.5rem;
+            border: 1px dashed var(--neon-blue);
+            border-radius: 4px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .quest-requirements summary:hover {
+            background: rgba(0, 255, 249, 0.1);
+        }
+
+        .quest-requirements-content {
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            margin-top: 0.5rem;
+            border: 1px solid var(--neon-blue);
+        }
+
+        .quest-requirements .form-group {
+            margin-bottom: 0.8rem;
+        }
+
+        .quest-requirements label {
+            font-size: 0.9rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .exit-entry .quest-requirement-info {
+            font-size: 0.8rem;
+            color: var(--neon-pink);
+            margin-top: 0.3rem;
+        }
+
+        .small-action-button {
+            background: transparent;
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            padding: 0.3rem 0.6rem;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            margin-top: 0.5rem;
+        }
+
+        .small-action-button:hover {
+            background: var(--neon-blue);
+            color: var(--dark-bg);
+            box-shadow: 0 0 5px var(--neon-blue);
+        }
     </style>
 </head>
 <body>
@@ -557,6 +620,28 @@
                                     <select id="exitTarget">
                                         <!-- Will be populated with nodes -->
                                     </select>
+                                    <div class="quest-requirements">
+                                        <details>
+                                            <summary>Quest Requirements</summary>
+                                            <div class="quest-requirements-content">
+                                                <div class="form-group">
+                                                    <label for="requiredQuest">Required Quest:</label>
+                                                    <select id="requiredQuest" class="event-input">
+                                                        <option value="">None</option>
+                                                        <!-- Will be populated with quests -->
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="requiredQuestEvent">Required Quest Event:</label>
+                                                    <select id="requiredQuestEvent" class="event-input">
+                                                        <option value="">None</option>
+                                                        <!-- Will be populated with quest events -->
+                                                    </select>
+                                                    <button type="button" id="showAllQuestEvents" class="small-action-button">Show All Events</button>
+                                                </div>
+                                            </div>
+                                        </details>
+                                    </div>
                                     <button class="action-button" id="addExitBtn">Add Exit</button>
                                 </div>
                             </div>
@@ -627,9 +712,9 @@
         
         const nodeFilter = document.getElementById('nodeFilter');
         let allNodes = []; // Store all nodes for filtering
-        
-        const addEventBtn = document.getElementById('addEventBtn');
         let allMobs = []; // Store all mobs for the dropdown
+        let allQuests = []; // Store all quests for the dropdown
+        let allQuestEvents = []; // Store all quest events for the dropdown
         
         // Add event type change handler
         document.getElementById('eventType').addEventListener('change', function() {
@@ -638,6 +723,80 @@
             document.getElementById('eventStory').style.display = isMobEvent ? 'none' : 'block';
         });
 
+        // Add quest change handler to filter quest events
+        document.getElementById('requiredQuest').addEventListener('change', function() {
+            const questId = this.value;
+            const questEventSelect = document.getElementById('requiredQuestEvent');
+            
+            // Clear current options
+            questEventSelect.innerHTML = '<option value="">None</option>';
+            
+            if (questId) {
+                // Log the quest events data to debug
+                console.log('All quest events:', allQuestEvents);
+                console.log('Selected quest ID:', questId);
+                
+                // Filter quest events for the selected quest
+                // The structure might be different than expected, so we need to check the actual structure
+                const filteredEvents = allQuestEvents.filter(event => {
+                    // Check different possible properties where questId might be stored
+                    return event.questId === questId || 
+                           (event.quest && event.quest._id === questId) || 
+                           (event.quest && event.quest === questId);
+                });
+                
+                console.log('Filtered events:', filteredEvents);
+                
+                // Add filtered events to the dropdown
+                filteredEvents.forEach(event => {
+                    const option = document.createElement('option');
+                    option.value = event._id;
+                    // Use the most descriptive field available
+                    option.textContent = event.title || event.description || event.name || 'Unnamed Event';
+                    questEventSelect.appendChild(option);
+                });
+                
+                // If no events were found, add a note
+                if (filteredEvents.length === 0) {
+                    const option = document.createElement('option');
+                    option.value = "";
+                    option.textContent = "No events for this quest";
+                    option.disabled = true;
+                    questEventSelect.appendChild(option);
+                }
+            }
+        });
+
+        // Debug function to help diagnose quest events data issues
+        function debugQuestEvents() {
+            console.group('Quest Events Debug Info');
+            console.log('All Quests:', allQuests);
+            console.log('All Quest Events:', allQuestEvents);
+            
+            // Check if quest events have the expected structure
+            if (allQuestEvents && allQuestEvents.length > 0) {
+                const sampleEvent = allQuestEvents[0];
+                console.log('Sample Quest Event Structure:', sampleEvent);
+                
+                // Check how questId is stored
+                console.log('Quest ID in event:', {
+                    directQuestId: sampleEvent.questId,
+                    questObject: sampleEvent.quest,
+                    questObjectType: sampleEvent.quest ? typeof sampleEvent.quest : 'N/A',
+                    questObjectId: sampleEvent.quest && typeof sampleEvent.quest === 'object' ? sampleEvent.quest._id : 'N/A'
+                });
+            } else {
+                console.log('No quest events available to debug');
+            }
+            
+            // Check if any quest has events directly
+            const questsWithEvents = allQuests.filter(q => q.events && q.events.length > 0);
+            console.log('Quests with direct events:', questsWithEvents);
+            
+            console.groupEnd();
+        }
+
+        // Call debug function when loading data
         window.onload = async () => {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -710,8 +869,49 @@
                         option.textContent = event.title;
                         eventStory.appendChild(option);
                     });
+
+                    // Load quests for the quest dropdown
+                    const questsResponse = await fetch('/api/quests', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    allQuests = await questsResponse.json();
+                    
+                    // Populate quests dropdown
+                    const requiredQuest = document.getElementById('requiredQuest');
+                    requiredQuest.innerHTML = '<option value="">None</option>';
+                    allQuests.forEach(quest => {
+                        const option = document.createElement('option');
+                        option.value = quest._id;
+                        option.textContent = quest.title;
+                        requiredQuest.appendChild(option);
+                    });
+
+                    // Load quest events
+                    try {
+                        const questEventsResponse = await fetch('/api/quest-events', {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                        
+                        if (questEventsResponse.ok) {
+                            allQuestEvents = await questEventsResponse.json();
+                            console.log('Loaded quest events from API:', allQuestEvents);
+                        } else {
+                            console.warn('Quest events API returned an error, trying fallback method');
+                            await loadQuestEventsFromQuests();
+                        }
+                    } catch (error) {
+                        console.error('Error loading quest events, trying fallback method:', error);
+                        await loadQuestEventsFromQuests();
+                    }
+
+                    // Debug quest events data
+                    debugQuestEvents();
                 } catch (error) {
-                    console.error('Error loading mobs or events:', error);
+                    console.error('Error loading data:', error);
                 }
             } catch (error) {
                 console.error('Authentication error:', error);
@@ -767,14 +967,35 @@
                 return;
             }
 
+            // Get quest requirements
+            const requiredQuestSelect = document.getElementById('requiredQuest');
+            const requiredQuestId = requiredQuestSelect.value;
+            const requiredQuestName = requiredQuestId ? requiredQuestSelect.options[requiredQuestSelect.selectedIndex].text : '';
+            
+            const requiredQuestEventSelect = document.getElementById('requiredQuestEvent');
+            const requiredQuestEventId = requiredQuestEventSelect.value;
+            const requiredQuestEventName = requiredQuestEventId ? requiredQuestEventSelect.options[requiredQuestEventSelect.selectedIndex].text : '';
+
             const exitEntry = document.createElement('div');
             exitEntry.className = 'exit-entry';
+            
+            let questRequirementInfo = '';
+            if (requiredQuestId) {
+                questRequirementInfo += `<div class="quest-requirement-info">Requires Quest: ${requiredQuestName}</div>`;
+            }
+            if (requiredQuestEventId) {
+                questRequirementInfo += `<div class="quest-requirement-info">Requires Quest Event: ${requiredQuestEventName}</div>`;
+            }
+
             exitEntry.innerHTML = `
                 <div class="exit-info">
                     <strong>${direction}</strong> → ${targetName}
+                    ${questRequirementInfo}
                 </div>
                 <input type="hidden" class="exit-direction" value="${direction}">
                 <input type="hidden" class="exit-target" value="${targetAddress}">
+                <input type="hidden" class="exit-required-quest" value="${requiredQuestId || ''}">
+                <input type="hidden" class="exit-required-quest-event" value="${requiredQuestEventId || ''}">
                 <span class="remove-exit">×</span>
             `;
 
@@ -783,6 +1004,10 @@
             });
 
             exitsContainer.insertBefore(exitEntry, document.querySelector('.exit-controls'));
+            
+            // Reset quest requirement fields
+            requiredQuestSelect.value = '';
+            requiredQuestEventSelect.innerHTML = '<option value="">None</option>';
         });
 
         // Add validation function
@@ -897,6 +1122,18 @@
                 };
             });
 
+            const exits = Array.from(document.querySelectorAll('.exit-entry')).map(exit => {
+                const requiredQuestId = exit.querySelector('.exit-required-quest').value;
+                const requiredQuestEventId = exit.querySelector('.exit-required-quest-event').value;
+                
+                return {
+                    direction: exit.querySelector('.exit-direction').value,
+                    target: exit.querySelector('.exit-target').value,
+                    requiredQuestId: requiredQuestId || undefined,
+                    requiredQuestEventId: requiredQuestEventId || undefined
+                };
+            });
+
             const nodeData = {
                 id: nodeId,
                 name: document.getElementById('nodeName').value,
@@ -904,10 +1141,7 @@
                 description: document.getElementById('description').value,
                 image: document.getElementById('imagePath').value,
                 isRestPoint: document.getElementById('isRestPoint').checked,
-                exits: Array.from(document.querySelectorAll('.exit-entry')).map(exit => ({
-                    direction: exit.querySelector('.exit-direction').value,
-                    target: exit.querySelector('.exit-target').value
-                })),
+                exits: exits,
                 events: events
             };
 
@@ -1014,14 +1248,56 @@
                 const targetNode = allNodes.find(n => n.address === exit.target);
                 const targetName = targetNode ? `${targetNode.name} (${targetNode.address})` : exit.target;
                 
+                // Get quest and quest event names if they exist
+                let questName = '';
+                if (exit.requiredQuestId) {
+                    const quest = allQuests.find(q => q._id === exit.requiredQuestId);
+                    questName = quest ? quest.title : 'Unknown Quest';
+                }
+                
+                let questEventName = '';
+                if (exit.requiredQuestEventId) {
+                    // Try different ways to find the quest event
+                    let questEvent = null;
+                    
+                    // First try direct match
+                    questEvent = allQuestEvents.find(e => e._id === exit.requiredQuestEventId);
+                    
+                    // If not found, try looking for the ID as a string
+                    if (!questEvent) {
+                        questEvent = allQuestEvents.find(e => e._id && e._id.toString() === exit.requiredQuestEventId.toString());
+                    }
+                    
+                    // If still not found, log the issue
+                    if (!questEvent) {
+                        console.warn(`Could not find quest event with ID: ${exit.requiredQuestEventId}`);
+                        console.log('Available quest events:', allQuestEvents);
+                    }
+                    
+                    questEventName = questEvent ? 
+                        (questEvent.title || questEvent.description || questEvent.name || 'Unnamed Event') : 
+                        'Unknown Event';
+                }
+                
+                let questRequirementInfo = '';
+                if (exit.requiredQuestId) {
+                    questRequirementInfo += `<div class="quest-requirement-info">Requires Quest: ${questName}</div>`;
+                }
+                if (exit.requiredQuestEventId) {
+                    questRequirementInfo += `<div class="quest-requirement-info">Requires Quest Event: ${questEventName}</div>`;
+                }
+                
                 const exitEntry = document.createElement('div');
                 exitEntry.className = 'exit-entry';
                 exitEntry.innerHTML = `
                     <div class="exit-info">
                         <strong>${exit.direction}</strong> → ${targetName}
+                        ${questRequirementInfo}
                     </div>
                     <input type="hidden" class="exit-direction" value="${exit.direction}">
                     <input type="hidden" class="exit-target" value="${exit.target}">
+                    <input type="hidden" class="exit-required-quest" value="${exit.requiredQuestId || ''}">
+                    <input type="hidden" class="exit-required-quest-event" value="${exit.requiredQuestEventId || ''}">
                     <span class="remove-exit">×</span>
                 `;
 
@@ -1126,6 +1402,110 @@
                 link.style.color = 'var(--neon-pink)';
             }
         });
+
+        // Add event listener for the Show All Events button
+        document.getElementById('showAllQuestEvents').addEventListener('click', function() {
+            const questEventSelect = document.getElementById('requiredQuestEvent');
+            
+            // Clear current options
+            questEventSelect.innerHTML = '<option value="">None</option>';
+            
+            // Add all quest events to the dropdown
+            if (allQuestEvents && allQuestEvents.length > 0) {
+                console.log('Showing all quest events:', allQuestEvents);
+                
+                allQuestEvents.forEach(event => {
+                    // Try to get the quest title for better context
+                    let questTitle = '';
+                    if (event.questId) {
+                        const quest = allQuests.find(q => q._id === event.questId);
+                        if (quest) {
+                            questTitle = ` (${quest.title})`;
+                        }
+                    } else if (event.quest) {
+                        const questId = typeof event.quest === 'string' ? event.quest : event.quest._id;
+                        const quest = allQuests.find(q => q._id === questId);
+                        if (quest) {
+                            questTitle = ` (${quest.title})`;
+                        }
+                    }
+                    
+                    const option = document.createElement('option');
+                    option.value = event._id;
+                    option.textContent = (event.title || event.description || event.name || 'Unnamed Event') + questTitle;
+                    questEventSelect.appendChild(option);
+                });
+            } else {
+                const option = document.createElement('option');
+                option.value = "";
+                option.textContent = "No quest events available";
+                option.disabled = true;
+                questEventSelect.appendChild(option);
+            }
+        });
+
+        // Function to extract quest events from quests
+        async function loadQuestEventsFromQuests() {
+            console.log('Loading quest events from quests...');
+            
+            // Initialize empty array
+            allQuestEvents = [];
+            
+            // If we already have quests loaded with their events
+            if (allQuests && allQuests.length > 0) {
+                let foundEvents = false;
+                
+                // Check if quests have events directly
+                allQuests.forEach(quest => {
+                    if (quest.events && Array.isArray(quest.events) && quest.events.length > 0) {
+                        foundEvents = true;
+                        quest.events.forEach(event => {
+                            // Add quest ID to the event for reference
+                            event.questId = quest._id;
+                            // Add quest title for display
+                            event.questTitle = quest.title;
+                            allQuestEvents.push(event);
+                        });
+                    }
+                });
+                
+                if (foundEvents) {
+                    console.log('Successfully extracted events from quests:', allQuestEvents);
+                    return;
+                }
+            }
+            
+            // If we couldn't extract events from the loaded quests, try to fetch quests with their events
+            try {
+                const questsWithEventsResponse = await fetch('/api/quests?includeEvents=true', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (questsWithEventsResponse.ok) {
+                    const questsWithEvents = await questsWithEventsResponse.json();
+                    
+                    questsWithEvents.forEach(quest => {
+                        if (quest.events && Array.isArray(quest.events) && quest.events.length > 0) {
+                            quest.events.forEach(event => {
+                                // Add quest ID to the event for reference
+                                event.questId = quest._id;
+                                // Add quest title for display
+                                event.questTitle = quest.title;
+                                allQuestEvents.push(event);
+                            });
+                        }
+                    });
+                    
+                    console.log('Successfully loaded quest events from quests with events API:', allQuestEvents);
+                } else {
+                    console.error('Failed to load quests with events');
+                }
+            } catch (error) {
+                console.error('Error loading quests with events:', error);
+            }
+        }
     </script>
 </body>
 </html> 

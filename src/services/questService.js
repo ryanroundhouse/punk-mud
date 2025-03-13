@@ -491,11 +491,29 @@ class QuestService {
                                     userQuest.completed = true;
                                     userQuest.completedAt = new Date();
                                     
-                                    // Always send completion message first
-                                    messageService.sendSuccessMessage(
-                                        user._id.toString(),
-                                        `Quest "${quest.title}" completed!`
-                                    );
+                                    // For chat events, we'll combine the completion message with the actor's message
+                                    // to avoid displaying two separate messages
+                                    if (nextEvent.eventType === 'chat') {
+                                        // Send a combined message for chat events
+                                        messageService.sendQuestsMessage(
+                                            user._id.toString(),
+                                            `Quest "${quest.title}" completed!\n\n${nextEvent.message}`
+                                        );
+                                    } else {
+                                        // For non-chat events, send the completion message separately
+                                        messageService.sendSuccessMessage(
+                                            user._id.toString(),
+                                            `Quest "${quest.title}" completed!`
+                                        );
+                                        
+                                        // Only send the quest message if it exists and this isn't a chat event
+                                        if (nextEvent.message) {
+                                            messageService.sendQuestsMessage(
+                                                user._id.toString(),
+                                                nextEvent.message
+                                            );
+                                        }
+                                    }
 
                                     questUpdates.push({
                                         type: 'quest_complete',
@@ -628,9 +646,40 @@ class QuestService {
                 const currentEvent = quest.events.find(e => e._id.toString() === userQuest.currentEventId);
                 if (!currentEvent) continue;
 
+                logger.debug('Checking quest event for actor chat progression:', {
+                    questId: quest._id.toString(),
+                    questTitle: quest.title,
+                    currentEventId: currentEvent._id.toString(),
+                    currentEventType: currentEvent.eventType,
+                    actorId: actorId,
+                    hasChoices: currentEvent.choices?.length > 0,
+                    choiceCount: currentEvent.choices?.length || 0
+                });
+
                 const availableChoices = currentEvent.choices.filter(choice => {
                     const nextEvent = quest.events.find(e => e._id.toString() === choice.nextEventId.toString());
-                    return nextEvent && nextEvent.actorId === actorId;
+                    
+                    // Debug the comparison
+                    if (nextEvent) {
+                        logger.debug('Comparing next event actorId with provided actorId:', {
+                            nextEventId: nextEvent._id.toString(),
+                            nextEventActorId: nextEvent.actorId,
+                            providedActorId: actorId,
+                            isMatch: nextEvent.actorId === actorId,
+                            nextEventActorIdType: typeof nextEvent.actorId,
+                            providedActorIdType: typeof actorId
+                        });
+                    }
+                    
+                    // Convert both to strings for comparison
+                    return nextEvent && 
+                           nextEvent.actorId && 
+                           nextEvent.actorId.toString() === actorId.toString();
+                });
+
+                logger.debug('Available choices after filtering:', {
+                    availableChoicesCount: availableChoices.length,
+                    availableChoices: availableChoices.map(c => c.nextEventId.toString())
                 });
 
                 if (availableChoices.length > 0) {
@@ -639,27 +688,51 @@ class QuestService {
                     userQuest.completedEventIds.push(currentEvent._id.toString());
                     userQuest.currentEventId = nextEvent._id.toString();
                     
-                    const isComplete = nextEvent.choices.length === 0;
+                    const isComplete = nextEvent.isEnd || nextEvent.choices.length === 0;
                     if (isComplete) {
                         userQuest.completed = true;
                         userQuest.completedAt = new Date();
-                        messageService.sendSuccessMessage(
-                            user._id.toString(),
-                            `Quest "${quest.title}" completed!`
-                        );
+                        
+                        // For chat events, we'll combine the completion message with the actor's message
+                        // to avoid displaying two separate messages
+                        if (nextEvent.eventType === 'chat') {
+                            // Send a combined message for chat events
+                            messageService.sendQuestsMessage(
+                                user._id.toString(),
+                                `Quest "${quest.title}" completed!\n\n${nextEvent.message}`
+                            );
+                        } else {
+                            // For non-chat events, send the completion message separately
+                            messageService.sendSuccessMessage(
+                                user._id.toString(),
+                                `Quest "${quest.title}" completed!`
+                            );
+                            
+                            // Only send the quest message if it exists and this isn't a chat event
+                            if (nextEvent.message) {
+                                messageService.sendQuestsMessage(
+                                    user._id.toString(),
+                                    nextEvent.message
+                                );
+                            }
+                        }
+                    } else {
+                        // Not a completion, just send the quest message
+                        if (nextEvent.message) {
+                            messageService.sendQuestsMessage(
+                                user._id.toString(),
+                                nextEvent.message
+                            );
+                        }
                     }
                     
                     await user.save();
 
-                    messageService.sendQuestsMessage(
-                        user._id.toString(),
-                        nextEvent.message
-                    );
-
                     return {
                         type: 'quest_progress',
                         questTitle: quest.title,
-                        isComplete
+                        isComplete,
+                        message: nextEvent.message
                     };
                 }
             }
@@ -870,6 +943,50 @@ class QuestService {
                     });
                 }
             }
+        }
+    }
+
+    async getUserQuestInfo(userId) {
+        try {
+            const user = await User.findById(userId);
+            if (!user || !user.quests) {
+                logger.debug('No user or no quests found for user', { userId });
+                return { activeQuestIds: [], completedQuestIds: [], completedQuestEventIds: [] };
+            }
+
+            // Get all active quest IDs
+            const activeQuestIds = user.quests
+                .filter(userQuest => !userQuest.completed)
+                .map(userQuest => userQuest.questId);
+
+            // Get all completed quest IDs
+            const completedQuestIds = user.quests
+                .filter(userQuest => userQuest.completed)
+                .map(userQuest => userQuest.questId);
+
+            // Get all completed quest event IDs across all quests
+            const completedQuestEventIds = [];
+            user.quests.forEach(userQuest => {
+                if (userQuest.completedEventIds && Array.isArray(userQuest.completedEventIds)) {
+                    completedQuestEventIds.push(...userQuest.completedEventIds);
+                }
+            });
+
+            logger.debug('User quest info retrieved', {
+                userId,
+                activeQuestCount: activeQuestIds.length,
+                completedQuestCount: completedQuestIds.length,
+                completedQuestEventCount: completedQuestEventIds.length
+            });
+
+            return {
+                activeQuestIds,
+                completedQuestIds,
+                completedQuestEventIds
+            };
+        } catch (error) {
+            logger.error('Error getting user quest info:', error, { userId });
+            return { activeQuestIds: [], completedQuestIds: [], completedQuestEventIds: [] };
         }
     }
 }

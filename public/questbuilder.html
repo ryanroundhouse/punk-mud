@@ -1302,11 +1302,19 @@
                         <div class="input-group">
                             <label>Actor:</label>
                             <select class="event-actor-select">
-                                ${allActors.map(actor => `
-                                    <option value="${actor._id}" ${actor._id === eventData.actorId ? 'selected' : ''}>
+                                ${allActors.map(actor => {
+                                    // Handle both string IDs and object IDs
+                                    const actorIdStr = actor._id.toString ? actor._id.toString() : actor._id;
+                                    const eventActorIdStr = eventData.actorId && eventData.actorId._id ? 
+                                        eventData.actorId._id.toString() : 
+                                        (eventData.actorId ? eventData.actorId.toString() : '');
+                                    
+                                    return `
+                                    <option value="${actorIdStr}" ${actorIdStr === eventActorIdStr ? 'selected' : ''}>
                                         ${actor.name}
                                     </option>
-                                `).join('')}
+                                    `;
+                                }).join('')}
                             </select>
                         </div>
                         <div class="input-group">
@@ -1319,11 +1327,19 @@
                         <div class="input-group">
                             <label>Mob to Kill:</label>
                             <select class="event-mob-select">
-                                ${allMobs.map(mob => `
-                                    <option value="${mob._id}" ${mob._id === eventData.mobId ? 'selected' : ''}>
+                                ${allMobs.map(mob => {
+                                    // Handle both string IDs and object IDs
+                                    const mobIdStr = mob._id.toString ? mob._id.toString() : mob._id;
+                                    const eventMobIdStr = eventData.mobId && eventData.mobId._id ? 
+                                        eventData.mobId._id.toString() : 
+                                        (eventData.mobId ? eventData.mobId.toString() : '');
+                                    
+                                    return `
+                                    <option value="${mobIdStr}" ${mobIdStr === eventMobIdStr ? 'selected' : ''}>
                                         ${mob.name}
                                     </option>
-                                `).join('')}
+                                    `;
+                                }).join('')}
                             </select>
                         </div>
                         <div class="input-group">
@@ -1687,7 +1703,7 @@
                             break;
                         case 'kill':
                             const mobId = event.querySelector('.event-mob-select').value;
-                            const quantity = parseInt(event.querySelector('.event-quantity-input').value);
+                            const quantity = parseInt(event.querySelector('.number-input').value);
                             
                             // Validate kill event fields
                             if (!mobId || !quantity || quantity < 1) {

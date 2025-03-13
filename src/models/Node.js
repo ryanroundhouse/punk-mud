@@ -21,7 +21,15 @@ const nodeSchema = new mongoose.Schema({
     },
     exits: [{
         direction: String,
-        target: String
+        target: String,
+        requiredQuestId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Quest'
+        },
+        requiredQuestEventId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'QuestEvent'
+        }
     }],
     events: [{
         // Either mobId or eventId must be present, but not both

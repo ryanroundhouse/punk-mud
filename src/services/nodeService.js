@@ -10,7 +10,7 @@ const { publishSystemMessage } = require('./chatService');
 const messageService = require('./messageService');
 
 // New function to get a node by direction without moving the user
-async function getNodeByDirection(userId, direction) {
+async function getNodeByDirection(userId, direction, userQuestInfo) {
     const user = await User.findById(userId);
     if (!user || !user.currentNode) {
         throw new Error('User not found or missing location');
@@ -24,6 +24,82 @@ async function getNodeByDirection(userId, direction) {
     const exit = currentNode.exits.find(e => e.direction.toLowerCase() === direction.toLowerCase());
     if (!exit) {
         throw new Error(`No exit to the ${direction}`);
+    }
+
+    // Check quest requirements if the exit has them
+    if ((exit.requiredQuestId || exit.requiredQuestEventId) && userQuestInfo) {
+        logger.debug('Checking quest requirements for exit', {
+            userId,
+            direction,
+            exitRequirements: {
+                requiredQuestId: exit.requiredQuestId,
+                requiredQuestEventId: exit.requiredQuestEventId
+            },
+            userQuestInfo: {
+                activeQuestCount: userQuestInfo.activeQuestIds?.length || 0,
+                completedQuestEventCount: userQuestInfo.completedQuestEventIds?.length || 0
+            }
+        });
+
+        // If exit requires a quest
+        if (exit.requiredQuestId) {
+            const hasRequiredQuest = userQuestInfo.activeQuestIds && 
+                userQuestInfo.activeQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+            
+            const hasCompletedQuest = userQuestInfo.completedQuestIds && 
+                userQuestInfo.completedQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+            
+            logger.debug('Quest requirement check result', {
+                userId,
+                direction,
+                requiredQuestId: exit.requiredQuestId,
+                userActiveQuestIds: userQuestInfo.activeQuestIds,
+                userCompletedQuestIds: userQuestInfo.completedQuestIds,
+                hasRequiredQuest,
+                hasCompletedQuest
+            });
+            
+            if (!hasRequiredQuest && !hasCompletedQuest) {
+                logger.debug('Exit blocked - missing required quest', {
+                    userId,
+                    direction,
+                    requiredQuestId: exit.requiredQuestId
+                });
+                throw new Error(`No exit to the ${direction}`);
+            }
+        }
+        
+        // If exit requires a specific quest event
+        if (exit.requiredQuestEventId) {
+            const hasRequiredQuestEvent = userQuestInfo.completedQuestEventIds && 
+                userQuestInfo.completedQuestEventIds.some(id => id.toString() === exit.requiredQuestEventId.toString());
+            
+            logger.debug('Quest event requirement check result', {
+                userId,
+                direction,
+                requiredQuestEventId: exit.requiredQuestEventId,
+                userCompletedQuestEventIds: userQuestInfo.completedQuestEventIds,
+                hasRequiredQuestEvent
+            });
+            
+            if (!hasRequiredQuestEvent) {
+                logger.debug('Exit blocked - missing required quest event', {
+                    userId,
+                    direction,
+                    requiredQuestEventId: exit.requiredQuestEventId
+                });
+                throw new Error(`No exit to the ${direction}`);
+            }
+        }
+        
+        logger.debug('Quest requirements passed for exit', {
+            userId,
+            direction,
+            exitRequirements: {
+                requiredQuestId: exit.requiredQuestId,
+                requiredQuestEventId: exit.requiredQuestEventId
+            }
+        });
     }
 
     // Get the target node with any quest overrides

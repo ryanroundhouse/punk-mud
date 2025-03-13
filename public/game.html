@@ -592,6 +592,16 @@
             50% { opacity: 1; }
             100% { opacity: 0.7; }
         }
+
+        .no-exits-message {
+            color: var(--neon-pink);
+            font-style: italic;
+            padding: 0.5rem;
+            text-align: center;
+            border: 1px dashed var(--neon-pink);
+            border-radius: 5px;
+            margin: 0.5rem 0;
+        }
     </style>
 </head>
 <body>
@@ -803,37 +813,45 @@
                 
                 const allNodes = await nodesResponse.json();
 
-                node.exits.forEach(exit => {
-                    const targetNode = allNodes.find(n => n.address === exit.target);
-                    const targetName = targetNode ? targetNode.name : 'Unknown';
-                    
-                    const exitElement = document.createElement('div');
-                    exitElement.className = 'exit-item';
-                    exitElement.setAttribute('tabindex', '0');
-                    exitElement.setAttribute('role', 'button');
-                    exitElement.setAttribute('aria-label', `Go ${exit.direction} to ${targetName}`);
-                    exitElement.textContent = `[${exit.direction}] → [${targetName}]`;
-                    
-                    // Update the click handler
-                    exitElement.addEventListener('click', () => {
-                        socket.emit('console command', {
-                            command: 'move',
-                            direction: exit.direction
-                        });
-                    });
-
-                    exitElement.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
+                // Check if there are any exits
+                if (!node.exits || node.exits.length === 0) {
+                    const noExitsMessage = document.createElement('div');
+                    noExitsMessage.className = 'no-exits-message';
+                    noExitsMessage.textContent = 'No available exits from this location.';
+                    exitsWrapper.appendChild(noExitsMessage);
+                } else {
+                    node.exits.forEach(exit => {
+                        const targetNode = allNodes.find(n => n.address === exit.target);
+                        const targetName = targetNode ? targetNode.name : 'Unknown';
+                        
+                        const exitElement = document.createElement('div');
+                        exitElement.className = 'exit-item';
+                        exitElement.setAttribute('tabindex', '0');
+                        exitElement.setAttribute('role', 'button');
+                        exitElement.setAttribute('aria-label', `Go ${exit.direction} to ${targetName}`);
+                        exitElement.textContent = `[${exit.direction}] → [${targetName}]`;
+                        
+                        // Update the click handler
+                        exitElement.addEventListener('click', () => {
                             socket.emit('console command', {
                                 command: 'move',
                                 direction: exit.direction
                             });
-                        }
+                        });
+
+                        exitElement.addEventListener('keydown', (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                socket.emit('console command', {
+                                    command: 'move',
+                                    direction: exit.direction
+                                });
+                            }
+                        });
+                        
+                        exitsWrapper.appendChild(exitElement);
                     });
-                    
-                    exitsWrapper.appendChild(exitElement);
-                });
+                }
 
                 // After setting node description
                 const descriptionElement = document.getElementById('nodeDescription');

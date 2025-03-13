@@ -115,35 +115,64 @@ async function handleCommand(socket, data) {
 
         switch (data.command) {
             case 'move': {
-                const oldNode = user.currentNode;
-                
-                // Get the target node first
-                const targetNode = await nodeService.getNodeByDirection(socket.user.userId, data.direction);
-                // Then move the user to that node
-                await userService.moveUserToNode(socket.user.userId, data.direction, targetNode);
+                try {
+                    const oldNode = user.currentNode;
+                    
+                    // Get user's quest information
+                    const userQuestInfo = await questService.getUserQuestInfo(socket.user.userId);
+                    logger.debug('User quest info for move command', {
+                        userId: socket.user.userId,
+                        activeQuestCount: userQuestInfo.activeQuestIds?.length || 0,
+                        completedQuestEventCount: userQuestInfo.completedQuestEventIds?.length || 0
+                    });
+                    
+                    // Get the target node first, passing quest information
+                    const targetNode = await nodeService.getNodeByDirection(socket.user.userId, data.direction, userQuestInfo);
+                    
+                    // Then move the user to that node
+                    await userService.moveUserToNode(socket.user.userId, data.direction, targetNode);
 
-                const nodeEventResult = await nodeService.getNodeEvent(socket.user.userId, targetNode.address);
-                
-                const nodeConnectionResult = {
-                    success: true,
-                    message: `You move ${data.direction} to ${targetNode.name}`,
-                    node: targetNode,
-                    mobSpawn: nodeEventResult.mobSpawn,
-                    storyEvent: nodeEventResult.storyEvent
-                };
-                
-                if (oldNode) {
-                    stateService.removeUserFromNode(socket.user.userId, oldNode);
-                    await socketService.unsubscribeFromNodeChat(oldNode);
+                    const nodeEventResult = await nodeService.getNodeEvent(socket.user.userId, targetNode.address);
+                    
+                    const nodeConnectionResult = {
+                        success: true,
+                        message: `You move ${data.direction} to ${targetNode.name}`,
+                        node: targetNode,
+                        mobSpawn: nodeEventResult.mobSpawn,
+                        storyEvent: nodeEventResult.storyEvent
+                    };
+                    
+                    if (oldNode) {
+                        stateService.removeUserFromNode(socket.user.userId, oldNode);
+                        await socketService.unsubscribeFromNodeChat(oldNode);
+                    }
+                    
+                    stateService.addUserToNode(socket.user.userId, user.currentNode);
+                    await socketService.subscribeToNodeChat(user.currentNode);
+
+                    socket.emit('console response', {
+                        message: nodeConnectionResult.message,
+                        type: 'move'
+                    });
+                } catch (error) {
+                    // Check if this is a "No exit" error
+                    if (error.message.includes('No exit to the')) {
+                        socket.emit('console response', {
+                            type: 'error',
+                            message: error.message
+                        });
+                    } else {
+                        // For other errors, log and send a generic message
+                        logger.error('Error processing move command:', error, {
+                            userId: socket.user.userId,
+                            direction: data.direction
+                        });
+                        socket.emit('console response', {
+                            type: 'error',
+                            message: 'Unable to move in that direction.'
+                        });
+                    }
                 }
-                
-                stateService.addUserToNode(socket.user.userId, user.currentNode);
-                await socketService.subscribeToNodeChat(user.currentNode);
-
-                socket.emit('console response', {
-                    message: nodeConnectionResult.message,
-                    type: 'move'
-                });
                 break;
             }
 
@@ -419,6 +448,35 @@ async function handleChatCommand(socket, user, target) {
     const actor = await actorService.findActorInLocation(target, user.currentNode, user._id.toString());
     
     if (actor) {
+        // Check if this actor is part of an active quest's chat event
+        // This needs to happen BEFORE trying to start an event
+        const questResult = await questService.handleQuestProgression(
+            user,
+            actor._id.toString(),
+            [], // No completion events
+            null // No quest to activate
+        );
+
+        logger.debug('Quest progression check for chat command:', {
+            userId: user._id.toString(),
+            actorId: actor._id.toString(),
+            actorName: actor.name,
+            hasQuestResult: !!questResult
+        });
+
+        // If quest progression happened, return early
+        if (questResult) {
+            // Don't display the message again, as questService.handleQuestProgression 
+            // already sends the message to the user
+            logger.debug('Quest progression handled by questService:', {
+                userId: user._id.toString(),
+                actorId: actor._id.toString(),
+                actorName: actor.name,
+                questResult
+            });
+            return;
+        }
+
         // Try to start an event for this actor
         const result = await eventService.handleActorChat(user, actor);
         if (result) {
