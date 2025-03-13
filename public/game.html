@@ -1117,7 +1117,8 @@
                 
                 // Check if this is a movement response or successful flee
                 if ((data.message && data.message.startsWith('You move ')) || 
-                    (data.message && data.message.includes('You successfully flee from combat!'))) {
+                    (data.message && data.message.includes('You successfully flee from combat!')) ||
+                    (data.type === 'move' && data.message && data.message.includes('You have been teleported to'))) {
                     loadNode();
                 }
                 

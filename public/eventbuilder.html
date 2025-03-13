@@ -516,6 +516,7 @@
         let allActors = [];
         let allQuests = [];
         let allMobs = [];
+        let allNodes = [];
         let eventChances = [];
 
         // Check authentication and load data
@@ -556,6 +557,7 @@
                     loadActors(),
                     loadQuests(),
                     loadMobs(),
+                    loadNodes(),
                     loadEvents()
                 ]);
                 
@@ -654,6 +656,26 @@
             });
         }
 
+        // Update all teleport selects
+        function updateTeleportSelects() {
+            if (!allNodes || allNodes.length === 0) {
+                console.warn('No nodes available to populate teleport selects');
+                return;
+            }
+            
+            document.querySelectorAll('.teleport-select').forEach(select => {
+                const currentValue = select.value;
+                select.innerHTML = `
+                    <option value="">No Teleport</option>
+                    ${allNodes.map(node => `
+                        <option value="${node.address}" ${node.address === currentValue ? 'selected' : ''}>
+                            ${node.name} (${node.address})
+                        </option>
+                    `).join('')}
+                `;
+            });
+        }
+
         // Load mobs
         async function loadMobs() {
             try {
@@ -675,6 +697,27 @@
             }
         }
 
+        // Load nodes
+        async function loadNodes() {
+            try {
+                const response = await fetch('/api/nodes', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load nodes');
+                }
+
+                allNodes = await response.json();
+                console.log('Loaded nodes:', allNodes); // For debugging
+            } catch (error) {
+                console.error('Error loading nodes:', error);
+                // Don't show alert, just log the error
+            }
+        }
+
         // Load events
         async function loadEvents() {
             try {
@@ -690,6 +733,9 @@
 
                 allEvents = await response.json();
                 filterAndDisplayEvents();
+                
+                // Update teleport selects with the new events
+                updateTeleportSelects();
             } catch (error) {
                 console.error('Error loading events:', error);
                 alert('Failed to load events');
@@ -779,6 +825,21 @@
                         const event = new Event('change');
                         mobSelect.dispatchEvent(event);
                     }
+                    // Handle teleport selection if present
+                    else if (choice.teleportToNode) {
+                        const teleportSelect = choiceContainer.querySelector('.teleport-select');
+                        teleportSelect.value = choice.teleportToNode;
+                        
+                        // Trigger the change event to update UI
+                        const event = new Event('change');
+                        teleportSelect.dispatchEvent(event);
+                        
+                        // Also handle next node if it exists (for response after teleport)
+                        if (choice.nextNode) {
+                            const nextNode = createEventNode(choice.nextNode);
+                            choiceContainer.querySelector('.next-node-container').appendChild(nextNode);
+                        }
+                    }
                     // Handle skill check if present
                     else if (choice.skillCheckStat) {
                         const hasSkillCheckBox = choiceContainer.querySelector('.has-skill-check');
@@ -829,6 +890,9 @@
 
             // Ensure quest selects are properly populated
             updateQuestSelects();
+            
+            // Ensure teleport selects are properly populated
+            updateTeleportSelects();
 
             return nodeContainer;
         }
@@ -876,6 +940,19 @@
                     </select>
                     <p class="help-text" style="color: var(--neon-blue); font-size: 0.8rem; margin-top: 0.3rem;">
                         If a mob is selected, this choice will be a leaf node that spawns the mob and initiates combat.
+                    </p>
+                </div>
+                
+                <div class="form-group">
+                    <label>Teleport to Location (optional):</label>
+                    <select class="teleport-select">
+                        <option value="">No Teleport</option>
+                        ${allNodes.map(node => `
+                            <option value="${node.address}">${node.name} (${node.address})</option>
+                        `).join('')}
+                    </select>
+                    <p class="help-text" style="color: var(--neon-blue); font-size: 0.8rem; margin-top: 0.3rem;">
+                        If a location is selected, the player will be teleported to this location when they select this choice. You can also add a response that will be shown after teleporting.
                     </p>
                 </div>
                 
@@ -962,6 +1039,7 @@
                 const addResponseBtn = choiceContainer.querySelector('.add-response-btn');
                 const nextNodeContainer = choiceContainer.querySelector('.next-node-container');
                 const skillCheckContainer = choiceContainer.querySelector('.skill-check-container');
+                const teleportSelect = choiceContainer.querySelector('.teleport-select');
                 
                 if (mobSelect.value) {
                     // If a mob is selected, disable the add response button and remove any existing response
@@ -975,10 +1053,21 @@
                     skillCheckContainer.querySelector('.has-skill-check').checked = false;
                     skillCheckContainer.querySelector('.skill-check-details').classList.add('hidden');
                     
+                    // Also disable teleport select
+                    teleportSelect.value = '';
+                    teleportSelect.disabled = true;
+                    teleportSelect.style.opacity = '0.5';
+                    
                     // Remove any skill check success note
                     const successNote = choiceContainer.querySelector('.skill-check-success-note');
                     if (successNote) {
                         successNote.remove();
+                    }
+                    
+                    // Remove any teleport note
+                    const teleportNote = choiceContainer.querySelector('.teleport-note');
+                    if (teleportNote) {
+                        teleportNote.remove();
                     }
                 } else {
                     // If no mob is selected, enable the add response button
@@ -988,6 +1077,59 @@
                     // Also enable skill check
                     skillCheckContainer.style.opacity = '1';
                     skillCheckContainer.querySelector('.has-skill-check').disabled = false;
+                    
+                    // Also enable teleport select
+                    teleportSelect.disabled = false;
+                    teleportSelect.style.opacity = '1';
+                }
+            });
+            
+            // Add teleport select change handler
+            const teleportSelect = choiceContainer.querySelector('.teleport-select');
+            teleportSelect.addEventListener('change', () => {
+                const addResponseBtn = choiceContainer.querySelector('.add-response-btn');
+                const nextNodeContainer = choiceContainer.querySelector('.next-node-container');
+                const skillCheckContainer = choiceContainer.querySelector('.skill-check-container');
+                const mobSelect = choiceContainer.querySelector('.mob-select');
+                
+                if (teleportSelect.value) {
+                    // If a teleport is selected, we still allow adding a response
+                    // but disable mob selection
+                    
+                    // Disable mob select
+                    mobSelect.value = '';
+                    mobSelect.disabled = true;
+                    mobSelect.style.opacity = '0.5';
+                    
+                    // Add a note about teleporting
+                    const teleportNote = document.createElement('p');
+                    teleportNote.className = 'teleport-note';
+                    teleportNote.style.color = 'var(--neon-blue)';
+                    teleportNote.style.fontSize = '0.8rem';
+                    teleportNote.style.marginTop = '0.5rem';
+                    teleportNote.innerHTML = '<strong>Note:</strong> This choice will teleport the player to the selected location. You can add a response below that will be shown after teleporting.';
+                    
+                    // Add the note if it doesn't exist
+                    if (!choiceContainer.querySelector('.teleport-note')) {
+                        const teleportContainer = teleportSelect.closest('.form-group');
+                        teleportContainer.appendChild(teleportNote);
+                    }
+                    
+                    // Change the add response button text
+                    addResponseBtn.textContent = 'Add Post-Teleport Response';
+                } else {
+                    // If no teleport is selected, enable mob select
+                    mobSelect.disabled = false;
+                    mobSelect.style.opacity = '1';
+                    
+                    // Remove the teleport note if it exists
+                    const teleportNote = choiceContainer.querySelector('.teleport-note');
+                    if (teleportNote) {
+                        teleportNote.remove();
+                    }
+                    
+                    // Reset the add response button text
+                    addResponseBtn.textContent = 'Add Response';
                 }
             });
             
@@ -996,6 +1138,7 @@
             hasSkillCheckBox.addEventListener('change', () => {
                 const skillCheckDetails = choiceContainer.querySelector('.skill-check-details');
                 const addResponseBtn = choiceContainer.querySelector('.add-response-btn');
+                const teleportSelect = choiceContainer.querySelector('.teleport-select');
                 
                 if (hasSkillCheckBox.checked) {
                     skillCheckDetails.classList.remove('hidden');
@@ -1105,6 +1248,9 @@
             
             // Ensure quest selects are properly populated
             updateQuestSelects();
+            
+            // Ensure teleport selects are properly populated
+            updateTeleportSelects();
         }
 
         // Render event chances
@@ -1271,6 +1417,9 @@
             const rootNode = createEventNode();
             rootNode.classList.add('root-node');
             eventTree.appendChild(rootNode);
+            
+            // Update teleport selects
+            updateTeleportSelects();
         });
 
         document.getElementById('eventFilter').addEventListener('input', filterAndDisplayEvents);
@@ -1324,6 +1473,16 @@
                         if (mobSelect && mobSelect.value) {
                             choiceData.mobId = mobSelect.value;
                         }
+                        // Handle teleport selection if present
+                        else if (choiceElement.querySelector('.teleport-select').value) {
+                            choiceData.teleportToNode = choiceElement.querySelector('.teleport-select').value;
+                            
+                            // Also get next node if it exists (for response after teleport)
+                            const nextNodeElement = choiceElement.querySelector('.next-node-container .event-node');
+                            if (nextNodeElement) {
+                                choiceData.nextNode = getNodeData(nextNodeElement);
+                            }
+                        }
                         // Check if this choice has a skill check
                         else if (choiceElement.querySelector('.has-skill-check').checked) {
                             const skillCheckStat = choiceElement.querySelector('.skill-check-stat').value;
@@ -1343,7 +1502,7 @@
                             choiceData.skillCheckTargetNumber = skillCheckTargetNumber;
                             choiceData.failureNode = failureNode;
                         }
-                        // Only get next node if no mob is selected and no skill check
+                        // Otherwise handle next node if it exists
                         else {
                             // Get next node if it exists
                             const nextNodeElement = choiceElement.querySelector('.next-node-container .event-node');

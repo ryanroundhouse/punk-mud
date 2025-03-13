@@ -40,6 +40,11 @@ const eventNodeSchema = new mongoose.Schema({
         nextNode: {
             type: mongoose.Schema.Types.Mixed  // This allows for recursive structure
         },
+        // Optional teleport node ID to jump to when this choice is selected
+        teleportToNode: {
+            type: String,  // Node address
+            trim: true
+        },
         // Optional mob to spawn and initiate combat with when this choice is selected
         mobId: {
             type: mongoose.Schema.Types.ObjectId,

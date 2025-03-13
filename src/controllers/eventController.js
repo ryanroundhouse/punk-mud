@@ -25,6 +25,23 @@ async function getEvents(req, res) {
                     }
                 }
                 
+                // Populate teleportToNode if it exists
+                if (choice.teleportToNode) {
+                    try {
+                        const Node = mongoose.model('Node');
+                        const node = await Node.findOne({ address: choice.teleportToNode });
+                        if (node) {
+                            choice.teleportToNodeDetails = {
+                                _id: node._id,
+                                name: node.name,
+                                address: node.address
+                            };
+                        }
+                    } catch (err) {
+                        logger.error('Error populating teleport node reference:', err);
+                    }
+                }
+                
                 // Handle skill check failure node if it exists
                 if (choice.skillCheckStat && choice.failureNode) {
                     await populateMobIds(choice.failureNode);
@@ -67,11 +84,13 @@ async function validateNode(node) {
             return { valid: false, message: 'Choice text is required' };
         }
 
-        // A choice must have either a mobId or a nextNode
-        if (!choice.mobId && !choice.nextNode && !choice.skillCheckStat) {
-            return { valid: false, message: 'Choice must have either a mob, a next node, or a skill check' };
+        // A choice must have either a mobId, a nextNode, a teleportToNode, or a skillCheckStat
+        if (!choice.mobId && !choice.nextNode && !choice.skillCheckStat && !choice.teleportToNode) {
+            return { valid: false, message: 'Choice must have either a mob, a next node, a teleport destination, or a skill check' };
         }
 
+        // Note: teleportToNode can be combined with nextNode to allow continuing the event after teleporting
+        
         // If there's a skill check stat, validate related fields
         if (choice.skillCheckStat) {
             // Validate stat is one of the allowed values
@@ -213,6 +232,23 @@ async function createOrUpdateEvent(req, res) {
                     }
                 }
                 
+                // Populate teleportToNode if it exists
+                if (choice.teleportToNode) {
+                    try {
+                        const Node = mongoose.model('Node');
+                        const node = await Node.findOne({ address: choice.teleportToNode });
+                        if (node) {
+                            choice.teleportToNodeDetails = {
+                                _id: node._id,
+                                name: node.name,
+                                address: node.address
+                            };
+                        }
+                    } catch (err) {
+                        logger.error('Error populating teleport node reference:', err);
+                    }
+                }
+                
                 // Handle skill check failure node if it exists
                 if (choice.skillCheckStat && choice.failureNode) {
                     await populateMobIds(choice.failureNode);
@@ -256,6 +292,23 @@ async function getEventById(req, res) {
                         choice.mobId = await Mob.findById(choice.mobId);
                     } catch (err) {
                         logger.error('Error populating mob reference:', err);
+                    }
+                }
+                
+                // Populate teleportToNode if it exists
+                if (choice.teleportToNode) {
+                    try {
+                        const Node = mongoose.model('Node');
+                        const node = await Node.findOne({ address: choice.teleportToNode });
+                        if (node) {
+                            choice.teleportToNodeDetails = {
+                                _id: node._id,
+                                name: node.name,
+                                address: node.address
+                            };
+                        }
+                    } catch (err) {
+                        logger.error('Error populating teleport node reference:', err);
                     }
                 }
                 

@@ -113,6 +113,21 @@ async function isRestPoint(nodeAddress) {
     return node.isRestPoint;
 }
 
+// Function to get a node by its address
+async function getNodeByAddress(address) {
+    try {
+        const node = await Node.findOne({ address });
+        if (!node) {
+            logger.error('Node not found with address:', address);
+            return null;
+        }
+        return node;
+    } catch (error) {
+        logger.error('Error getting node by address:', error, { address });
+        return null;
+    }
+}
+
 async function getNodeEvent(userId, nodeAddress) {
     logger.debug('Starting handlePlayerNodeConnection', {
         userId,
@@ -311,5 +326,6 @@ module.exports = {
     getNodeByDirection,
     getNodeWithOverrides,
     isRestPoint,
-    getNodeEvent
+    getNodeEvent,
+    getNodeByAddress
 }; 

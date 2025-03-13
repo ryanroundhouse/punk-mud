@@ -60,6 +60,45 @@ async function handleCommand(socket, data) {
                         message: result.message,
                         isEndOfEvent: result.isEnd
                     });
+                    
+                    // Check if there's a teleport action to handle
+                    if (result.teleportAction) {
+                        logger.debug('Teleport action detected in event choice', {
+                            userId: socket.user.userId,
+                            targetNode: result.teleportAction.targetNode
+                        });
+                        
+                        // Get the target node
+                        const targetNode = await nodeService.getNodeByAddress(result.teleportAction.targetNode);
+                        
+                        if (targetNode) {
+                            // Get the user's current node before teleporting
+                            const user = await userService.getUser(socket.user.userId);
+                            const oldNode = user.currentNode;
+                            
+                            // Teleport the user to the target node
+                            await userService.moveUserToNode(socket.user.userId, 'teleport', targetNode);
+                            
+                            // Send a teleport notification to the client
+                            socket.emit('console response', {
+                                type: 'move',
+                                message: `You have been teleported to ${targetNode.name}`
+                            });
+                            
+                            // Handle node subscriptions
+                            if (oldNode) {
+                                stateService.removeUserFromNode(socket.user.userId, oldNode);
+                                await socketService.unsubscribeFromNodeChat(oldNode);
+                            }
+                            stateService.addUserToNode(socket.user.userId, targetNode.address);
+                            await socketService.subscribeToNodeChat(targetNode.address);
+                        } else {
+                            logger.error('Failed to teleport user - target node not found', {
+                                userId: socket.user.userId,
+                                targetNode: result.teleportAction.targetNode
+                            });
+                        }
+                    }
                 }
             }
             return;

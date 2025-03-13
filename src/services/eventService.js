@@ -1,10 +1,8 @@
 const logger = require('../config/logger');
 const Event = require('../models/Event');
 const stateService = require('./stateService');
-const messageService = require('./messageService');
 const User = require('../models/User');
 const mongoose = require('mongoose');
-const util = require('util');
 
 // Add a function to get questService when needed
 function getQuestService() {
@@ -545,6 +543,21 @@ class EventService {
                 }
             }
             
+            // Check if this choice has a teleportToNode for location teleportation
+            let teleportAction = null;
+            if (clonedChoice.teleportToNode) {
+                logger.debug('Teleport choice selected', {
+                    userId,
+                    teleportToNode: clonedChoice.teleportToNode,
+                    choiceText: clonedChoice.text
+                });
+                
+                // Store the teleport information to return to the caller
+                teleportAction = {
+                    targetNode: clonedChoice.teleportToNode
+                };
+            }
+
             // Check if this choice has a skill check
             if (clonedChoice.skillCheckStat && clonedChoice.skillCheckTargetNumber) {
                 logger.debug('Skill check choice selected', {
@@ -812,7 +825,8 @@ class EventService {
                 message: response.message,
                 hasChoices: response.hasChoices,
                 isEnd: response.isEnd,
-                error: false
+                error: false,
+                teleportAction: teleportAction
             };
         } catch (error) {
             logger.error('Error in handleEventChoice:', error);
