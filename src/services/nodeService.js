@@ -1,295 +1,367 @@
-const Node = require('../models/Node');
-const User = require('../models/User');
 const logger = require('../config/logger');
-const questService = require('./questService');
-const stateService = require('./stateService');
-const mobService = require('./mobService');
-const Event = require('../models/Event');
-const eventService = require('./eventService');
-const { publishSystemMessage } = require('./chatService');
-const messageService = require('./messageService');
 
-// New function to get a node by direction without moving the user
-async function getNodeByDirection(userId, direction, userQuestInfo) {
-    const user = await User.findById(userId);
-    if (!user || !user.currentNode) {
-        throw new Error('User not found or missing location');
-    }
-
-    const currentNode = await Node.findOne({ address: user.currentNode });
-    if (!currentNode) {
-        throw new Error('Current location not found');
-    }
-
-    const exit = currentNode.exits.find(e => e.direction.toLowerCase() === direction.toLowerCase());
-    if (!exit) {
-        throw new Error(`No exit to the ${direction}`);
-    }
-
-    // Check quest requirements if the exit has them
-    if ((exit.requiredQuestId || exit.requiredQuestEventId) && userQuestInfo) {
-        logger.debug('Checking quest requirements for exit', {
-            userId,
-            direction,
-            exitRequirements: {
-                requiredQuestId: exit.requiredQuestId,
-                requiredQuestEventId: exit.requiredQuestEventId
-            },
-            userQuestInfo: {
-                activeQuestCount: userQuestInfo.activeQuestIds?.length || 0,
-                completedQuestEventCount: userQuestInfo.completedQuestEventIds?.length || 0
-            }
-        });
-
-        // If exit requires a quest
-        if (exit.requiredQuestId) {
-            const hasRequiredQuest = userQuestInfo.activeQuestIds && 
-                userQuestInfo.activeQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
-            
-            const hasCompletedQuest = userQuestInfo.completedQuestIds && 
-                userQuestInfo.completedQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
-            
-            logger.debug('Quest requirement check result', {
-                userId,
-                direction,
-                requiredQuestId: exit.requiredQuestId,
-                userActiveQuestIds: userQuestInfo.activeQuestIds,
-                userCompletedQuestIds: userQuestInfo.completedQuestIds,
-                hasRequiredQuest,
-                hasCompletedQuest
-            });
-            
-            if (!hasRequiredQuest && !hasCompletedQuest) {
-                logger.debug('Exit blocked - missing required quest', {
-                    userId,
-                    direction,
-                    requiredQuestId: exit.requiredQuestId
-                });
-                throw new Error(`No exit to the ${direction}`);
-            }
-        }
+class NodeService {
+    constructor(deps = {}) {
+        // Inject dependencies or use defaults (for backward compatibility)
+        this.Node = deps.Node || require('../models/Node');
+        this.User = deps.User || require('../models/User');
+        this.Event = deps.Event || require('../models/Event');
+        this.questService = deps.questService || require('./questService');
+        this.stateService = deps.stateService || require('./stateService');
+        this.mobService = deps.mobService || require('./mobService');
+        this.eventService = deps.eventService || require('./eventService');
+        this.messageService = deps.messageService || require('./messageService');
+        this.chatService = deps.chatService || require('./chatService');
         
-        // If exit requires a specific quest event
-        if (exit.requiredQuestEventId) {
-            const hasRequiredQuestEvent = userQuestInfo.completedQuestEventIds && 
-                userQuestInfo.completedQuestEventIds.some(id => id.toString() === exit.requiredQuestEventId.toString());
-            
-            logger.debug('Quest event requirement check result', {
+        // For testing to override Math.random
+        this.randomGenerator = deps.randomGenerator || Math.random;
+    }
+
+    // Get a node by direction without moving the user
+    async getNodeByDirection(userId, direction, userQuestInfo) {
+        const user = await this.User.findById(userId);
+        if (!user || !user.currentNode) {
+            throw new Error('User not found or missing location');
+        }
+
+        const currentNode = await this.Node.findOne({ address: user.currentNode });
+        if (!currentNode) {
+            throw new Error('Current location not found');
+        }
+
+        const exit = currentNode.exits.find(e => e.direction.toLowerCase() === direction.toLowerCase());
+        if (!exit) {
+            throw new Error(`No exit to the ${direction}`);
+        }
+
+        // Check quest requirements if the exit has them
+        if ((exit.requiredQuestId || exit.requiredQuestEventId) && userQuestInfo) {
+            logger.debug('Checking quest requirements for exit', {
                 userId,
                 direction,
-                requiredQuestEventId: exit.requiredQuestEventId,
-                userCompletedQuestEventIds: userQuestInfo.completedQuestEventIds,
-                hasRequiredQuestEvent
-            });
-            
-            if (!hasRequiredQuestEvent) {
-                logger.debug('Exit blocked - missing required quest event', {
-                    userId,
-                    direction,
+                exitRequirements: {
+                    requiredQuestId: exit.requiredQuestId,
                     requiredQuestEventId: exit.requiredQuestEventId
+                },
+                userQuestInfo: {
+                    activeQuestCount: userQuestInfo.activeQuestIds?.length || 0,
+                    completedQuestEventCount: userQuestInfo.completedQuestEventIds?.length || 0
+                }
+            });
+
+            // If exit requires a quest
+            if (exit.requiredQuestId) {
+                const hasRequiredQuest = userQuestInfo.activeQuestIds && 
+                    userQuestInfo.activeQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+                
+                const hasCompletedQuest = userQuestInfo.completedQuestIds && 
+                    userQuestInfo.completedQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+                
+                logger.debug('Quest requirement check result', {
+                    userId,
+                    direction,
+                    requiredQuestId: exit.requiredQuestId,
+                    userActiveQuestIds: userQuestInfo.activeQuestIds,
+                    userCompletedQuestIds: userQuestInfo.completedQuestIds,
+                    hasRequiredQuest,
+                    hasCompletedQuest
                 });
-                throw new Error(`No exit to the ${direction}`);
+                
+                if (!hasRequiredQuest && !hasCompletedQuest) {
+                    logger.debug('Exit blocked - missing required quest', {
+                        userId,
+                        direction,
+                        requiredQuestId: exit.requiredQuestId
+                    });
+                    throw new Error(`No exit to the ${direction}`);
+                }
             }
+            
+            // If exit requires a specific quest event
+            if (exit.requiredQuestEventId) {
+                const hasRequiredQuestEvent = userQuestInfo.completedQuestEventIds && 
+                    userQuestInfo.completedQuestEventIds.some(id => id.toString() === exit.requiredQuestEventId.toString());
+                
+                logger.debug('Quest event requirement check result', {
+                    userId,
+                    direction,
+                    requiredQuestEventId: exit.requiredQuestEventId,
+                    userCompletedQuestEventIds: userQuestInfo.completedQuestEventIds,
+                    hasRequiredQuestEvent
+                });
+                
+                if (!hasRequiredQuestEvent) {
+                    logger.debug('Exit blocked - missing required quest event', {
+                        userId,
+                        direction,
+                        requiredQuestEventId: exit.requiredQuestEventId
+                    });
+                    throw new Error(`No exit to the ${direction}`);
+                }
+            }
+            
+            logger.debug('Quest requirements passed for exit', {
+                userId,
+                direction,
+                exitRequirements: {
+                    requiredQuestId: exit.requiredQuestId,
+                    requiredQuestEventId: exit.requiredQuestEventId
+                }
+            });
+        }
+
+        // Get the target node with any quest overrides
+        const targetNode = await this.getNodeWithOverrides(exit.target, userId);
+        if (!targetNode) {
+            throw new Error('Target location not found');
+        }
+
+        return targetNode;
+    }
+
+    // Add a new method to get node with quest overrides if applicable
+    async getNodeWithOverrides(address, userId) {
+        const node = await this.Node.findOne({ address });
+        if (!node) {
+            throw new Error('Node not found');
         }
         
-        logger.debug('Quest requirements passed for exit', {
-            userId,
-            direction,
-            exitRequirements: {
-                requiredQuestId: exit.requiredQuestId,
-                requiredQuestEventId: exit.requiredQuestEventId
-            }
-        });
-    }
-
-    // Get the target node with any quest overrides
-    const targetNode = await getNodeWithOverrides(exit.target, userId);
-    if (!targetNode) {
-        throw new Error('Target location not found');
-    }
-
-    return targetNode;
-}
-
-// Add a new method to get node with quest overrides if applicable
-async function getNodeWithOverrides(address, userId) {
-    const node = await Node.findOne({ address });
-    if (!node) {
-        throw new Error('Node not found');
-    }
-    
-    // Check for quest-specific node event overrides
-    const questNodeEvents = await questService.getQuestNodeEventOverrides(userId, address);
-    
-    // Check for quest-specific node actor overrides
-    const questNodeActors = await questService.getQuestNodeActorOverrides(userId, address);
-    
-    logger.debug('Quest node override check results:', {
-        userId,
-        nodeAddress: address,
-        originalActors: node.actors?.length || 0,
-        questActorOverrides: questNodeActors?.length || 0,
-        questActorOverrideDetails: questNodeActors?.map(actor => ({
-            id: actor.actorId,
-            type: actor.type,
-            overrideType: actor.overrideType
-        }))
-    });
-
-    // Create a copy of the node to avoid modifying the database object
-    const nodeData = node.toObject();
-    
-    // If there are quest overrides, include them in the node data
-    if (questNodeEvents && questNodeEvents.length > 0) {
-        logger.debug('Including quest event overrides in node data:', {
-            address,
-            userId,
-            originalEvents: nodeData.events?.length || 0,
-            questEventCount: questNodeEvents.length
-        });
+        // Check for quest-specific node event overrides
+        const questNodeEvents = await this.questService.getQuestNodeEventOverrides(userId, address);
         
-        // Add the quest events to the node data
-        nodeData.events = questNodeEvents;
-    }
-
-    // If there are actor overrides, include them in the node data
-    if (questNodeActors && questNodeActors.length > 0) {
-        logger.debug('Applying quest actor overrides to node data:', {
-            address,
+        // Check for quest-specific node actor overrides
+        const questNodeActors = await this.questService.getQuestNodeActorOverrides(userId, address);
+        
+        logger.debug('Quest node override check results:', {
             userId,
-            originalActors: nodeData.actors?.length || 0,
-            questActorCount: questNodeActors.length,
-            actorOverrideDetails: questNodeActors.map(actor => ({
+            nodeAddress: address,
+            originalActors: node.actors?.length || 0,
+            questActorOverrides: questNodeActors?.length || 0,
+            questActorOverrideDetails: questNodeActors?.map(actor => ({
                 id: actor.actorId,
                 type: actor.type,
                 overrideType: actor.overrideType
             }))
         });
+
+        // Create a copy of the node to avoid modifying the database object
+        const nodeData = node.toObject();
         
-        // Add the quest actors to the node data
-        nodeData.actors = questNodeActors;
+        // If there are quest overrides, include them in the node data
+        if (questNodeEvents && questNodeEvents.length > 0) {
+            logger.debug('Including quest event overrides in node data:', {
+                address,
+                userId,
+                originalEvents: nodeData.events?.length || 0,
+                questEventCount: questNodeEvents.length
+            });
+            
+            // Add the quest events to the node data
+            nodeData.events = questNodeEvents;
+        }
+
+        // If there are actor overrides, include them in the node data
+        if (questNodeActors && questNodeActors.length > 0) {
+            logger.debug('Applying quest actor overrides to node data:', {
+                address,
+                userId,
+                originalActors: nodeData.actors?.length || 0,
+                questActorCount: questNodeActors.length,
+                actorOverrideDetails: questNodeActors.map(actor => ({
+                    id: actor.actorId,
+                    type: actor.type,
+                    overrideType: actor.overrideType
+                }))
+            });
+            
+            // Add the quest actors to the node data
+            nodeData.actors = questNodeActors;
+        }
+
+        logger.debug('Final node data after overrides:', {
+            address,
+            userId,
+            hasActors: !!nodeData.actors,
+            actorCount: nodeData.actors?.length || 0,
+            actorIds: nodeData.actors?.map(a => a.actorId) || []
+        });
+        
+        return nodeData;
     }
 
-    logger.debug('Final node data after overrides:', {
-        address,
-        userId,
-        hasActors: !!nodeData.actors,
-        actorCount: nodeData.actors?.length || 0,
-        actorIds: nodeData.actors?.map(a => a.actorId) || []
-    });
-    
-    return nodeData;
-}
-
-async function isRestPoint(nodeAddress) {
-    const node = await Node.findOne({ address: nodeAddress });
-    if (!node) {
-        throw new Error('Node not found');
-    }
-    return node.isRestPoint;
-}
-
-// Function to get a node by its address
-async function getNodeByAddress(address) {
-    try {
-        const node = await Node.findOne({ address });
+    async isRestPoint(nodeAddress) {
+        const node = await this.Node.findOne({ address: nodeAddress });
         if (!node) {
-            logger.error('Node not found with address:', address);
+            throw new Error('Node not found');
+        }
+        return node.isRestPoint;
+    }
+
+    // Function to get a node by its address
+    async getNodeByAddress(address) {
+        try {
+            const node = await this.Node.findOne({ address });
+            if (!node) {
+                logger.error('Node not found with address:', address);
+                return null;
+            }
+            return node;
+        } catch (error) {
+            logger.error('Error getting node by address:', error, { address });
             return null;
         }
-        return node;
-    } catch (error) {
-        logger.error('Error getting node by address:', error, { address });
-        return null;
-    }
-}
-
-async function getNodeEvent(userId, nodeAddress) {
-    logger.debug('Starting handlePlayerNodeConnection', {
-        userId,
-        nodeAddress,
-        timestamp: new Date().toISOString()
-    });
-
-    // Use getNodeWithOverrides from nodeService
-    const node = await getNodeWithOverrides(nodeAddress, userId);
-    if (!node) {
-        throw new Error('Node not found');
     }
 
-    logger.debug('handlePlayerNodeConnection called', {
-        userId,
-        nodeAddress,
-        inCombat: stateService.isUserInCombat(userId),
-        nodeEvents: node.events?.length || 0,
-        hasActors: !!node.actors,
-        actorCount: node.actors?.length || 0,
-        timestamp: new Date().toISOString()
-    });
-
-    // Only process events if not in combat
-    if (!stateService.isUserInCombat(userId)) {
-        logger.debug('Clearing previous mob before spawn check', {
-            userId,
-            hadPreviousMob: stateService.playerMobs.has(userId),
-            timestamp: new Date().toISOString()
-        });
-        
-        mobService.clearUserMob(userId);
-        
-        // Check for quest-specific node event overrides
-        const questNodeEvents = await questService.getQuestNodeEventOverrides(userId, nodeAddress);
-        
-        logger.debug('Quest node event override check result', {
-            userId,
-            nodeAddress,
-            hasQuestOverrides: !!questNodeEvents,
-            questEventCount: questNodeEvents?.length || 0,
-            originalNodeEventCount: node.events?.length || 0,
-            timestamp: new Date().toISOString()
-        });
-        
-        let result = { mobSpawn: null, storyEvent: null };
-
-        // Determine which events to use
-        const eventsToUse = questNodeEvents && questNodeEvents.length > 0 ? 
-            questNodeEvents : 
-            node.events || [];
-        
-        // Skip if no events are available
-        if (eventsToUse.length === 0) {
-            return result;
-        }
-        
-        // Always treat as 100% total chance - select one event based on weighted probability
-        const roll = Math.random() * 100;
+    // Extracted helper method to select an event based on chance - makes testing easier
+    selectEventByChance(events, rollValue) {
         let chanceSum = 0;
         
-        logger.debug('Processing events with weighted probability:', {
-            userId,
-            roll,
-            eventCount: eventsToUse.length,
-            timestamp: new Date().toISOString()
+        for (const event of events) {
+            chanceSum += event.chance;
+            if (rollValue < chanceSum) {
+                return event;
+            }
+        }
+        
+        return null;
+    }
+
+    // Extracted method to handle energy deduction for story events
+    async handleStoryEventEnergy(userId, storyEvent) {
+        if (!storyEvent.requiresEnergy) {
+            return true;
+        }
+        
+        const user = await this.User.findById(userId);
+        
+        // Check if user has enough energy
+        if (user.stats.currentEnergy < 1) {
+            logger.debug('User has insufficient energy for story event that requires energy', {
+                userId,
+                currentEnergy: user.stats.currentEnergy,
+                eventId: storyEvent._id,
+                eventTitle: storyEvent.title,
+                requiresEnergy: storyEvent.requiresEnergy
+            });
+
+            // Get the socket to send the tired message
+            const socket = this.stateService.getClient(userId);
+            if (socket) {
+                socket.emit('console response', {
+                    type: 'info',
+                    message: "You notice something interesting might happen, but you're too tired to engage fully right now. Get some sleep."
+                });
+            }
+            
+            return false;
+        }
+        
+        // Deduct energy if the event requires it
+        user.stats.currentEnergy -= 1;
+        await this.User.findByIdAndUpdate(userId, {
+            'stats.currentEnergy': user.stats.currentEnergy
         });
         
-        // Find which event should trigger based on the roll
-        for (const event of eventsToUse) {
-            chanceSum += event.chance;
-            if (roll < chanceSum) {
-                if (event.mobId) {
+        // Send status update after energy deduction
+        this.messageService.sendPlayerStatusMessage(
+            userId, 
+            `HP: ${user.stats.currentHitpoints}/${user.stats.hitpoints} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
+        );
+        
+        logger.debug('Deducted energy for story event:', {
+            userId,
+            eventId: storyEvent._id,
+            newEnergyLevel: user.stats.currentEnergy
+        });
+        
+        return true;
+    }
+
+    async getNodeEvent(userId, nodeAddress) {
+        logger.debug('Starting handlePlayerNodeConnection', {
+            userId,
+            nodeAddress,
+            timestamp: new Date().toISOString()
+        });
+
+        // Use getNodeWithOverrides from nodeService
+        const node = await this.getNodeWithOverrides(nodeAddress, userId);
+        if (!node) {
+            throw new Error('Node not found');
+        }
+
+        logger.debug('handlePlayerNodeConnection called', {
+            userId,
+            nodeAddress,
+            inCombat: this.stateService.isUserInCombat(userId),
+            nodeEvents: node.events?.length || 0,
+            hasActors: !!node.actors,
+            actorCount: node.actors?.length || 0,
+            timestamp: new Date().toISOString()
+        });
+
+        // Initialize result
+        let result = { mobSpawn: null, storyEvent: null };
+
+        // Only process events if not in combat
+        if (!this.stateService.isUserInCombat(userId)) {
+            logger.debug('Clearing previous mob before spawn check', {
+                userId,
+                hadPreviousMob: this.stateService.playerMobs.has(userId),
+                timestamp: new Date().toISOString()
+            });
+            
+            this.mobService.clearUserMob(userId);
+            
+            // Check for quest-specific node event overrides
+            const questNodeEvents = await this.questService.getQuestNodeEventOverrides(userId, nodeAddress);
+            
+            logger.debug('Quest node event override check result', {
+                userId,
+                nodeAddress,
+                hasQuestOverrides: !!questNodeEvents,
+                questEventCount: questNodeEvents?.length || 0,
+                originalNodeEventCount: node.events?.length || 0,
+                timestamp: new Date().toISOString()
+            });
+            
+            // Determine which events to use
+            const eventsToUse = questNodeEvents && questNodeEvents.length > 0 ? 
+                questNodeEvents : 
+                node.events || [];
+            
+            // Skip if no events are available
+            if (eventsToUse.length === 0) {
+                return result;
+            }
+            
+            // Always treat as 100% total chance - select one event based on weighted probability
+            const roll = this.randomGenerator() * 100;
+            
+            logger.debug('Processing events with weighted probability:', {
+                userId,
+                roll,
+                eventCount: eventsToUse.length,
+                timestamp: new Date().toISOString()
+            });
+            
+            // Find which event should trigger based on the roll
+            const selectedEvent = this.selectEventByChance(eventsToUse, roll);
+            
+            if (selectedEvent) {
+                if (selectedEvent.mobId) {
                     // Handle mob spawn
                     logger.debug('Attempting to spawn mob:', {
                         userId,
-                        mobEventId: event.mobId,
+                        mobEventId: selectedEvent.mobId,
                         roll,
-                        chanceSum,
                         timestamp: new Date().toISOString()
                     });
                     
-                    const mobInstance = await mobService.loadMobFromEvent(event);
+                    const mobInstance = await this.mobService.loadMobFromEvent(selectedEvent);
                     logger.debug('Mob load result:', {
                         userId,
-                        mobEventId: event.mobId,
+                        mobEventId: selectedEvent.mobId,
                         mobLoaded: !!mobInstance,
                         mobName: mobInstance?.name,
                         timestamp: new Date().toISOString()
@@ -301,66 +373,27 @@ async function getNodeEvent(userId, nodeAddress) {
                             mobName: mobInstance.name,
                             timestamp: new Date().toISOString()
                         });
-                        stateService.playerMobs.set(userId, mobInstance);
+                        this.stateService.playerMobs.set(userId, mobInstance);
                         result.mobSpawn = mobInstance;
-                        await publishSystemMessage(
+                        await this.chatService.publishSystemMessage(
                             nodeAddress,
                             `A ${mobInstance.name} appears!`,
                             `A ${mobInstance.name} appears!`,
                             userId
                         );
                     }
-                } else if (event.eventId) {
+                } else if (selectedEvent.eventId) {
                     // Handle story event
-                    const storyEvent = await Event.findById(event.eventId);
+                    const storyEvent = await this.Event.findById(selectedEvent.eventId);
                     if (storyEvent) {
-                        // Check if user has enough energy for this story event
-                        const user = await User.findById(userId);
-                        const hasEnoughEnergy = storyEvent.requiresEnergy === false || user.stats.currentEnergy >= 1;
+                        // Check if user has enough energy and handle deduction
+                        const hasEnoughEnergy = await this.handleStoryEventEnergy(userId, storyEvent);
                         
-                        if (!hasEnoughEnergy) {
-                            logger.debug('User has insufficient energy for story event that requires energy', {
-                                userId,
-                                currentEnergy: user.stats.currentEnergy,
-                                eventId: storyEvent._id,
-                                eventTitle: storyEvent.title,
-                                requiresEnergy: storyEvent.requiresEnergy
-                            });
-
-                            // Get the socket to send the tired message
-                            const socket = stateService.getClient(userId);
-                            if (socket) {
-                                socket.emit('console response', {
-                                    type: 'info',
-                                    message: "You notice something interesting might happen, but you're too tired to engage fully right now. Get some sleep."
-                                });
-                            }
-                        } else {
+                        if (hasEnoughEnergy) {
                             logger.debug(`Starting story event ${storyEvent._id} (${storyEvent.title}) for user ${userId}`);
                             
-                            // Deduct energy if the event requires it
-                            if (storyEvent.requiresEnergy === true) {
-                                // Deduct energy
-                                user.stats.currentEnergy -= 1;
-                                await User.findByIdAndUpdate(userId, {
-                                    'stats.currentEnergy': user.stats.currentEnergy
-                                });
-                                
-                                // Send status update after energy deduction
-                                messageService.sendPlayerStatusMessage(
-                                    userId, 
-                                    `HP: ${user.stats.currentHitpoints}/${user.stats.hitpoints} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
-                                );
-                                
-                                logger.debug('Deducted energy for story event:', {
-                                    userId,
-                                    eventId: storyEvent._id,
-                                    newEnergyLevel: user.stats.currentEnergy
-                                });
-                            }
-
                             // Set the story event as active
-                            stateService.setActiveEvent(
+                            this.stateService.setActiveEvent(
                                 userId,
                                 storyEvent._id,
                                 storyEvent.rootNode,
@@ -370,10 +403,10 @@ async function getNodeEvent(userId, nodeAddress) {
                             result.storyEvent = storyEvent;
 
                             // Get the socket for this user to send initial prompt
-                            const socket = stateService.getClient(userId);
+                            const socket = this.stateService.getClient(userId);
                             if (socket) {
                                 // Format and send initial story prompt
-                                const formattedResponse = await eventService.formatEventResponse(storyEvent.rootNode, userId);
+                                const formattedResponse = await this.eventService.formatEventResponse(storyEvent.rootNode, userId);
                                 socket.emit('console response', {
                                     type: 'event',
                                     message: formattedResponse.message,
@@ -383,25 +416,21 @@ async function getNodeEvent(userId, nodeAddress) {
                         }
                     }
                 }
-                break;
             }
+        } else {
+            logger.debug('Skipping event processing because user is in combat', {
+                userId,
+                nodeAddress
+            });
         }
         
         return result;
-    } else {
-        logger.debug('Skipping event processing because user is in combat', {
-            userId,
-            nodeAddress
-        });
     }
-    
-    return { mobSpawn: null, storyEvent: null };
 }
 
-module.exports = {
-    getNodeByDirection,
-    getNodeWithOverrides,
-    isRestPoint,
-    getNodeEvent,
-    getNodeByAddress
-}; 
+// Create a singleton instance with default dependencies
+const nodeServiceInstance = new NodeService();
+
+// Export both the class and the singleton instance
+module.exports = nodeServiceInstance;
+module.exports.NodeService = NodeService; 
