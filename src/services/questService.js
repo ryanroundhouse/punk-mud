@@ -1,20 +1,25 @@
-const Quest = require('../models/Quest');
-const User = require('../models/User');
-const logger = require('../config/logger');
-const messageService = require('./messageService');
-const userService = require('./userService');
-const Class = require('../models/Class');
-
 class QuestService {
+    constructor(deps = {}) {
+        // Models
+        this.Quest = deps.Quest || require('../models/Quest');
+        this.User = deps.User || require('../models/User');
+        this.Class = deps.Class || require('../models/Class');
+        
+        // Services
+        this.logger = deps.logger || require('../config/logger');
+        this.messageService = deps.messageService || require('./messageService');
+        this.userService = deps.userService || require('./userService');
+    }
+
     async getActiveQuests(userId) {
         try {
-            const user = await User.findById(userId);
+            const user = await this.User.findById(userId);
             if (!user || !user.quests) {
-                logger.debug('No user or no quests found for user', { userId });
+                this.logger.debug('No user or no quests found for user', { userId });
                 return [];
             }
 
-            logger.debug('Found user with quests', {
+            this.logger.debug('Found user with quests', {
                 userId,
                 questCount: user.quests.length,
                 quests: user.quests.map(q => ({
@@ -24,9 +29,9 @@ class QuestService {
                 }))
             });
 
-            const allQuests = await Quest.find();
+            const allQuests = await this.Quest.find();
             
-            logger.debug('Quests found in database', {
+            this.logger.debug('Quests found in database', {
                 userId,
                 questCount: allQuests.length,
                 questIds: allQuests.map(q => q._id.toString()),
@@ -38,7 +43,7 @@ class QuestService {
                 .map(userQuest => {
                     const quest = allQuests.find(q => q._id.toString() === userQuest.questId);
                     if (!quest) {
-                        logger.debug('Quest not found in database for user quest', {
+                        this.logger.debug('Quest not found in database for user quest', {
                             userId,
                             userQuestId: userQuest.questId,
                             availableQuestIds: allQuests.map(q => q._id.toString())
@@ -48,7 +53,7 @@ class QuestService {
 
                     const currentEvent = quest.events.find(e => e._id.toString() === userQuest.currentEventId);
                     if (!currentEvent) {
-                        logger.debug('Current event not found for quest', {
+                        this.logger.debug('Current event not found for quest', {
                             userId,
                             questId: quest._id,
                             questTitle: quest.title,
@@ -61,7 +66,7 @@ class QuestService {
                     const choices = currentEvent.choices.map(choice => {
                         const nextEvent = quest.events.find(e => e._id.toString() === choice.nextEventId.toString());
                         if (!nextEvent) {
-                            logger.debug('Next event not found for choice', {
+                            this.logger.debug('Next event not found for choice', {
                                 userId,
                                 questId: quest._id,
                                 questTitle: quest.title,
@@ -98,7 +103,7 @@ class QuestService {
                 })
                 .filter(Boolean);
 
-            logger.debug('Final active quests result', {
+            this.logger.debug('Final active quests result', {
                 userId,
                 activeQuestCount: activeQuests.length,
                 activeQuests: activeQuests.map(q => q.title)
@@ -106,7 +111,7 @@ class QuestService {
 
             return activeQuests;
         } catch (error) {
-            logger.error('Error getting active quests:', error, { userId });
+            this.logger.error('Error getting active quests:', error, { userId });
             throw error;
         }
     }
@@ -122,7 +127,7 @@ class QuestService {
             }
 
             // Get all quest details
-            const quests = await Quest.find({
+            const quests = await this.Quest.find({
                 _id: { $in: activeUserQuests.map(q => q.questId) }
             });
 
@@ -130,7 +135,7 @@ class QuestService {
                 return null;
             }
 
-            logger.debug('Processing quests for node event overrides', {
+            this.logger.debug('Processing quests for node event overrides', {
                 userId,
                 nodeAddress,
                 activeQuestCount: activeUserQuests.length,
@@ -140,14 +145,14 @@ class QuestService {
             for (const userQuest of activeUserQuests) {
                 const quest = quests.find(q => q._id.toString() === userQuest.questId);
                 if (!quest) {
-                    logger.debug('Quest not found in database', {
+                    this.logger.debug('Quest not found in database', {
                         userId,
                         questId: userQuest.questId
                     });
                     continue;
                 }
 
-                logger.debug('Processing quest for node overrides', {
+                this.logger.debug('Processing quest for node overrides', {
                     userId,
                     questId: quest._id,
                     questTitle: quest.title,
@@ -160,7 +165,7 @@ class QuestService {
                 );
 
                 if (!currentEvent) {
-                    logger.debug('Current event not found for quest', {
+                    this.logger.debug('Current event not found for quest', {
                         userId,
                         questId: quest._id,
                         questTitle: quest.title,
@@ -169,7 +174,7 @@ class QuestService {
                     continue;
                 }
 
-                logger.debug('Found current event for quest', {
+                this.logger.debug('Found current event for quest', {
                     userId,
                     questId: quest._id,
                     eventId: currentEvent._id,
@@ -187,7 +192,7 @@ class QuestService {
                 );
 
                 if (nodeOverride) {
-                    logger.debug('Found node override for address', {
+                    this.logger.debug('Found node override for address', {
                         userId,
                         questId: quest._id,
                         questTitle: quest.title,
@@ -214,7 +219,7 @@ class QuestService {
                             return null;
                         }).filter(Boolean);
 
-                        logger.debug('Formatted node override events', {
+                        this.logger.debug('Formatted node override events', {
                             userId,
                             questId: quest._id,
                             questTitle: quest.title,
@@ -224,7 +229,7 @@ class QuestService {
 
                         nodeEventOverrides.push(...formattedEvents);
                     } else {
-                        logger.debug('Node override has no events', {
+                        this.logger.debug('Node override has no events', {
                             userId,
                             questId: quest._id,
                             questTitle: quest.title,
@@ -232,7 +237,7 @@ class QuestService {
                         });
                     }
                 } else {
-                    logger.debug('No node override found for address', {
+                    this.logger.debug('No node override found for address', {
                         userId,
                         questId: quest._id,
                         questTitle: quest.title,
@@ -242,7 +247,7 @@ class QuestService {
                 }
             }
 
-            logger.debug('Final node event overrides result', {
+            this.logger.debug('Final node event overrides result', {
                 userId,
                 nodeAddress,
                 overrideCount: nodeEventOverrides.length,
@@ -252,7 +257,7 @@ class QuestService {
 
             return nodeEventOverrides.length > 0 ? nodeEventOverrides : null;
         } catch (error) {
-            logger.error('Error getting quest node event overrides:', error, {
+            this.logger.error('Error getting quest node event overrides:', error, {
                 userId,
                 nodeAddress
             });
@@ -267,11 +272,11 @@ class QuestService {
             // Get active quests for user
             const activeUserQuests = await this.getActiveQuests(userId);
             if (!activeUserQuests || activeUserQuests.length === 0) {
-                logger.debug('No active quests found for user', { userId });
+                this.logger.debug('No active quests found for user', { userId });
                 return null;
             }
 
-            logger.debug('Processing quests for node actor overrides', {
+            this.logger.debug('Processing quests for node actor overrides', {
                 userId,
                 nodeAddress,
                 activeQuestCount: activeUserQuests.length,
@@ -279,7 +284,7 @@ class QuestService {
             });
 
             for (const userQuest of activeUserQuests) {
-                logger.debug('Processing quest for node actor overrides', {
+                this.logger.debug('Processing quest for node actor overrides', {
                     userId,
                     questId: userQuest.questId,
                     questTitle: userQuest.title,
@@ -293,7 +298,7 @@ class QuestService {
                 );
 
                 if (!currentEvent) {
-                    logger.debug('Current event not found for quest', {
+                    this.logger.debug('Current event not found for quest', {
                         userId,
                         questId: userQuest.questId,
                         questTitle: userQuest.title,
@@ -302,7 +307,7 @@ class QuestService {
                     continue;
                 }
 
-                logger.debug('Found current event for quest', {
+                this.logger.debug('Found current event for quest', {
                     userId,
                     questId: userQuest.questId,
                     eventId: currentEvent._id,
@@ -324,7 +329,7 @@ class QuestService {
                 );
 
                 if (nodeOverrides.length > 0) {
-                    logger.debug('Found node actor overrides for address', {
+                    this.logger.debug('Found node actor overrides for address', {
                         userId,
                         questId: userQuest.questId,
                         questTitle: userQuest.title,
@@ -338,7 +343,7 @@ class QuestService {
 
                     nodeActorOverrides.push(...nodeOverrides.map(override => override.actorId));
                 } else {
-                    logger.debug('No node actor overrides found for address', {
+                    this.logger.debug('No node actor overrides found for address', {
                         userId,
                         questId: userQuest.questId,
                         questTitle: userQuest.title,
@@ -348,7 +353,7 @@ class QuestService {
                 }
             }
 
-            logger.debug('Final node actor overrides result', {
+            this.logger.debug('Final node actor overrides result', {
                 userId,
                 nodeAddress,
                 overrideCount: nodeActorOverrides.length,
@@ -358,7 +363,7 @@ class QuestService {
 
             return nodeActorOverrides.length > 0 ? nodeActorOverrides : null;
         } catch (error) {
-            logger.error('Error getting quest node actor overrides:', error, {
+            this.logger.error('Error getting quest node actor overrides:', error, {
                 userId,
                 nodeAddress
             });
@@ -370,11 +375,11 @@ class QuestService {
         try {
             // Add validation at the start
             if (!user) {
-                logger.error('handleQuestProgression called with undefined user');
+                this.logger.error('handleQuestProgression called with undefined user');
                 return null;
             }
 
-            logger.debug('handleQuestProgression called with:', {
+            this.logger.debug('handleQuestProgression called with:', {
                 hasUser: !!user,
                 userId: user._id?.toString(),
                 actorId,
@@ -388,12 +393,12 @@ class QuestService {
                 user.quests = [];
             }
 
-            const allQuests = await Quest.find();
+            const allQuests = await this.Quest.find();
             let questUpdates = [];
 
             // First handle any completion events
             if (completionEventIds && completionEventIds.length > 0) {
-                logger.debug('Processing completion events:', { 
+                this.logger.debug('Processing completion events:', { 
                     completionEventIds,
                     userQuests: user.quests.map(q => ({
                         questId: q.questId,
@@ -405,7 +410,7 @@ class QuestService {
                 
                 for (const userQuest of user.quests) {
                     if (userQuest.completed) {
-                        logger.debug('Skipping completed quest:', {
+                        this.logger.debug('Skipping completed quest:', {
                             questId: userQuest.questId,
                             completedAt: userQuest.completedAt
                         });
@@ -414,7 +419,7 @@ class QuestService {
 
                     const quest = allQuests.find(q => q._id.toString() === userQuest.questId);
                     if (!quest) {
-                        logger.debug('Quest not found:', {
+                        this.logger.debug('Quest not found:', {
                             questId: userQuest.questId,
                             allQuestIds: allQuests.map(q => q._id.toString())
                         });
@@ -427,7 +432,7 @@ class QuestService {
                     );
                     
                     if (!currentEvent) {
-                        logger.debug('Current event not found:', {
+                        this.logger.debug('Current event not found:', {
                             currentEventId: userQuest.currentEventId,
                             questId: quest._id.toString(),
                             availableEventIds: quest.events.map(e => e._id.toString())
@@ -435,7 +440,7 @@ class QuestService {
                         continue;
                     }
 
-                    logger.debug('Checking current event:', {
+                    this.logger.debug('Checking current event:', {
                         eventId: currentEvent._id.toString(),
                         eventType: currentEvent.eventType,
                         hasChoices: !!currentEvent.choices,
@@ -452,7 +457,7 @@ class QuestService {
                     );
 
                     if (nextEventChoices && nextEventChoices.length > 0) {
-                        logger.debug('Found matching next event choices:', {
+                        this.logger.debug('Found matching next event choices:', {
                             currentEventId: currentEvent._id.toString(),
                             nextEventIds: nextEventChoices.map(c => c.nextEventId.toString()),
                             questId: quest._id.toString(),
@@ -471,7 +476,7 @@ class QuestService {
                             );
 
                             if (nextEvent) {
-                                logger.debug('Found next event:', {
+                                this.logger.debug('Found next event:', {
                                     eventId: nextEvent._id.toString(),
                                     isEnd: nextEvent.isEnd,
                                     hasRewards: !!nextEvent.rewards?.length,
@@ -482,7 +487,7 @@ class QuestService {
                                 await this.handleEventRewards(user, nextEvent);
 
                                 if (nextEvent.isEnd) {
-                                    logger.debug('Found end event:', {
+                                    this.logger.debug('Found end event:', {
                                         eventId: nextEvent._id.toString(),
                                         questId: quest._id.toString(),
                                         questTitle: quest.title
@@ -495,20 +500,20 @@ class QuestService {
                                     // to avoid displaying two separate messages
                                     if (nextEvent.eventType === 'chat') {
                                         // Send a combined message for chat events
-                                        messageService.sendQuestsMessage(
+                                        this.messageService.sendQuestsMessage(
                                             user._id.toString(),
                                             `Quest "${quest.title}" completed!\n\n${nextEvent.message}`
                                         );
                                     } else {
                                         // For non-chat events, send the completion message separately
-                                        messageService.sendSuccessMessage(
+                                        this.messageService.sendSuccessMessage(
                                             user._id.toString(),
                                             `Quest "${quest.title}" completed!`
                                         );
                                         
                                         // Only send the quest message if it exists and this isn't a chat event
                                         if (nextEvent.message) {
-                                            messageService.sendQuestsMessage(
+                                            this.messageService.sendQuestsMessage(
                                                 user._id.toString(),
                                                 nextEvent.message
                                             );
@@ -521,7 +526,7 @@ class QuestService {
                                     });
 
                                     // Add debug logging for quest completion
-                                    logger.debug('Quest completed and saved:', {
+                                    this.logger.debug('Quest completed and saved:', {
                                         questId: quest._id.toString(),
                                         questTitle: quest.title,
                                         userId: user._id.toString(),
@@ -533,7 +538,7 @@ class QuestService {
 
                                     return questUpdates;
                                 } else {
-                                    logger.debug('Next event is not an end event:', {
+                                    this.logger.debug('Next event is not an end event:', {
                                         eventId: nextEvent._id.toString(),
                                         isEnd: nextEvent.isEnd
                                     });
@@ -551,11 +556,11 @@ class QuestService {
                             }
                         }
                     } else {
-                        logger.debug('No matching next event choices found in current event choices');
+                        this.logger.debug('No matching next event choices found in current event choices');
                     }
                 }
             } else {
-                logger.debug('No completion events to process');
+                this.logger.debug('No completion events to process');
             }
 
             // Handle direct quest activation if specified
@@ -586,12 +591,12 @@ class QuestService {
                             
                             // Only send the quest start message if there's a message to send
                             if (startEvent.message) {
-                                messageService.sendQuestsMessage(
+                                this.messageService.sendQuestsMessage(
                                     user._id.toString(),
                                     `New Quest: ${questToStart.title}\n\n${startEvent.message}`
                                 );
                             } else {
-                                messageService.sendQuestsMessage(
+                                this.messageService.sendQuestsMessage(
                                     user._id.toString(),
                                     `New Quest: ${questToStart.title}`
                                 );
@@ -624,7 +629,7 @@ class QuestService {
                     });
                     await user.save();
                     
-                    messageService.sendQuestsMessage(
+                    this.messageService.sendQuestsMessage(
                         user._id.toString(),
                         `New Quest: ${quest.title}\n\n${startEvent.message}`
                     );
@@ -646,7 +651,7 @@ class QuestService {
                 const currentEvent = quest.events.find(e => e._id.toString() === userQuest.currentEventId);
                 if (!currentEvent) continue;
 
-                logger.debug('Checking quest event for actor chat progression:', {
+                this.logger.debug('Checking quest event for actor chat progression:', {
                     questId: quest._id.toString(),
                     questTitle: quest.title,
                     currentEventId: currentEvent._id.toString(),
@@ -661,7 +666,7 @@ class QuestService {
                     
                     // Debug the comparison
                     if (nextEvent) {
-                        logger.debug('Comparing next event actorId with provided actorId:', {
+                        this.logger.debug('Comparing next event actorId with provided actorId:', {
                             nextEventId: nextEvent._id.toString(),
                             nextEventActorId: nextEvent.actorId,
                             providedActorId: actorId,
@@ -677,7 +682,7 @@ class QuestService {
                            nextEvent.actorId.toString() === actorId.toString();
                 });
 
-                logger.debug('Available choices after filtering:', {
+                this.logger.debug('Available choices after filtering:', {
                     availableChoicesCount: availableChoices.length,
                     availableChoices: availableChoices.map(c => c.nextEventId.toString())
                 });
@@ -690,6 +695,9 @@ class QuestService {
                     
                     const isComplete = nextEvent.isEnd || nextEvent.choices.length === 0;
                     if (isComplete) {
+                        // Process event rewards before marking complete
+                        await this.handleEventRewards(user, nextEvent);
+                        
                         userQuest.completed = true;
                         userQuest.completedAt = new Date();
                         
@@ -697,20 +705,20 @@ class QuestService {
                         // to avoid displaying two separate messages
                         if (nextEvent.eventType === 'chat') {
                             // Send a combined message for chat events
-                            messageService.sendQuestsMessage(
+                            this.messageService.sendQuestsMessage(
                                 user._id.toString(),
                                 `Quest "${quest.title}" completed!\n\n${nextEvent.message}`
                             );
                         } else {
                             // For non-chat events, send the completion message separately
-                            messageService.sendSuccessMessage(
+                            this.messageService.sendSuccessMessage(
                                 user._id.toString(),
                                 `Quest "${quest.title}" completed!`
                             );
                             
                             // Only send the quest message if it exists and this isn't a chat event
                             if (nextEvent.message) {
-                                messageService.sendQuestsMessage(
+                                this.messageService.sendQuestsMessage(
                                     user._id.toString(),
                                     nextEvent.message
                                 );
@@ -719,7 +727,7 @@ class QuestService {
                     } else {
                         // Not a completion, just send the quest message
                         if (nextEvent.message) {
-                            messageService.sendQuestsMessage(
+                            this.messageService.sendQuestsMessage(
                                 user._id.toString(),
                                 nextEvent.message
                             );
@@ -739,7 +747,7 @@ class QuestService {
 
             return null;
         } catch (error) {
-            logger.error('Error in handleQuestProgression:', error, {
+            this.logger.error('Error in handleQuestProgression:', error, {
                 userId: user._id.toString(),
                 completionEventIds,
                 questToActivate
@@ -750,14 +758,14 @@ class QuestService {
 
     async handleMobKill(user, mobId) {
         try {
-            logger.debug('handleMobKill called with:', { userId: user._id, mobId });
+            this.logger.debug('handleMobKill called with:', { userId: user._id, mobId });
 
             // Initialize quests array if it doesn't exist
             if (!user.quests) {
                 user.quests = [];
             }
 
-            const allQuests = await Quest.find();
+            const allQuests = await this.Quest.find();
             let questUpdates = [];
 
             // Check each active quest
@@ -804,7 +812,7 @@ class QuestService {
                                 user.markModified(`quests.${user.quests.indexOf(userQuest)}.killProgress`);
                             }
 
-                            logger.debug('Updated kill progress:', {
+                            this.logger.debug('Updated kill progress:', {
                                 questTitle: quest.title,
                                 newRemaining: killProgress.remaining,
                                 killProgress
@@ -818,7 +826,7 @@ class QuestService {
                                 // Add reward handling before sending messages
                                 await this.handleEventRewards(user, nextEvent);
 
-                                messageService.sendQuestsMessage(
+                                this.messageService.sendQuestsMessage(
                                     user._id.toString(),
                                     `Quest "${quest.title}" updated: Kill requirement complete!${nextEvent.message ? '\n\n' + nextEvent.message : ''}`
                                 );
@@ -832,7 +840,7 @@ class QuestService {
                                 if (nextEvent.isEnd) {
                                     userQuest.completed = true;
                                     userQuest.completedAt = new Date();
-                                    messageService.sendSuccessMessage(
+                                    this.messageService.sendSuccessMessage(
                                         user._id.toString(),
                                         `Quest "${quest.title}" completed!`
                                     );
@@ -845,7 +853,7 @@ class QuestService {
                                     message: nextEvent.message
                                 });
                             } else {
-                                messageService.sendQuestsMessage(
+                                this.messageService.sendQuestsMessage(
                                     user._id.toString(),
                                     `Quest "${quest.title}": ${killProgress.remaining} more ${nextEvent.mobId.name || 'mobs'} remaining to kill.`
                                 );
@@ -867,13 +875,22 @@ class QuestService {
 
             return questUpdates;
         } catch (error) {
-            logger.error('Error handling mob kill for quests:', error);
+            this.logger.error('Error handling mob kill for quests:', error);
             return null;
         }
     }
 
     async handleEventRewards(user, event) {
+        this.logger.debug('handleEventRewards called with:', { 
+            userId: user?._id?.toString(),
+            hasEvent: !!event,
+            hasRewards: !!(event?.rewards),
+            rewardCount: event?.rewards?.length || 0,
+            rewards: event?.rewards?.map(r => ({type: r.type, value: r.value}))
+        });
+        
         if (!event.rewards || event.rewards.length === 0) {
+            this.logger.debug('No rewards found in event, returning early');
             return;
         }
 
@@ -881,9 +898,9 @@ class QuestService {
             if (reward.type === 'gainClass') {
                 try {
                     // Verify the class exists
-                    const classDoc = await Class.findById(reward.value);
+                    const classDoc = await this.Class.findById(reward.value);
                     if (!classDoc) {
-                        logger.error('Class not found for reward:', {
+                        this.logger.error('Class not found for reward:', {
                             classId: reward.value,
                             userId: user._id
                         });
@@ -891,37 +908,44 @@ class QuestService {
                     }
 
                     // Use the new setUserClass method
-                    const result = await userService.setUserClass(user._id, classDoc._id);
+                    const result = await this.userService.setUserClass(user._id, classDoc._id);
                     
                     if (result.success) {
-                        messageService.sendSuccessMessage(
+                        this.messageService.sendSuccessMessage(
                             user._id.toString(),
                             `You have gained the ${result.className} class!\n` +
                             `Your hitpoints are now ${result.stats.hitpoints}.\n` +
                             `You have gained ${result.moveCount} class moves!`
                         );
 
-                        logger.debug('Class reward granted:', {
+                        this.logger.debug('Class reward granted:', {
                             userId: user._id,
                             className: result.className,
                             stats: result.stats
                         });
                     }
                 } catch (error) {
-                    logger.error('Error handling class reward:', error);
+                    this.logger.error('Error handling class reward:', error);
                 }
             } else if (reward.type === 'experiencePoints') {
                 try {
                     const experiencePoints = parseInt(reward.value);
+                    this.logger.debug('Processing experience points reward:', {
+                        userId: user._id?.toString(),
+                        experiencePoints,
+                        rawValue: reward.value,
+                        isValid: !isNaN(experiencePoints) && experiencePoints > 0
+                    });
+                    
                     if (!isNaN(experiencePoints) && experiencePoints > 0) {
-                        logger.debug('Awarding event experience points:', {
+                        this.logger.debug('Awarding event experience points:', {
                             userId: user._id,
                             experiencePoints
                         });
 
-                        const experienceResult = await userService.awardExperience(user._id.toString(), experiencePoints);
+                        const experienceResult = await this.userService.awardExperience(user._id.toString(), experiencePoints);
                         
-                        logger.debug('Event experience award result:', {
+                        this.logger.debug('Event experience award result:', {
                             success: experienceResult.success,
                             experienceGained: experienceResult.experienceGained,
                             leveledUp: experienceResult.leveledUp,
@@ -929,7 +953,7 @@ class QuestService {
                         });
 
                         if (experienceResult.success) {
-                            messageService.sendSuccessMessage(
+                            this.messageService.sendSuccessMessage(
                                 user._id.toString(),
                                 `You gained ${experiencePoints} experience points!` +
                                 (experienceResult.leveledUp ? `\nYou reached level ${experienceResult.newLevel}!` : '')
@@ -937,7 +961,7 @@ class QuestService {
                         }
                     }
                 } catch (error) {
-                    logger.error('Error handling experience points reward:', error, {
+                    this.logger.error('Error handling experience points reward:', error, {
                         userId: user._id,
                         experiencePoints: reward.value
                     });
@@ -948,9 +972,9 @@ class QuestService {
 
     async getUserQuestInfo(userId) {
         try {
-            const user = await User.findById(userId);
+            const user = await this.User.findById(userId);
             if (!user || !user.quests) {
-                logger.debug('No user or no quests found for user', { userId });
+                this.logger.debug('No user or no quests found for user', { userId });
                 return { activeQuestIds: [], completedQuestIds: [], completedQuestEventIds: [] };
             }
 
@@ -972,7 +996,7 @@ class QuestService {
                 }
             });
 
-            logger.debug('User quest info retrieved', {
+            this.logger.debug('User quest info retrieved', {
                 userId,
                 activeQuestCount: activeQuestIds.length,
                 completedQuestCount: completedQuestIds.length,
@@ -985,11 +1009,17 @@ class QuestService {
                 completedQuestEventIds
             };
         } catch (error) {
-            logger.error('Error getting user quest info:', error, { userId });
+            this.logger.error('Error getting user quest info:', error, { userId });
             return { activeQuestIds: [], completedQuestIds: [], completedQuestEventIds: [] };
         }
     }
 }
 
+// Create a singleton instance
 const questService = new QuestService();
-module.exports = questService; 
+
+// Export the singleton instance as the main export (for backward compatibility)
+module.exports = questService;
+
+// Add the class constructor as a property for new code that wants to instantiate directly
+module.exports.QuestService = QuestService; 

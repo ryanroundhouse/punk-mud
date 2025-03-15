@@ -464,7 +464,10 @@ async function handleChatCommand(socket, user, target) {
             userId: user._id.toString(),
             actorId: actor._id.toString(),
             actorName: actor.name,
-            hasQuestResult: !!questResult
+            hasQuestResult: !!questResult,
+            questResultType: questResult?.type,
+            isQuestComplete: questResult?.isComplete,
+            questTitle: questResult?.questTitle
         });
 
         // If quest progression happened, return early
@@ -475,7 +478,7 @@ async function handleChatCommand(socket, user, target) {
                 userId: user._id.toString(),
                 actorId: actor._id.toString(),
                 actorName: actor.name,
-                questResult
+                questResult: JSON.stringify(questResult)
             });
             return;
         }
