@@ -2,11 +2,17 @@ const logger = require('../config/logger');
 const stateService = require('./stateService');
 
 class MessageService {
+    constructor(deps = {}) {
+        // Dependency injection
+        this.logger = deps.logger || logger;
+        this.stateService = deps.stateService || stateService;
+    }
+
     sendConsoleResponse(userId, message, type = 'default') {
         try {
-            const socket = stateService.getClient(userId);
+            const socket = this.stateService.getClient(userId);
             if (!socket || !socket.connected) {
-                logger.error('No valid socket found for message:', { userId, type, message });
+                this.logger.error('No valid socket found for message:', { userId, type, message });
                 return false;
             }
 
@@ -16,19 +22,28 @@ class MessageService {
             });
             return true;
         } catch (error) {
-            logger.error('Error sending console response:', error);
+            this.logger.error('Error sending console response:', error);
             return false;
         }
     }
 
     sendCombatMessage(userId, message, hint = null) {
-        const response = {
-            type: 'combat',
-            message
-        };
+        // If hint is provided, we need to send a custom object
         if (hint) {
-            response.hint = hint;
+            const socket = this.stateService.getClient(userId);
+            if (!socket || !socket.connected) {
+                this.logger.error('No valid socket found for message:', { userId, type: 'combat', message });
+                return false;
+            }
+            
+            socket.emit('console response', {
+                type: 'combat',
+                message,
+                hint
+            });
+            return true;
         }
+        // Otherwise, use the standard method
         return this.sendConsoleResponse(userId, message, 'combat');
     }
 
@@ -65,5 +80,11 @@ class MessageService {
     }
 }
 
+// Create a singleton instance for backward compatibility
 const messageService = new MessageService();
-module.exports = messageService; 
+
+// Export the singleton instance as the main export (for backward compatibility)
+module.exports = messageService;
+
+// Add the class constructor as a property for testing
+module.exports.MessageService = MessageService; 
