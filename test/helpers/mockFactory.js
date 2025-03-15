@@ -52,6 +52,16 @@ const createMockLogger = () => {
     };
 };
 
+const createMockEmailService = (overrides = {}) => {
+    return {
+        sendAuthCode: jest.fn().mockResolvedValue(true),
+        validateConfig: jest.fn().mockReturnValue(true),
+        createMailgunClient: jest.fn(),
+        createMailOptions: jest.fn(),
+        ...overrides
+    };
+};
+
 const createMockUserModel = (mockData = {}) => {
     const defaultUser = createMockUser();
     const user = { ...defaultUser, ...mockData };
@@ -146,6 +156,7 @@ const createMockDependencies = (overrides = {}) => {
         eventService: {},
         questService: {},
         publishSystemMessage: jest.fn().mockResolvedValue(true),
+        emailService: createMockEmailService(),
         ...overrides
     };
 };
@@ -160,5 +171,6 @@ module.exports = {
     createMockSocketService,
     createMockMessageService,
     createMockMobService,
+    createMockEmailService,
     createMockDependencies
 }; 

@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { sendAuthCode } = require('../services/emailService');
+const { emailService } = require('../services/emailService');
 const { JWT_SECRET } = require('../middlewares/auth');
 const logger = require('../config/logger');
 
@@ -31,7 +31,7 @@ async function login(req, res) {
 
         // Send auth code via email
         try {
-            await sendAuthCode(email, authCode);
+            await emailService.sendAuthCode(email, authCode);
             logger.info('Auth code email sent successfully');
         } catch (emailError) {
             logger.error('Failed to send email:', emailError);
