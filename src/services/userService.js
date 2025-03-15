@@ -1,39 +1,47 @@
-const User = require('../models/User');
-const logger = require('../config/logger');
-const socketService = require('./socketService');
-const stateService = require('./stateService');
-const messageService = require('./messageService');
-const Class = require('../models/Class');
-const nodeService = require('./nodeService');
-const mobService = require('./mobService');
-const { publishSystemMessage } = require('./chatService');
-const Event = require('../models/Event');
-const eventService = require('./eventService');
-const questService = require('./questService');
-
 class UserService {
+    constructor(deps = {}) {
+        // Models
+        this.User = deps.User || require('../models/User');
+        this.Class = deps.Class || require('../models/Class');
+        this.Event = deps.Event || require('../models/Event');
+        
+        // Services
+        this.logger = deps.logger || require('../config/logger');
+        this.socketService = deps.socketService || require('./socketService');
+        this.stateService = deps.stateService || require('./stateService');
+        this.messageService = deps.messageService || require('./messageService');
+        this.nodeService = deps.nodeService || require('./nodeService');
+        this.mobService = deps.mobService || require('./mobService');
+        this.eventService = deps.eventService || require('./eventService');
+        this.questService = deps.questService || require('./questService');
+        
+        // Functions
+        const chatService = deps.chatService || require('./chatService');
+        this.publishSystemMessage = deps.publishSystemMessage || chatService.publishSystemMessage;
+    }
+
     async getUser(userId) {
         try {
-            const user = await User.findById(userId);
+            const user = await this.User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
             }
             return user;
         } catch (error) {
-            logger.error('Error getting user:', error);
+            this.logger.error('Error getting user:', error);
             throw error;
         }
     }
 
     async getUserMoves(userId) {
         try {
-            const user = await User.findById(userId).populate('moves');
+            const user = await this.User.findById(userId).populate('moves');
             if (!user) {
                 throw new Error('User not found');
             }
             return user.moves || [];
         } catch (error) {
-            logger.error('Error getting user moves:', error);
+            this.logger.error('Error getting user moves:', error);
             return [];
         }
     }
@@ -56,7 +64,7 @@ flee.............Attempt to escape combat
 
     async healUser(userId) {
         try {
-            const user = await User.findById(userId);
+            const user = await this.User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
             }
@@ -69,18 +77,19 @@ flee.............Attempt to escape combat
                 healed: user.stats.hitpoints
             };
         } catch (error) {
-            logger.error('Error healing user:', error);
+            this.logger.error('Error healing user:', error);
             throw error;
         }
     }
 
     validateUser(user) {
-        return user && user.avatarName && user.currentNode;
+        // Cast the result to a boolean to ensure we return true/false
+        return Boolean(user && user.avatarName && user.currentNode);
     }
 
     async handlePlayerDeath(userId) {
         try {
-            const user = await User.findById(userId);
+            const user = await this.User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
             }
@@ -96,20 +105,20 @@ flee.............Attempt to escape combat
 
             // Handle node subscriptions
             if (oldNode) {
-                stateService.removeUserFromNode(userId, oldNode);
-                await socketService.unsubscribeFromNodeChat(oldNode);
+                this.stateService.removeUserFromNode(userId, oldNode);
+                await this.socketService.unsubscribeFromNodeChat(oldNode);
             }
-            stateService.addUserToNode(userId, user.currentNode);
-            await socketService.subscribeToNodeChat(user.currentNode);
+            this.stateService.addUserToNode(userId, user.currentNode);
+            await this.socketService.subscribeToNodeChat(user.currentNode);
 
             // Clear ALL combat-related states
-            stateService.clearUserCombatState(userId);
-            stateService.clearCombatDelay(userId);
-            stateService.clearCombatantEffects(userId);
-            mobService.clearUserMob(userId);
+            this.stateService.clearUserCombatState(userId);
+            this.stateService.clearCombatDelay(userId);
+            this.stateService.clearCombatantEffects(userId);
+            this.mobService.clearUserMob(userId);
 
             // Send the player death event through the message service
-            messageService.sendConsoleResponse(userId, {
+            this.messageService.sendConsoleResponse(userId, {
                 type: 'player death',
                 newLocation: user.currentNode
             });
@@ -120,14 +129,14 @@ flee.............Attempt to escape combat
                 playerDied: true
             };
         } catch (error) {
-            logger.error('Error handling player death:', error);
+            this.logger.error('Error handling player death:', error);
             throw error;
         }
     }
 
     async awardExperience(userId, amount, suppressMessage = false) {
         try {
-            const user = await User.findById(userId);
+            const user = await this.User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
             }
@@ -197,7 +206,7 @@ flee.............Attempt to escape combat
                 result.levelUp = true;
                 result.newHP = user.stats.hitpoints;
                 
-                logger.debug('Level up detected', {
+                this.logger.debug('Level up detected', {
                     userId,
                     oldLevel,
                     newLevel,
@@ -207,18 +216,18 @@ flee.............Attempt to escape combat
                 // Send level up message using messageService if not suppressed
                 if (!suppressMessage) {
                     try {
-                        logger.debug('Sending level up message for user:', userId);
+                        this.logger.debug('Sending level up message for user:', userId);
                         
-                        messageService.sendSuccessMessage(
+                        this.messageService.sendSuccessMessage(
                             userId,
                             `Congratulations! You have reached level ${user.stats.level}!\n` +
                             `All your stats have increased by 1!\n` +
                             `Your maximum health is now ${user.stats.hitpoints} points.`
                         );
                         
-                        logger.debug('Level up message sent');
+                        this.logger.debug('Level up message sent');
                     } catch (error) {
-                        logger.error('Error sending level up message:', error);
+                        this.logger.error('Error sending level up message:', error);
                     }
                 }
             }
@@ -229,7 +238,7 @@ flee.............Attempt to escape combat
             result.experienceGained = amount;
             result.totalExperience = user.stats.experience;
             
-            logger.debug('Returning experience result', {
+            this.logger.debug('Returning experience result', {
                 userId,
                 success: result.success,
                 levelUp: result.levelUp,
@@ -240,7 +249,7 @@ flee.............Attempt to escape combat
             
             return result;
         } catch (error) {
-            logger.error('Error awarding experience:', error);
+            this.logger.error('Error awarding experience:', error);
             return {
                 success: false,
                 error: error.message
@@ -250,12 +259,12 @@ flee.............Attempt to escape combat
 
     async setUserClass(userId, classId) {
         try {
-            const user = await User.findById(userId);
+            const user = await this.User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
             }
 
-            const classDoc = await Class.findById(classId).populate('moveGrowth.move');
+            const classDoc = await this.Class.findById(classId).populate('moveGrowth.move');
             if (!classDoc) {
                 throw new Error('Class not found');
             }
@@ -298,7 +307,7 @@ flee.............Attempt to escape combat
 
             await user.save();
 
-            logger.debug('User class set successfully:', {
+            this.logger.debug('User class set successfully:', {
                 userId: user._id,
                 className: classDoc.name,
                 level: level,
@@ -315,32 +324,32 @@ flee.............Attempt to escape combat
                 moveCount: availableMoves.length
             };
         } catch (error) {
-            logger.error('Error setting user class:', error);
+            this.logger.error('Error setting user class:', error);
             throw error;
         }
     }
 
     async getUserLevel(userId) {
         try {
-            const user = await User.findById(userId);
+            const user = await this.User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
             }
             return user.stats.level;
         } catch (error) {
-            logger.error('Error getting user level:', error);
+            this.logger.error('Error getting user level:', error);
             throw error;
         }
     }
 
     async moveUserToNode(userId, direction, targetNode) {
         try {
-            const user = await User.findById(userId);
+            const user = await this.User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
             }
 
-            logger.debug('Moving user to node:', {
+            this.logger.debug('Moving user to node:', {
                 userId,
                 fromNode: user.currentNode,
                 toNode: targetNode.address,
@@ -355,12 +364,12 @@ flee.............Attempt to escape combat
             await user.save();
 
             // Handle node client management
-            stateService.removeUserFromNode(userId, oldNode);
-            stateService.addUserToNode(userId, targetNode.address);
+            this.stateService.removeUserFromNode(userId, oldNode);
+            this.stateService.addUserToNode(userId, targetNode.address);
 
             // Send movement messages
-            await publishSystemMessage(oldNode, `${user.avatarName} has left.`);
-            await publishSystemMessage(
+            await this.publishSystemMessage(oldNode, `${user.avatarName} has left.`);
+            await this.publishSystemMessage(
                 targetNode.address,
                 `${user.avatarName} has arrived.`,
                 `You have entered ${targetNode.name}.`,
@@ -368,13 +377,17 @@ flee.............Attempt to escape combat
             );
 
             // Clear any existing mob and check for new spawn
-            mobService.clearUserMob(userId);
+            this.mobService.clearUserMob(userId);
         } catch (error) {
-            logger.error('Error moving user to node:', error);
+            this.logger.error('Error moving user to node:', error);
             throw error;
         }
     }
 }
 
+// Export a singleton instance with default dependencies
 const userService = new UserService();
-module.exports = userService; 
+module.exports = userService;
+
+// Also export the class for testing purposes
+module.exports.UserService = UserService; 
