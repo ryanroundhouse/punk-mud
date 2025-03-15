@@ -1,7 +1,12 @@
 const logger = require('../config/logger');
 
 class StateService {
-    constructor() {
+    constructor(dependencies = {}) {
+        // Allow dependency injection for testing
+        this.logger = dependencies.logger || logger;
+        this.User = dependencies.User || require('../models/User');
+        
+        // Initialize state
         this.clients = new Map();
         this.nodeClients = new Map();
         this.nodeUsernames = new Map(); // stores username lists per node
@@ -14,17 +19,31 @@ class StateService {
         this.activeEvents = new Map(); // userId -> { eventId, currentNode }
     }
 
+    // Reset state - useful for testing
+    reset() {
+        this.clients.clear();
+        this.nodeClients.clear();
+        this.nodeUsernames.clear();
+        this.subscribedNodes.clear();
+        this.actorChatStates.clear();
+        this.playerMobs.clear();
+        this.userCombatStates.clear();
+        this.combatantEffects.clear();
+        this.combatDelays.clear();
+        this.activeEvents.clear();
+    }
+
     addClient(userId, socket) {
-        logger.debug('Adding client socket:', { userId });
+        this.logger.debug('Adding client socket:', { userId });
         this.clients.set(userId, socket);
-        logger.debug('Client socket map size:', { 
+        this.logger.debug('Client socket map size:', { 
             size: this.clients.size,
             allUserIds: Array.from(this.clients.keys())
         });
     }
 
     getClient(userId) {
-        logger.debug('Getting client socket:', { 
+        this.logger.debug('Getting client socket:', { 
             userId,
             exists: this.clients.has(userId),
             mapSize: this.clients.size,
@@ -34,9 +53,9 @@ class StateService {
     }
 
     removeClient(userId) {
-        logger.debug('Removing client socket:', { userId });
+        this.logger.debug('Removing client socket:', { userId });
         this.clients.delete(userId);
-        logger.debug('Client socket map size after removal:', { 
+        this.logger.debug('Client socket map size after removal:', { 
             size: this.clients.size,
             allUserIds: Array.from(this.clients.keys())
         });
@@ -49,7 +68,7 @@ class StateService {
             this.nodeClients.set(nodeAddress, nodeUsers);
         }
         nodeUsers.add(userId);
-        this.updateNodeUsernames(nodeAddress);
+        return nodeUsers;
     }
 
     removeUserFromNode(userId, nodeAddress) {
@@ -59,31 +78,41 @@ class StateService {
             if (nodeUsers.size === 0) {
                 this.nodeClients.delete(nodeAddress);
                 this.nodeUsernames.delete(nodeAddress);
-            } else {
-                this.updateNodeUsernames(nodeAddress);
+                return null;
             }
+            return nodeUsers;
         }
+        return null;
     }
 
     getUsersInNode(nodeAddress) {
         return this.nodeClients.get(nodeAddress) || new Set();
     }
 
-    async updateNodeUsernames(nodeAddress) {
-        try {
-            const nodeUsers = this.nodeClients.get(nodeAddress);
-            if (!nodeUsers) return;
-
-            const User = require('../models/User');
-            const usernames = [];
-            
-            for (const userId of nodeUsers) {
-                const user = await User.findById(userId);
+    // Separated from updateNodeUsernames to make it testable
+    async fetchUsernames(userIds) {
+        const usernames = [];
+        
+        for (const userId of userIds) {
+            try {
+                const user = await this.User.findById(userId);
                 if (user?.avatarName) {
                     usernames.push(user.avatarName);
                 }
+            } catch (error) {
+                this.logger.error('Error fetching username:', error);
             }
+        }
+        
+        return usernames;
+    }
 
+    async updateNodeUsernames(nodeAddress) {
+        try {
+            const nodeUsers = this.nodeClients.get(nodeAddress);
+            if (!nodeUsers) return [];
+
+            const usernames = await this.fetchUsernames(Array.from(nodeUsers));
             this.nodeUsernames.set(nodeAddress, usernames);
             
             // Broadcast to all users in the node
@@ -93,14 +122,17 @@ class StateService {
                     socket.emit('users update', usernames);
                 }
             });
+            
+            return usernames;
         } catch (error) {
-            logger.error('Error updating node usernames:', error);
+            this.logger.error('Error updating node usernames:', error);
+            return [];
         }
     }
 
-    // Add helper methods for combat state management
     setUserCombatState(userId, combatState) {
         this.userCombatStates.set(userId, combatState);
+        return combatState;
     }
 
     getUserCombatState(userId) {
@@ -136,7 +168,7 @@ class StateService {
         effects.push(effectCopy);
         this.combatantEffects.set(combatantId, effects);
         
-        logger.debug('Added effect:', { 
+        this.logger.debug('Added effect:', { 
             combatantId, 
             effect: effectCopy,
             allEffects: effects.map(e => ({
@@ -146,12 +178,14 @@ class StateService {
                 rounds: e.rounds
             }))
         });
+        
+        return effects;
     }
 
     updateCombatantEffects(combatantId) {
         const effects = this.combatantEffects.get(combatantId) || [];
         
-        logger.debug('Updating effects:', { 
+        this.logger.debug('Updating effects:', { 
             combatantId, 
             before: effects.map(e => ({
                 effect: e.effect,
@@ -175,7 +209,7 @@ class StateService {
             this.combatantEffects.delete(combatantId);
         }
 
-        logger.debug('Updated effects:', { 
+        this.logger.debug('Updated effects:', { 
             combatantId, 
             after: updatedEffects.map(e => ({
                 effect: e.effect,
@@ -184,19 +218,22 @@ class StateService {
                 rounds: e.rounds
             }))
         });
+        
+        return updatedEffects;
     }
 
     clearCombatantEffects(combatantId) {
         this.combatantEffects.delete(combatantId);
     }
 
-    // Add methods for managing combat delays
     setCombatDelay(combatantId, moveInfo) {
-        this.combatDelays.set(combatantId, {
+        const delayInfo = {
             delay: moveInfo.delay,
             move: moveInfo.move,
             target: moveInfo.target
-        });
+        };
+        this.combatDelays.set(combatantId, delayInfo);
+        return delayInfo;
     }
 
     getCombatDelay(combatantId) {
@@ -207,7 +244,6 @@ class StateService {
         this.combatDelays.delete(combatantId);
     }
 
-    // Decrement delays and return moves that are ready (delay === 0)
     processDelays(userId, mobInstanceId) {
         const readyMoves = [];
         
@@ -234,7 +270,6 @@ class StateService {
         return readyMoves;
     }
 
-    // Event state methods
     setActiveEvent(userId, eventId, currentNode, actorId, isStoryEvent = false) {
         // Create a deep clone of the current node to avoid reference issues
         const clonedNode = JSON.parse(JSON.stringify(currentNode));
@@ -288,13 +323,16 @@ class StateService {
             }
         }
         
-        this.activeEvents.set(userId, {
+        const eventState = {
             eventId,
             currentNode: clonedNode,
             actorId,
             isStoryEvent,
             nodeHistory: nodeHistory
-        });
+        };
+        
+        this.activeEvents.set(userId, eventState);
+        return eventState;
     }
 
     getActiveEvent(userId) {
@@ -314,16 +352,15 @@ class StateService {
         return activeEvent?.isStoryEvent || false;
     }
 
-    // Add these methods to the StateService class
-
     setPlayerMob(userId, mobInstance) {
-        logger.debug('Setting player mob:', { 
+        this.logger.debug('Setting player mob:', { 
             userId, 
             mobId: mobInstance.mobId,
             instanceId: mobInstance.instanceId,
             mobName: mobInstance.name
         });
         this.playerMobs.set(userId, mobInstance);
+        return mobInstance;
     }
 
     getPlayerMob(userId) {
@@ -331,7 +368,7 @@ class StateService {
     }
 
     clearPlayerMob(userId) {
-        logger.debug('Clearing player mob:', { userId });
+        this.logger.debug('Clearing player mob:', { userId });
         this.playerMobs.delete(userId);
     }
 
@@ -339,11 +376,26 @@ class StateService {
         return this.playerMobs.has(userId);
     }
 
-    // ... Add other state management methods as needed
+    // New helper method that adds user and updates usernames
+    async addUserToNodeAndUpdateUsernames(userId, nodeAddress) {
+        const nodeUsers = this.addUserToNode(userId, nodeAddress);
+        await this.updateNodeUsernames(nodeAddress);
+        return nodeUsers;
+    }
+
+    // Helper method to ensure usernames are updated for a node
+    async ensureNodeUsernamesUpdated(nodeAddress) {
+        const nodeUsers = this.nodeClients.get(nodeAddress);
+        if (nodeUsers && nodeUsers.size > 0 && (!this.nodeUsernames.has(nodeAddress) || this.nodeUsernames.get(nodeAddress).length === 0)) {
+            await this.updateNodeUsernames(nodeAddress);
+        }
+        return this.nodeUsernames.get(nodeAddress) || [];
+    }
 }
 
-// Create a single instance
+// Create a singleton instance
 const stateService = new StateService();
 
-// Export the instance directly
-module.exports = stateService; 
+// Export both the class and singleton instance
+module.exports = stateService;
+module.exports.StateService = StateService; 

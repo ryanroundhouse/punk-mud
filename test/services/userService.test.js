@@ -192,7 +192,7 @@ describe('UserService', () => {
             // Check services were called correctly
             expect(mockDeps.stateService.removeUserFromNode).toHaveBeenCalledWith('user123', 'oldNode123');
             expect(mockDeps.socketService.unsubscribeFromNodeChat).toHaveBeenCalledWith('oldNode123');
-            expect(mockDeps.stateService.addUserToNode).toHaveBeenCalledWith('user123', '122.124.10.10');
+            expect(mockDeps.stateService.addUserToNodeAndUpdateUsernames).toHaveBeenCalledWith('user123', '122.124.10.10');
             expect(mockDeps.socketService.subscribeToNodeChat).toHaveBeenCalledWith('122.124.10.10');
             
             // Check combat states were cleared
@@ -378,7 +378,7 @@ describe('UserService', () => {
             
             // Check services were called correctly
             expect(mockDeps.stateService.removeUserFromNode).toHaveBeenCalledWith('user123', 'oldNode123');
-            expect(mockDeps.stateService.addUserToNode).toHaveBeenCalledWith('user123', 'newNode456');
+            expect(mockDeps.stateService.addUserToNodeAndUpdateUsernames).toHaveBeenCalledWith('user123', 'newNode456');
             
             // Check messages were published
             expect(mockDeps.publishSystemMessage).toHaveBeenCalledWith('oldNode123', 'TestUser has left.');

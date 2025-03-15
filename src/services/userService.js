@@ -108,7 +108,7 @@ flee.............Attempt to escape combat
                 this.stateService.removeUserFromNode(userId, oldNode);
                 await this.socketService.unsubscribeFromNodeChat(oldNode);
             }
-            this.stateService.addUserToNode(userId, user.currentNode);
+            await this.stateService.addUserToNodeAndUpdateUsernames(userId, user.currentNode);
             await this.socketService.subscribeToNodeChat(user.currentNode);
 
             // Clear ALL combat-related states
@@ -365,7 +365,7 @@ flee.............Attempt to escape combat
 
             // Handle node client management
             this.stateService.removeUserFromNode(userId, oldNode);
-            this.stateService.addUserToNode(userId, targetNode.address);
+            await this.stateService.addUserToNodeAndUpdateUsernames(userId, targetNode.address);
 
             // Send movement messages
             await this.publishSystemMessage(oldNode, `${user.avatarName} has left.`);

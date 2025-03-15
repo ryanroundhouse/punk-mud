@@ -90,7 +90,7 @@ async function handleCommand(socket, data) {
                                 stateService.removeUserFromNode(socket.user.userId, oldNode);
                                 await socketService.unsubscribeFromNodeChat(oldNode);
                             }
-                            stateService.addUserToNode(socket.user.userId, targetNode.address);
+                            await stateService.addUserToNodeAndUpdateUsernames(socket.user.userId, targetNode.address);
                             await socketService.subscribeToNodeChat(targetNode.address);
                         } else {
                             logger.error('Failed to teleport user - target node not found', {
@@ -147,7 +147,7 @@ async function handleCommand(socket, data) {
                         await socketService.unsubscribeFromNodeChat(oldNode);
                     }
                     
-                    stateService.addUserToNode(socket.user.userId, user.currentNode);
+                    await stateService.addUserToNodeAndUpdateUsernames(socket.user.userId, user.currentNode);
                     await socketService.subscribeToNodeChat(user.currentNode);
 
                     socket.emit('console response', {
@@ -299,6 +299,9 @@ async function handleListCommand(socket, user, target) {
         mobDetails: stateService.playerMobs.get(user._id.toString())
     });
 
+    // Ensure node usernames are up to date before proceeding
+    await stateService.ensureNodeUsernamesUpdated(user.currentNode);
+    
     const nodeUsers = stateService.nodeUsernames.get(user.currentNode) || [];
     const actors = await actorService.getActorsInLocation(user.currentNode, user._id.toString());
     const mobInstance = stateService.playerMobs.get(user._id.toString());

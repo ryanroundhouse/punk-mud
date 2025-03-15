@@ -101,7 +101,9 @@ const createMockStateService = () => {
         clearUserCombatState: jest.fn(),
         clearCombatDelay: jest.fn(),
         clearCombatantEffects: jest.fn(),
-        getUserCombatState: jest.fn().mockReturnValue(null)
+        getUserCombatState: jest.fn().mockReturnValue(null),
+        addUserToNodeAndUpdateUsernames: jest.fn().mockResolvedValue(new Set(['user123'])),
+        ensureNodeUsernamesUpdated: jest.fn().mockResolvedValue(['TestUser'])
     };
 };
 

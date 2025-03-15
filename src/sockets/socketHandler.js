@@ -36,7 +36,8 @@ function socketHandler(io) {
         try {
             const user = await User.findById(socket.user.userId);
             if (user && user.currentNode) {
-                stateService.addUserToNode(socket.user.userId, user.currentNode);
+                // Use the combined method that also updates usernames
+                await stateService.addUserToNodeAndUpdateUsernames(socket.user.userId, user.currentNode);
                 // Subscribe to node's chat channel
                 await socketService.subscribeToNodeChat(user.currentNode);
                 

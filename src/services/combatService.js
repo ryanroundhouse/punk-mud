@@ -714,7 +714,7 @@ async function handleFleeCommand(user) {
                 stateService.removeUserFromNode(user._id.toString(), oldNode);
                 await socketService.unsubscribeFromNodeChat(oldNode);
             }
-            stateService.addUserToNode(user._id.toString(), user.currentNode);
+            await stateService.addUserToNodeAndUpdateUsernames(user._id.toString(), user.currentNode);
             await socketService.subscribeToNodeChat(user.currentNode);
 
             messageService.sendCombatMessage(

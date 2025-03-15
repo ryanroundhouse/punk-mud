@@ -253,7 +253,7 @@ async function getCurrentNode(req, res) {
             await socketService.unsubscribeFromNodeChat(user.currentNode);
             
             // Add to new node and subscribe
-            stateService.addUserToNode(user._id.toString(), node.address);
+            await stateService.addUserToNodeAndUpdateUsernames(user._id.toString(), node.address);
             await socketService.subscribeToNodeChat(node.address);
         }
 
