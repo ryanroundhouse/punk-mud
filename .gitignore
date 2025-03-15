@@ -2,5 +2,6 @@ node_modules/
 .env
 *.log 
 logs/
+coverage/
 public/assets
 .DS_Store
