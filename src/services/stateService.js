@@ -1,4 +1,5 @@
 const logger = require('../config/logger');
+const eventStateManager = require('./eventStateManager');
 
 class StateService {
     constructor(dependencies = {}) {
@@ -16,7 +17,7 @@ class StateService {
         this.userCombatStates = new Map(); // tracks combat state for each user
         this.combatantEffects = new Map(); // key: combatantId, value: array of active effects
         this.combatDelays = new Map(); // Tracks active move delays for combatants
-        this.activeEvents = new Map(); // userId -> { eventId, currentNode }
+        // Event state is now managed by EventStateManager
     }
 
     // Reset state - useful for testing
@@ -30,12 +31,14 @@ class StateService {
         this.userCombatStates.clear();
         this.combatantEffects.clear();
         this.combatDelays.clear();
-        this.activeEvents.clear();
+        // Don't reset EventStateManager here as it's now separate
     }
 
     addClient(userId, socket) {
         this.logger.debug('Adding client socket:', { userId });
         this.clients.set(userId, socket);
+        // Also set the socket in EventStateManager
+        eventStateManager.setClientSocket(userId, socket);
         this.logger.debug('Client socket map size:', { 
             size: this.clients.size,
             allUserIds: Array.from(this.clients.keys())
@@ -55,6 +58,8 @@ class StateService {
     removeClient(userId) {
         this.logger.debug('Removing client socket:', { userId });
         this.clients.delete(userId);
+        // Also remove the socket from EventStateManager
+        eventStateManager.removeClientSocket(userId);
         this.logger.debug('Client socket map size after removal:', { 
             size: this.clients.size,
             allUserIds: Array.from(this.clients.keys())
@@ -68,6 +73,13 @@ class StateService {
             this.nodeClients.set(nodeAddress, nodeUsers);
         }
         nodeUsers.add(userId);
+        
+        // Also track in EventStateManager
+        const socket = this.clients.get(userId);
+        if (socket) {
+            eventStateManager.addUserToRoom(userId, nodeAddress, socket.id);
+        }
+        
         return nodeUsers;
     }
 
@@ -75,6 +87,10 @@ class StateService {
         const nodeUsers = this.nodeClients.get(nodeAddress);
         if (nodeUsers) {
             nodeUsers.delete(userId);
+            
+            // Also remove from EventStateManager
+            eventStateManager.removeUserFromRoom(userId, nodeAddress);
+            
             if (nodeUsers.size === 0) {
                 this.nodeClients.delete(nodeAddress);
                 this.nodeUsernames.delete(nodeAddress);
@@ -271,84 +287,31 @@ class StateService {
     }
 
     setActiveEvent(userId, eventId, currentNode, actorId, isStoryEvent = false) {
-        // Create a deep clone of the current node to avoid reference issues
-        const clonedNode = JSON.parse(JSON.stringify(currentNode));
-        
-        // Ensure the node has an ID
-        if (!clonedNode._id) {
-            clonedNode._id = `generated_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`;
-        }
-        
-        // Get the existing event state to track history
-        const existingEvent = this.activeEvents.get(userId);
-        let nodeHistory = [];
-        
-        // If we already have an event for this user, track the history
-        if (existingEvent && existingEvent.eventId === eventId) {
-            // Preserve existing history or initialize it
-            nodeHistory = existingEvent.nodeHistory || [];
-            
-            // Add the current node to history if it's not already the last item
-            const lastHistoryNode = nodeHistory.length > 0 ? nodeHistory[nodeHistory.length - 1] : null;
-            if (!lastHistoryNode || lastHistoryNode.nodeId !== existingEvent.currentNode._id?.toString()) {
-                nodeHistory.push({
-                    nodeId: existingEvent.currentNode._id?.toString(),
-                    prompt: existingEvent.currentNode.prompt?.substring(0, 50) + '...',
-                    timestamp: Date.now()
-                });
-            }
-        }
-        
-        // Check if the node has choices with questCompletionEvents
-        if (clonedNode && clonedNode.choices && clonedNode.choices.length > 0) {
-            // Find a reference questCompletionEvents array if any exist
-            let referenceEvents = null;
-            let found = false;
-            
-            for (const choice of clonedNode.choices) {
-                if (choice.nextNode && choice.nextNode.questCompletionEvents && choice.nextNode.questCompletionEvents.length > 0) {
-                    referenceEvents = choice.nextNode.questCompletionEvents;
-                    found = true;
-                    break;
-                }
-            }
-            
-            // If we found a reference, apply it to all choices that don't have questCompletionEvents
-            if (found && referenceEvents) {
-                for (const choice of clonedNode.choices) {
-                    if (choice.nextNode && (!choice.nextNode.questCompletionEvents || choice.nextNode.questCompletionEvents.length === 0)) {
-                        choice.nextNode.questCompletionEvents = JSON.parse(JSON.stringify(referenceEvents));
-                    }
-                }
-            }
-        }
-        
-        const eventState = {
-            eventId,
-            currentNode: clonedNode,
-            actorId,
-            isStoryEvent,
-            nodeHistory: nodeHistory
-        };
-        
-        this.activeEvents.set(userId, eventState);
-        return eventState;
+        // Delegate to EventStateManager
+        this.logger.debug('StateService delegating setActiveEvent to EventStateManager', {
+            userId,
+            eventId
+        });
+        return eventStateManager.setActiveEvent(userId, eventId, currentNode, actorId, isStoryEvent);
     }
 
     getActiveEvent(userId) {
-        return this.activeEvents.get(userId);
+        // Delegate to EventStateManager
+        return eventStateManager.getActiveEvent(userId);
     }
 
     clearActiveEvent(userId) {
-        this.activeEvents.delete(userId);
+        // Delegate to EventStateManager
+        eventStateManager.clearActiveEvent(userId);
     }
 
     isInEvent(userId) {
-        return this.activeEvents.has(userId);
+        // Delegate to EventStateManager
+        return eventStateManager.isInEvent(userId);
     }
 
     isInStoryEvent(userId) {
-        const activeEvent = this.activeEvents.get(userId);
+        const activeEvent = eventStateManager.getActiveEvent(userId);
         return activeEvent?.isStoryEvent || false;
     }
 
