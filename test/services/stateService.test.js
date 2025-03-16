@@ -1,4 +1,20 @@
+// Mock the EventStateManager module before requiring stateService
+jest.mock('../../src/services/eventStateManager', () => ({
+    getActiveEvent: jest.fn(),
+    setActiveEvent: jest.fn(),
+    clearActiveEvent: jest.fn(),
+    isInEvent: jest.fn(),
+    setClientSocket: jest.fn(),
+    removeClientSocket: jest.fn(),
+    addUserToRoom: jest.fn(),
+    removeUserFromRoom: jest.fn()
+}));
+
+// Import stateService and the StateService class
+const stateService = require('../../src/services/stateService');
 const { StateService } = require('../../src/services/stateService');
+const eventStateManager = require('../../src/services/eventStateManager');
+const User = require('../../src/models/User');
 
 // Mock dependencies
 const mockLogger = {
@@ -11,16 +27,16 @@ const mockUser = {
 };
 
 describe('StateService', () => {
-    let stateService;
+    let testStateService;
 
     beforeEach(() => {
         // Create a new instance with mocked dependencies for each test
-        stateService = new StateService({
+        testStateService = new StateService({
             logger: mockLogger,
             User: mockUser
         });
         
-        // Clear all mocks before each test
+        // Reset all the mock implementations
         jest.clearAllMocks();
     });
 
@@ -29,10 +45,10 @@ describe('StateService', () => {
             const userId = 'user123';
             const mockSocket = { id: 'socket1' };
             
-            stateService.addClient(userId, mockSocket);
+            testStateService.addClient(userId, mockSocket);
             
-            expect(stateService.clients.size).toBe(1);
-            expect(stateService.clients.get(userId)).toBe(mockSocket);
+            expect(testStateService.clients.size).toBe(1);
+            expect(testStateService.clients.get(userId)).toBe(mockSocket);
             expect(mockLogger.debug).toHaveBeenCalledTimes(2);
         });
 
@@ -40,8 +56,8 @@ describe('StateService', () => {
             const userId = 'user123';
             const mockSocket = { id: 'socket1' };
             
-            stateService.clients.set(userId, mockSocket);
-            const result = stateService.getClient(userId);
+            testStateService.clients.set(userId, mockSocket);
+            const result = testStateService.getClient(userId);
             
             expect(result).toBe(mockSocket);
             expect(mockLogger.debug).toHaveBeenCalledTimes(1);
@@ -51,11 +67,11 @@ describe('StateService', () => {
             const userId = 'user123';
             const mockSocket = { id: 'socket1' };
             
-            stateService.clients.set(userId, mockSocket);
-            stateService.removeClient(userId);
+            testStateService.clients.set(userId, mockSocket);
+            testStateService.removeClient(userId);
             
-            expect(stateService.clients.size).toBe(0);
-            expect(stateService.clients.has(userId)).toBe(false);
+            expect(testStateService.clients.size).toBe(0);
+            expect(testStateService.clients.has(userId)).toBe(false);
             expect(mockLogger.debug).toHaveBeenCalledTimes(2);
         });
     });
@@ -65,12 +81,12 @@ describe('StateService', () => {
             const userId = 'user123';
             const nodeAddress = 'node1';
             
-            const result = stateService.addUserToNode(userId, nodeAddress);
+            const result = testStateService.addUserToNode(userId, nodeAddress);
             
             expect(result.size).toBe(1);
             expect(result.has(userId)).toBe(true);
-            expect(stateService.nodeClients.get(nodeAddress)).toBe(result);
-            expect(stateService.nodeClients.get(nodeAddress).size).toBe(1);
+            expect(testStateService.nodeClients.get(nodeAddress)).toBe(result);
+            expect(testStateService.nodeClients.get(nodeAddress).size).toBe(1);
         });
 
         test('should add user to existing node', () => {
@@ -78,8 +94,8 @@ describe('StateService', () => {
             const userId2 = 'user456';
             const nodeAddress = 'node1';
             
-            stateService.addUserToNode(userId1, nodeAddress);
-            const result = stateService.addUserToNode(userId2, nodeAddress);
+            testStateService.addUserToNode(userId1, nodeAddress);
+            const result = testStateService.addUserToNode(userId2, nodeAddress);
             
             expect(result.size).toBe(2);
             expect(result.has(userId1)).toBe(true);
@@ -91,10 +107,10 @@ describe('StateService', () => {
             const userId2 = 'user456';
             const nodeAddress = 'node1';
             
-            stateService.addUserToNode(userId1, nodeAddress);
-            stateService.addUserToNode(userId2, nodeAddress);
+            testStateService.addUserToNode(userId1, nodeAddress);
+            testStateService.addUserToNode(userId2, nodeAddress);
             
-            const result = stateService.removeUserFromNode(userId1, nodeAddress);
+            const result = testStateService.removeUserFromNode(userId1, nodeAddress);
             
             expect(result.size).toBe(1);
             expect(result.has(userId1)).toBe(false);
@@ -105,19 +121,19 @@ describe('StateService', () => {
             const userId = 'user123';
             const nodeAddress = 'node1';
             
-            stateService.addUserToNode(userId, nodeAddress);
-            const result = stateService.removeUserFromNode(userId, nodeAddress);
+            testStateService.addUserToNode(userId, nodeAddress);
+            const result = testStateService.removeUserFromNode(userId, nodeAddress);
             
             expect(result).toBeNull();
-            expect(stateService.nodeClients.has(nodeAddress)).toBe(false);
-            expect(stateService.nodeUsernames.has(nodeAddress)).toBe(false);
+            expect(testStateService.nodeClients.has(nodeAddress)).toBe(false);
+            expect(testStateService.nodeUsernames.has(nodeAddress)).toBe(false);
         });
 
         test('should return null when removing user from non-existent node', () => {
             const userId = 'user123';
             const nodeAddress = 'nonExistentNode';
             
-            const result = stateService.removeUserFromNode(userId, nodeAddress);
+            const result = testStateService.removeUserFromNode(userId, nodeAddress);
             
             expect(result).toBeNull();
         });
@@ -127,10 +143,10 @@ describe('StateService', () => {
             const userId2 = 'user456';
             const nodeAddress = 'node1';
             
-            stateService.addUserToNode(userId1, nodeAddress);
-            stateService.addUserToNode(userId2, nodeAddress);
+            testStateService.addUserToNode(userId1, nodeAddress);
+            testStateService.addUserToNode(userId2, nodeAddress);
             
-            const result = stateService.getUsersInNode(nodeAddress);
+            const result = testStateService.getUsersInNode(nodeAddress);
             
             expect(result.size).toBe(2);
             expect(result.has(userId1)).toBe(true);
@@ -140,7 +156,7 @@ describe('StateService', () => {
         test('should return empty set for non-existent node', () => {
             const nodeAddress = 'nonExistentNode';
             
-            const result = stateService.getUsersInNode(nodeAddress);
+            const result = testStateService.getUsersInNode(nodeAddress);
             
             expect(result).toBeInstanceOf(Set);
             expect(result.size).toBe(0);
@@ -152,20 +168,20 @@ describe('StateService', () => {
             const mockSocket = { emit: jest.fn() };
             
             // Setup mock for fetchUsernames
-            stateService.fetchUsernames = jest.fn().mockResolvedValue(['TestAvatar']);
+            testStateService.fetchUsernames = jest.fn().mockResolvedValue(['TestAvatar']);
             
             // Setup client socket
-            stateService.clients.set(userId, mockSocket);
+            testStateService.clients.set(userId, mockSocket);
             
-            const result = await stateService.addUserToNodeAndUpdateUsernames(userId, nodeAddress);
+            const result = await testStateService.addUserToNodeAndUpdateUsernames(userId, nodeAddress);
             
             // Verify node users set is returned
             expect(result.size).toBe(1);
             expect(result.has(userId)).toBe(true);
             
             // Verify updateNodeUsernames was called
-            expect(stateService.fetchUsernames).toHaveBeenCalledWith([userId]);
-            expect(stateService.nodeUsernames.get(nodeAddress)).toEqual(['TestAvatar']);
+            expect(testStateService.fetchUsernames).toHaveBeenCalledWith([userId]);
+            expect(testStateService.nodeUsernames.get(nodeAddress)).toEqual(['TestAvatar']);
             expect(mockSocket.emit).toHaveBeenCalledWith('users update', ['TestAvatar']);
         });
     });
@@ -183,7 +199,7 @@ describe('StateService', () => {
                 return Promise.resolve(mockData[id]);
             });
             
-            const result = await stateService.fetchUsernames(userIds);
+            const result = await testStateService.fetchUsernames(userIds);
             
             expect(result).toEqual(['Avatar1', 'Avatar2']);
             expect(mockUser.findById).toHaveBeenCalledTimes(3);
@@ -200,7 +216,7 @@ describe('StateService', () => {
                 }
             });
             
-            const result = await stateService.fetchUsernames(userIds);
+            const result = await testStateService.fetchUsernames(userIds);
             
             expect(result).toEqual(['Avatar1']);
             expect(mockUser.findById).toHaveBeenCalledTimes(2);
@@ -213,20 +229,20 @@ describe('StateService', () => {
             const mockSocket = { emit: jest.fn() };
             
             // Setup node with users
-            userIds.forEach(userId => stateService.addUserToNode(userId, nodeAddress));
+            userIds.forEach(userId => testStateService.addUserToNode(userId, nodeAddress));
             
             // Setup user sockets
-            stateService.clients.set('user1', mockSocket);
-            stateService.clients.set('user2', mockSocket);
+            testStateService.clients.set('user1', mockSocket);
+            testStateService.clients.set('user2', mockSocket);
             
             // Mock fetchUsernames
-            stateService.fetchUsernames = jest.fn().mockResolvedValue(['Avatar1', 'Avatar2']);
+            testStateService.fetchUsernames = jest.fn().mockResolvedValue(['Avatar1', 'Avatar2']);
             
-            const result = await stateService.updateNodeUsernames(nodeAddress);
+            const result = await testStateService.updateNodeUsernames(nodeAddress);
             
             expect(result).toEqual(['Avatar1', 'Avatar2']);
-            expect(stateService.nodeUsernames.get(nodeAddress)).toEqual(['Avatar1', 'Avatar2']);
-            expect(stateService.fetchUsernames).toHaveBeenCalledWith(['user1', 'user2']);
+            expect(testStateService.nodeUsernames.get(nodeAddress)).toEqual(['Avatar1', 'Avatar2']);
+            expect(testStateService.fetchUsernames).toHaveBeenCalledWith(['user1', 'user2']);
             expect(mockSocket.emit).toHaveBeenCalledTimes(2);
             expect(mockSocket.emit).toHaveBeenCalledWith('users update', ['Avatar1', 'Avatar2']);
         });
@@ -235,11 +251,11 @@ describe('StateService', () => {
             const nodeAddress = 'node1';
             
             // Setup a node with users to avoid returning early
-            stateService.nodeClients.set(nodeAddress, new Set(['user1']));
+            testStateService.nodeClients.set(nodeAddress, new Set(['user1']));
             
-            stateService.fetchUsernames = jest.fn().mockRejectedValue(new Error('Test error'));
+            testStateService.fetchUsernames = jest.fn().mockRejectedValue(new Error('Test error'));
             
-            const result = await stateService.updateNodeUsernames(nodeAddress);
+            const result = await testStateService.updateNodeUsernames(nodeAddress);
             
             expect(result).toEqual([]);
             expect(mockLogger.error).toHaveBeenCalledTimes(1);
@@ -248,10 +264,10 @@ describe('StateService', () => {
         test('should do nothing when node has no users', async () => {
             const nodeAddress = 'emptyNode';
             
-            const result = await stateService.updateNodeUsernames(nodeAddress);
+            const result = await testStateService.updateNodeUsernames(nodeAddress);
             
             expect(result).toEqual([]);
-            expect(stateService.fetchUsernames).not.toHaveBeenCalled;
+            expect(testStateService.fetchUsernames).not.toHaveBeenCalled;
         });
     });
 
@@ -260,32 +276,32 @@ describe('StateService', () => {
             const userId = 'user123';
             const combatState = { enemy: 'goblin', health: 100 };
             
-            const result = stateService.setUserCombatState(userId, combatState);
+            const result = testStateService.setUserCombatState(userId, combatState);
             
             expect(result).toBe(combatState);
-            expect(stateService.getUserCombatState(userId)).toBe(combatState);
+            expect(testStateService.getUserCombatState(userId)).toBe(combatState);
         });
 
         test('should check if user is in combat', () => {
             const userId = 'user123';
             const combatState = { enemy: 'goblin', health: 100 };
             
-            expect(stateService.isUserInCombat(userId)).toBe(false);
+            expect(testStateService.isUserInCombat(userId)).toBe(false);
             
-            stateService.setUserCombatState(userId, combatState);
+            testStateService.setUserCombatState(userId, combatState);
             
-            expect(stateService.isUserInCombat(userId)).toBe(true);
+            expect(testStateService.isUserInCombat(userId)).toBe(true);
         });
 
         test('should clear user combat state', () => {
             const userId = 'user123';
             const combatState = { enemy: 'goblin', health: 100 };
             
-            stateService.setUserCombatState(userId, combatState);
-            stateService.clearUserCombatState(userId);
+            testStateService.setUserCombatState(userId, combatState);
+            testStateService.clearUserCombatState(userId);
             
-            expect(stateService.isUserInCombat(userId)).toBe(false);
-            expect(stateService.getUserCombatState(userId)).toBeUndefined();
+            expect(testStateService.isUserInCombat(userId)).toBe(false);
+            expect(testStateService.getUserCombatState(userId)).toBeUndefined();
         });
     });
 
@@ -302,11 +318,11 @@ describe('StateService', () => {
                 initiator: 'player'
             };
             
-            const results = stateService.addCombatantEffect(combatantId, effect);
+            const results = testStateService.addCombatantEffect(combatantId, effect);
             
             expect(results.length).toBe(1);
             expect(results[0]).toEqual(effect);
-            expect(stateService.getCombatantEffects(combatantId)).toEqual([effect]);
+            expect(testStateService.getCombatantEffects(combatantId)).toEqual([effect]);
             expect(mockLogger.debug).toHaveBeenCalledTimes(1);
         });
 
@@ -319,8 +335,8 @@ describe('StateService', () => {
                 amount: -5
             };
             
-            stateService.addCombatantEffect(combatantId, effect);
-            const updatedEffects = stateService.updateCombatantEffects(combatantId);
+            testStateService.addCombatantEffect(combatantId, effect);
+            const updatedEffects = testStateService.updateCombatantEffects(combatantId);
             
             expect(updatedEffects.length).toBe(1);
             expect(updatedEffects[0].rounds).toBe(2);
@@ -336,11 +352,11 @@ describe('StateService', () => {
                 amount: -5
             };
             
-            stateService.addCombatantEffect(combatantId, effect);
-            const updatedEffects = stateService.updateCombatantEffects(combatantId);
+            testStateService.addCombatantEffect(combatantId, effect);
+            const updatedEffects = testStateService.updateCombatantEffects(combatantId);
             
             expect(updatedEffects.length).toBe(0);
-            expect(stateService.getCombatantEffects(combatantId)).toEqual([]);
+            expect(testStateService.getCombatantEffects(combatantId)).toEqual([]);
         });
 
         test('should clear combatant effects', () => {
@@ -352,10 +368,10 @@ describe('StateService', () => {
                 amount: -5
             };
             
-            stateService.addCombatantEffect(combatantId, effect);
-            stateService.clearCombatantEffects(combatantId);
+            testStateService.addCombatantEffect(combatantId, effect);
+            testStateService.clearCombatantEffects(combatantId);
             
-            expect(stateService.getCombatantEffects(combatantId)).toEqual([]);
+            expect(testStateService.getCombatantEffects(combatantId)).toEqual([]);
         });
     });
 
@@ -368,35 +384,35 @@ describe('StateService', () => {
                 target: 'enemy1'
             };
             
-            const result = stateService.setCombatDelay(combatantId, moveInfo);
+            const result = testStateService.setCombatDelay(combatantId, moveInfo);
             
             expect(result).toEqual(moveInfo);
-            expect(stateService.getCombatDelay(combatantId)).toEqual(moveInfo);
+            expect(testStateService.getCombatDelay(combatantId)).toEqual(moveInfo);
         });
 
         test('should process delays and return ready moves', () => {
             const userId = 'user1';
             const mobId = 'mob1';
             
-            stateService.setCombatDelay(userId, {
+            testStateService.setCombatDelay(userId, {
                 delay: 1,
                 move: 'attack',
                 target: 'mob1'
             });
             
-            stateService.setCombatDelay(mobId, {
+            testStateService.setCombatDelay(mobId, {
                 delay: 2,
                 move: 'defend',
                 target: 'user1'
             });
             
-            const readyMoves = stateService.processDelays(userId, mobId);
+            const readyMoves = testStateService.processDelays(userId, mobId);
             
             expect(readyMoves.length).toBe(1);
             expect(readyMoves[0].type).toBe('player');
             expect(readyMoves[0].move).toBe('attack');
-            expect(stateService.getCombatDelay(userId)).toBeUndefined();
-            expect(stateService.getCombatDelay(mobId).delay).toBe(1);
+            expect(testStateService.getCombatDelay(userId)).toBeUndefined();
+            expect(testStateService.getCombatDelay(mobId).delay).toBe(1);
         });
 
         test('should clear combat delay', () => {
@@ -407,10 +423,10 @@ describe('StateService', () => {
                 target: 'enemy1'
             };
             
-            stateService.setCombatDelay(combatantId, moveInfo);
-            stateService.clearCombatDelay(combatantId);
+            testStateService.setCombatDelay(combatantId, moveInfo);
+            testStateService.clearCombatDelay(combatantId);
             
-            expect(stateService.getCombatDelay(combatantId)).toBeUndefined();
+            expect(testStateService.getCombatDelay(combatantId)).toBeUndefined();
         });
     });
 
@@ -423,10 +439,10 @@ describe('StateService', () => {
                 name: 'Goblin Warrior'
             };
             
-            const result = stateService.setPlayerMob(userId, mobInstance);
+            const result = testStateService.setPlayerMob(userId, mobInstance);
             
             expect(result).toBe(mobInstance);
-            expect(stateService.getPlayerMob(userId)).toBe(mobInstance);
+            expect(testStateService.getPlayerMob(userId)).toBe(mobInstance);
             expect(mockLogger.debug).toHaveBeenCalledTimes(1);
         });
 
@@ -438,11 +454,11 @@ describe('StateService', () => {
                 name: 'Goblin Warrior'
             };
             
-            expect(stateService.hasPlayerMob(userId)).toBe(false);
+            expect(testStateService.hasPlayerMob(userId)).toBe(false);
             
-            stateService.setPlayerMob(userId, mobInstance);
+            testStateService.setPlayerMob(userId, mobInstance);
             
-            expect(stateService.hasPlayerMob(userId)).toBe(true);
+            expect(testStateService.hasPlayerMob(userId)).toBe(true);
         });
 
         test('should clear player mob', () => {
@@ -453,53 +469,52 @@ describe('StateService', () => {
                 name: 'Goblin Warrior'
             };
             
-            stateService.setPlayerMob(userId, mobInstance);
-            stateService.clearPlayerMob(userId);
+            testStateService.setPlayerMob(userId, mobInstance);
+            testStateService.clearPlayerMob(userId);
             
-            expect(stateService.hasPlayerMob(userId)).toBe(false);
-            expect(stateService.getPlayerMob(userId)).toBeUndefined();
+            expect(testStateService.hasPlayerMob(userId)).toBe(false);
+            expect(testStateService.getPlayerMob(userId)).toBeUndefined();
             expect(mockLogger.debug).toHaveBeenCalledTimes(2);
         });
     });
 
     describe('Event Management', () => {
+        beforeEach(() => {
+            // Reset all mocks before each test
+            jest.clearAllMocks();
+        });
+
         test('should set and get active event', () => {
             const userId = 'user1';
             const eventId = 'event1';
             const actorId = 'actor1';
-            const currentNode = {
-                prompt: 'This is a test prompt',
-                choices: [
-                    { 
-                        text: 'Option 1', 
-                        nextNode: { prompt: 'Next prompt 1' } 
-                    },
-                    { 
-                        text: 'Option 2', 
-                        nextNode: { 
-                            prompt: 'Next prompt 2',
-                            questCompletionEvents: ['quest1']
-                        } 
-                    }
-                ]
+            const currentNode = { prompt: 'Test prompt' };
+            
+            const mockResult = {
+                userId,
+                eventId,
+                currentNode,
+                actorId,
+                isStoryEvent: false
             };
             
-            const result = stateService.setActiveEvent(userId, eventId, currentNode, actorId);
+            eventStateManager.setActiveEvent.mockReturnValue(mockResult);
+            eventStateManager.getActiveEvent.mockReturnValue(mockResult);
             
-            expect(result.eventId).toBe(eventId);
-            expect(result.actorId).toBe(actorId);
-            expect(result.currentNode.prompt).toBe(currentNode.prompt);
-            expect(result.currentNode._id).toBeDefined();
+            const result = testStateService.setActiveEvent(userId, eventId, currentNode, actorId);
             
-            // Check that the node was cloned and not modified directly
-            expect(result.currentNode).not.toBe(currentNode);
+            expect(eventStateManager.setActiveEvent).toHaveBeenCalledWith(
+                userId, 
+                eventId, 
+                currentNode, 
+                actorId, 
+                false
+            );
+            expect(result).toBe(mockResult);
             
-            // Verify that all choices have questCompletionEvents
-            expect(result.currentNode.choices[0].nextNode.questCompletionEvents).toEqual(['quest1']);
-            expect(result.currentNode.choices[1].nextNode.questCompletionEvents).toEqual(['quest1']);
-            
-            const storedEvent = stateService.getActiveEvent(userId);
-            expect(storedEvent).toBe(result);
+            const storedEvent = testStateService.getActiveEvent(userId);
+            expect(eventStateManager.getActiveEvent).toHaveBeenCalledWith(userId);
+            expect(storedEvent).toBe(mockResult);
         });
 
         test('should track event history', () => {
@@ -514,13 +529,31 @@ describe('StateService', () => {
                 prompt: 'Second prompt'
             };
             
+            // Mock implementation for event history
+            const mockResultWithHistory = {
+                userId,
+                eventId,
+                currentNode: secondNode,
+                actorId,
+                isStoryEvent: false,
+                nodeHistory: [{
+                    nodeId: 'node1',
+                    prompt: 'First prompt'
+                }]
+            };
+            
+            // First call with no history
+            eventStateManager.setActiveEvent.mockReturnValueOnce({});
+            // Second call with history
+            eventStateManager.setActiveEvent.mockReturnValueOnce(mockResultWithHistory);
+            
             // Set initial event
-            stateService.setActiveEvent(userId, eventId, firstNode, actorId);
+            testStateService.setActiveEvent(userId, eventId, firstNode, actorId);
             
             // Update to second node
-            const result = stateService.setActiveEvent(userId, eventId, secondNode, actorId);
+            const result = testStateService.setActiveEvent(userId, eventId, secondNode, actorId);
             
-            // Check history
+            // Check that the history is correctly maintained by eventStateManager
             expect(result.nodeHistory.length).toBe(1);
             expect(result.nodeHistory[0].nodeId).toBe('node1');
             expect(result.nodeHistory[0].prompt).toContain('First prompt');
@@ -532,11 +565,16 @@ describe('StateService', () => {
             const actorId = 'actor1';
             const currentNode = { prompt: 'Test prompt' };
             
-            expect(stateService.isInEvent(userId)).toBe(false);
+            // First call to isInEvent returns false
+            eventStateManager.isInEvent.mockReturnValueOnce(false);
+            // Second call to isInEvent returns true
+            eventStateManager.isInEvent.mockReturnValueOnce(true);
             
-            stateService.setActiveEvent(userId, eventId, currentNode, actorId);
+            expect(testStateService.isInEvent(userId)).toBe(false);
             
-            expect(stateService.isInEvent(userId)).toBe(true);
+            testStateService.setActiveEvent(userId, eventId, currentNode, actorId);
+            
+            expect(testStateService.isInEvent(userId)).toBe(true);
         });
 
         test('should check if user is in story event', () => {
@@ -545,11 +583,16 @@ describe('StateService', () => {
             const actorId = 'actor1';
             const currentNode = { prompt: 'Test prompt' };
             
-            stateService.setActiveEvent(userId, eventId, currentNode, actorId, false);
-            expect(stateService.isInStoryEvent(userId)).toBe(false);
+            // First call to getActiveEvent returns event with isStoryEvent: false
+            eventStateManager.getActiveEvent.mockReturnValueOnce({ isStoryEvent: false });
+            // Second call to getActiveEvent returns event with isStoryEvent: true
+            eventStateManager.getActiveEvent.mockReturnValueOnce({ isStoryEvent: true });
             
-            stateService.setActiveEvent(userId, eventId, currentNode, actorId, true);
-            expect(stateService.isInStoryEvent(userId)).toBe(true);
+            expect(testStateService.isInStoryEvent(userId)).toBe(false);
+            
+            testStateService.setActiveEvent(userId, eventId, currentNode, actorId, true);
+            
+            expect(testStateService.isInStoryEvent(userId)).toBe(true);
         });
 
         test('should clear active event', () => {
@@ -558,39 +601,45 @@ describe('StateService', () => {
             const actorId = 'actor1';
             const currentNode = { prompt: 'Test prompt' };
             
-            stateService.setActiveEvent(userId, eventId, currentNode, actorId);
-            stateService.clearActiveEvent(userId);
+            // After clearing, isInEvent returns false
+            eventStateManager.isInEvent.mockReturnValue(false);
+            // After clearing, getActiveEvent returns null
+            eventStateManager.getActiveEvent.mockReturnValue(null);
             
-            expect(stateService.isInEvent(userId)).toBe(false);
-            expect(stateService.getActiveEvent(userId)).toBeUndefined();
+            testStateService.setActiveEvent(userId, eventId, currentNode, actorId);
+            testStateService.clearActiveEvent(userId);
+            
+            expect(eventStateManager.clearActiveEvent).toHaveBeenCalledWith(userId);
+            expect(testStateService.isInEvent(userId)).toBe(false);
+            expect(testStateService.getActiveEvent(userId)).toBeNull();
         });
     });
 
     describe('State Reset', () => {
         test('should reset all state collections', () => {
             // Setup some state
-            stateService.addClient('user1', { id: 'socket1' });
-            stateService.addUserToNode('user1', 'node1');
-            stateService.setUserCombatState('user1', { enemy: 'goblin' });
-            stateService.addCombatantEffect('user1', { effect: 'poison', rounds: 3 });
-            stateService.setCombatDelay('user1', { delay: 2, move: 'attack' });
-            stateService.setPlayerMob('user1', { mobId: 'goblin', instanceId: 'mob1' });
-            stateService.setActiveEvent('user1', 'event1', { prompt: 'Test' }, 'actor1');
+            testStateService.addClient('user1', { id: 'socket1' });
+            testStateService.addUserToNode('user1', 'node1');
+            testStateService.setUserCombatState('user1', { enemy: 'goblin' });
+            testStateService.addCombatantEffect('user1', { effect: 'poison', rounds: 3 });
+            testStateService.setCombatDelay('user1', { delay: 2, move: 'attack' });
+            testStateService.setPlayerMob('user1', { mobId: 'goblin', instanceId: 'mob1' });
+            testStateService.setActiveEvent('user1', 'event1', { prompt: 'Test' }, 'actor1');
             
             // Reset state
-            stateService.reset();
+            testStateService.reset();
             
             // Verify all collections are empty
-            expect(stateService.clients.size).toBe(0);
-            expect(stateService.nodeClients.size).toBe(0);
-            expect(stateService.nodeUsernames.size).toBe(0);
-            expect(stateService.subscribedNodes.size).toBe(0);
-            expect(stateService.actorChatStates.size).toBe(0);
-            expect(stateService.playerMobs.size).toBe(0);
-            expect(stateService.userCombatStates.size).toBe(0);
-            expect(stateService.combatantEffects.size).toBe(0);
-            expect(stateService.combatDelays.size).toBe(0);
-            expect(stateService.activeEvents.size).toBe(0);
+            expect(testStateService.clients.size).toBe(0);
+            expect(testStateService.nodeClients.size).toBe(0);
+            expect(testStateService.nodeUsernames.size).toBe(0);
+            expect(testStateService.subscribedNodes.size).toBe(0);
+            expect(testStateService.actorChatStates.size).toBe(0);
+            expect(testStateService.playerMobs.size).toBe(0);
+            expect(testStateService.userCombatStates.size).toBe(0);
+            expect(testStateService.combatantEffects.size).toBe(0);
+            expect(testStateService.combatDelays.size).toBe(0);
+            // activeEvents is now managed by EventStateManager, so don't check it here
         });
     });
 }); 
