@@ -483,9 +483,6 @@ class QuestService {
                                     rewardCount: nextEvent.rewards?.length || 0
                                 });
 
-                                // Add reward handling here
-                                await this.handleEventRewards(user, nextEvent);
-
                                 if (nextEvent.isEnd) {
                                     this.logger.debug('Found end event:', {
                                         eventId: nextEvent._id.toString(),
@@ -496,28 +493,40 @@ class QuestService {
                                     userQuest.completed = true;
                                     userQuest.completedAt = new Date();
                                     
-                                    // For chat events, we'll combine the completion message with the actor's message
-                                    // to avoid displaying two separate messages
+                                    // Different sequence based on event type
                                     if (nextEvent.eventType === 'chat') {
-                                        // Send a combined message for chat events
+                                        // For chat events, send actor message first
                                         this.messageService.sendQuestsMessage(
                                             user._id.toString(),
-                                            `Quest "${quest.title}" completed!\n\n${nextEvent.message}`
+                                            nextEvent.message
                                         );
+                                        
+                                        // Then send quest completion message
+                                        this.messageService.sendQuestsMessage(
+                                            user._id.toString(),
+                                            `Quest "${quest.title}" completed!`
+                                        );
+                                        
+                                        // Process rewards last
+                                        await this.handleEventRewards(user, nextEvent);
                                     } else {
-                                        // For non-chat events, send the completion message separately
+                                        // For non-chat events
+                                        // 1. Send quest completion message
                                         this.messageService.sendSuccessMessage(
                                             user._id.toString(),
                                             `Quest "${quest.title}" completed!`
                                         );
                                         
-                                        // Only send the quest message if it exists and this isn't a chat event
+                                        // 2. Send event message if it exists
                                         if (nextEvent.message) {
                                             this.messageService.sendQuestsMessage(
                                                 user._id.toString(),
                                                 nextEvent.message
                                             );
                                         }
+                                        
+                                        // 3. Process rewards
+                                        await this.handleEventRewards(user, nextEvent);
                                     }
 
                                     questUpdates.push({
@@ -704,12 +713,22 @@ class QuestService {
                         // For chat events, we'll combine the completion message with the actor's message
                         // to avoid displaying two separate messages
                         if (nextEvent.eventType === 'chat') {
-                            // Send a combined message for chat events
+                            // First, just send the actor's chat message
                             this.messageService.sendQuestsMessage(
                                 user._id.toString(),
-                                `Quest "${quest.title}" completed!\n\n${nextEvent.message}`
+                                nextEvent.message
+                            );
+                            
+                            // Then send the quest completion notification
+                            this.messageService.sendQuestsMessage(
+                                user._id.toString(),
+                                `Quest "${quest.title}" completed!`
                             );
                         } else {
+                            // For non-chat events, we process rewards first (keeping previous behavior)
+                            // Process rewards first, then send messages
+                            await this.handleEventRewards(user, nextEvent);
+                            
                             // For non-chat events, send the completion message separately
                             this.messageService.sendSuccessMessage(
                                 user._id.toString(),

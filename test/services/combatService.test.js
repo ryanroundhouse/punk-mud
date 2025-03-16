@@ -892,4 +892,126 @@ describe('CombatService', () => {
       expect(mockDeps.logger.error).toHaveBeenCalled();
     });
   });
+
+  describe('executeCombatMoves', () => {
+    it('should send messages in correct order when player defeats mob', async () => {
+      // Set up mocks
+      const mockDeps = createMockDependencies();
+      
+      // Set up the message tracking
+      const messageOrder = [];
+      mockDeps.messageService.sendCombatMessage = jest.fn().mockImplementation((userId, message) => {
+        messageOrder.push({ type: 'combat', message });
+        return Promise.resolve();
+      });
+      
+      mockDeps.questService.handleMobKill = jest.fn().mockImplementation((user, mobId) => {
+        messageOrder.push({ type: 'quest_processed' });
+        return Promise.resolve([
+          { type: 'quest_progress', questTitle: 'Test Quest', message: '2 more mobs remaining to kill.' }
+        ]);
+      });
+      
+      mockDeps.messageService.sendQuestsMessage = jest.fn().mockImplementation((userId, message) => {
+        messageOrder.push({ type: 'quest', message });
+        return Promise.resolve();
+      });
+      
+      mockDeps.messageService.sendSuccessMessage = jest.fn().mockImplementation((userId, message) => {
+        messageOrder.push({ type: 'success', message });
+        return Promise.resolve();
+      });
+      
+      // Set up userService.awardExperience with a simpler mock that doesn't involve level up
+      mockDeps.userService.awardExperience = jest.fn().mockResolvedValue({
+        success: true,
+        levelUp: false
+      });
+      
+      // Create the combat service with mocks
+      const combatService = new CombatService(mockDeps);
+      
+      // Create test user and mob
+      const testUser = createTestUser();
+      const testMob = createTestMob({ stats: { currentHitpoints: 0 } }); // Mob is already defeated
+      
+      // Set up ready moves
+      const readyMoves = [
+        {
+          type: 'player',
+          move: {
+            name: 'iron grip',
+            attackStat: 'body',
+            defenceStat: 'reflexes'
+          },
+          target: testMob
+        }
+      ];
+      
+      // Execute the combat move
+      await combatService.executeCombatMoves(readyMoves, testUser, testMob);
+      
+      // Verify the order of message calls
+      expect(mockDeps.messageService.sendCombatMessage).toHaveBeenCalledTimes(1);
+      expect(mockDeps.questService.handleMobKill).toHaveBeenCalledTimes(1);
+      expect(mockDeps.messageService.sendSuccessMessage).toHaveBeenCalledTimes(1);
+      
+      // Verify order through the messageOrder array
+      expect(messageOrder.length).toBeGreaterThanOrEqual(3);
+      expect(messageOrder[0].type).toBe('combat'); // Combat message should be first
+      expect(messageOrder[1].type).toBe('quest_processed'); // Quest processing should be next
+      expect(messageOrder[2].type).toBe('success'); // XP message should be last
+      
+      // Check the content of messages
+      expect(messageOrder[0].message).toContain('Victory! You have defeated');
+      expect(messageOrder[2].message).toContain('You gained');
+      
+      // Check that quest updates are not included in the combat message
+      expect(messageOrder[0].message).not.toContain('Quest "Test Quest":');
+    });
+
+    it('should not include quest info in combat message when defeating mob', async () => {
+      // Set up mocks
+      const mockDeps = createMockDependencies();
+      mockDeps.questService.handleMobKill = jest.fn().mockResolvedValue([
+        { type: 'quest_progress', questTitle: 'Test Quest', message: '2 more mobs remaining to kill.' }
+      ]);
+      
+      // Create the combat service with mocks
+      const combatService = new CombatService(mockDeps);
+      
+      // Create test user and mob
+      const testUser = createTestUser();
+      const testMob = createTestMob({ stats: { currentHitpoints: 0 } }); // Mob is already defeated
+      
+      // Set up ready moves
+      const readyMoves = [
+        {
+          type: 'player',
+          move: {
+            name: 'punch',
+            attackStat: 'body',
+            defenceStat: 'reflexes'
+          },
+          target: testMob
+        }
+      ];
+      
+      // Execute the combat move
+      await combatService.executeCombatMoves(readyMoves, testUser, testMob);
+      
+      // Verify that combat message was sent
+      expect(mockDeps.messageService.sendCombatMessage).toHaveBeenCalledTimes(1);
+      
+      // Get the combat message text
+      const combatMessage = mockDeps.messageService.sendCombatMessage.mock.calls[0][1];
+      
+      // Verify quest information is not in the combat message
+      expect(combatMessage).not.toContain('Quest "Test Quest"');
+      expect(combatMessage).not.toContain('2 more mobs remaining to kill');
+      
+      // Verify quest service was called to process quest updates
+      expect(mockDeps.questService.handleMobKill).toHaveBeenCalledTimes(1);
+    });
+  });
 }); 

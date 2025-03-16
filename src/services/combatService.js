@@ -561,25 +561,12 @@ class CombatService {
             // Add victory declaration
             victoryMessage += `\n\nVictory! You have defeated ${mobInstance.name}!`;
             
-            // Process quest updates
-            const questUpdates = await this.questService.handleMobKill(user, mobInstance._id || mobInstance.mobId);
-            this.mobService.clearUserMob(user._id.toString());
-            
-            // Add quest updates if any
-            if (questUpdates && questUpdates.length > 0) {
-                victoryMessage += '\n\n' + questUpdates
-                    .filter(update => update.message)  // Only include updates with messages
-                    .map(update => {
-                        if (update.type === 'quest_progress') {
-                            return `Quest "${update.questTitle}": ${update.message}`;
-                        }
-                        return update.message;
-                    })
-                    .join('\n');
-            }
-            
             // Send the victory message first
             this.messageService.sendCombatMessage(user._id.toString(), victoryMessage);
+            
+            // Process quest updates without including them in the victory message
+            const questUpdates = await this.questService.handleMobKill(user, mobInstance._id || mobInstance.mobId);
+            this.mobService.clearUserMob(user._id.toString());
             
             // Then award experience points and send as a separate success message
             try {

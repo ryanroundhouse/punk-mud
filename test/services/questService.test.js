@@ -573,6 +573,114 @@ describe('QuestService', () => {
             expect(userWithoutRewardQuest.save).toHaveBeenCalled();
         });
 
+        it('should send messages in correct order for chat event quest completion', async () => {
+            // Reset mocks to ensure clean state
+            mockDeps.messageService.sendQuestsMessage.mockReset();
+            mockDeps.messageService.sendSuccessMessage.mockReset();
+            
+            // Track message order
+            const messageOrder = [];
+            
+            // Mock the sendQuestsMessage
+            mockDeps.messageService.sendQuestsMessage = jest.fn().mockImplementation((userId, message) => {
+                messageOrder.push({ type: 'quest', message });
+                return Promise.resolve();
+            });
+            
+            // Mock the sendSuccessMessage
+            mockDeps.messageService.sendSuccessMessage = jest.fn().mockImplementation((userId, message) => {
+                messageOrder.push({ type: 'success', message });
+                return Promise.resolve();
+            });
+            
+            // Setup mock data for this test
+            const chatQuestEvent = {
+                _id: 'chat_quest_end',
+                message: 'Actor chat message with quest completion',
+                eventType: 'chat',
+                isEnd: true,
+                actorId: 'chat_actor',
+                choices: [],
+                rewards: [
+                    { type: 'experiencePoints', value: '100' }
+                ]
+            };
+            
+            const mockQuestWithChatEvent = {
+                _id: 'chat_quest',
+                title: 'Chat Quest Test',
+                events: [
+                    {
+                        _id: 'chat_quest_start',
+                        isStart: true,
+                        message: 'Start of chat quest',
+                        eventType: 'chat',
+                        choices: [
+                            { nextEventId: 'chat_quest_middle' }
+                        ]
+                    },
+                    {
+                        _id: 'chat_quest_middle',
+                        message: 'Middle of chat quest',
+                        eventType: 'chat',
+                        isEnd: false,
+                        choices: [
+                            { nextEventId: 'chat_quest_end' }
+                        ]
+                    },
+                    chatQuestEvent
+                ]
+            };
+            
+            // Setup user with this quest in progress
+            const userWithChatQuest = createMockUser({
+                quests: [
+                    {
+                        questId: 'chat_quest',
+                        currentEventId: 'chat_quest_middle',
+                        completedEventIds: ['chat_quest_start'],
+                        completed: false
+                    }
+                ]
+            });
+            userWithChatQuest.save = jest.fn().mockResolvedValue(userWithChatQuest);
+            
+            // Setup mocks
+            mockDeps.Quest.find = jest.fn().mockResolvedValue([mockQuestWithChatEvent]);
+            
+            // Call the method to test
+            const result = await questService.handleQuestProgression(
+                userWithChatQuest,
+                'chat_actor',
+                ['chat_quest_end']
+            );
+            
+            // Verify we get a result
+            expect(result).toBeTruthy();
+            
+            // Verify quest was completed
+            expect(userWithChatQuest.quests[0].completed).toBe(true);
+            expect(userWithChatQuest.quests[0].completedAt).toBeDefined();
+            
+            // Verify order of messages
+            expect(messageOrder.length).toBeGreaterThanOrEqual(3);
+            
+            // First message should be actor's chat message
+            expect(messageOrder[0].type).toBe('quest');
+            expect(messageOrder[0].message).toBe('Actor chat message with quest completion');
+            
+            // Second message should be quest completion
+            expect(messageOrder[1].type).toBe('quest');
+            expect(messageOrder[1].message).toBe('Quest "Chat Quest Test" completed!');
+            
+            // Last message should be experience points
+            expect(messageOrder[2].type).toBe('success');
+            expect(messageOrder[2].message).toContain('gained 100 experience points');
+            
+            // Verify user was saved
+            expect(userWithChatQuest.save).toHaveBeenCalled();
+        });
+
         it('should return null when user is not provided', async () => {
             const result = await questService.handleQuestProgression(
                 null, 
@@ -681,6 +789,50 @@ describe('QuestService', () => {
             
             // Verify user save wasn't called - no changes
             expect(mockUser.save).not.toHaveBeenCalled();
+        });
+
+        it('should send quest messages separate from combat messages', async () => {
+            // Reset message service mocks to track call order
+            mockDeps.messageService.sendQuestsMessage.mockReset();
+            mockDeps.messageService.sendSuccessMessage.mockReset();
+            
+            // Setup a quest with kill event
+            mockUser.quests = [{
+                questId: 'quest456',
+                currentEventId: 'event456',
+                completedEventIds: ['startEvent456'],
+                completed: false,
+                killProgress: [{
+                    eventId: 'killEvent456',
+                    remaining: 2 // Two more kills needed
+                }]
+            }];
+            
+            const result = await questService.handleMobKill(mockUser, 'mob123');
+            
+            // Verify result contains quest update info but no combat info
+            expect(result).toHaveLength(1);
+            expect(result[0].type).toBe('quest_progress');
+            expect(result[0].message).toBe('1 more mobs remaining to kill.');
+            expect(result[0]).not.toHaveProperty('combat');
+            expect(result[0]).not.toHaveProperty('damage');
+            
+            // Verify quest message was sent with correct text
+            expect(mockDeps.messageService.sendQuestsMessage).toHaveBeenCalledTimes(1);
+            expect(mockDeps.messageService.sendQuestsMessage).toHaveBeenCalledWith(
+                'user123',
+                expect.stringContaining('Quest "Test Quest 2": 1 more mobs remaining to kill.')
+            );
+            
+            // Verify quest message doesn't contain combat information
+            const questMessage = mockDeps.messageService.sendQuestsMessage.mock.calls[0][1];
+            expect(questMessage).not.toContain('attack');
+            expect(questMessage).not.toContain('hits for');
+            expect(questMessage).not.toContain('has been defeated');
+            expect(questMessage).not.toContain('Victory');
+            
+            // Verify user was saved
+            expect(mockUser.save).toHaveBeenCalled();
         });
     });
 
