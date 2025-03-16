@@ -299,11 +299,8 @@ class EventChoiceProcessor {
         
         this.eventStateManager.clearActiveEvent(userId);
         
-        // Send the result message
-        this.messageService.sendSuccessMessage(userId, resultMessage);
-        
         return {
-          message: null, // Message already sent
+          message: resultMessage,
           isEnd: true,
           shouldContinue: false
         };
@@ -318,8 +315,10 @@ class EventChoiceProcessor {
         target: choice.skillCheckTargetNumber
       });
       
-      // Send the result message
-      this.messageService.sendSuccessMessage(userId, resultMessage);
+      // Prepend the skill check result to the next node's prompt
+      if (choice.nextNode && choice.nextNode.prompt) {
+        choice.nextNode.prompt = `${resultMessage}\n\n${choice.nextNode.prompt}`;
+      }
     } else {
       resultMessage += `FAILURE! You failed the ${choice.skillCheckStat} check.\n`;
       
@@ -335,11 +334,8 @@ class EventChoiceProcessor {
         
         this.eventStateManager.clearActiveEvent(userId);
         
-        // Send the result message
-        this.messageService.sendErrorMessage(userId, resultMessage);
-        
         return {
-          message: null, // Message already sent
+          message: resultMessage,
           isEnd: true,
           shouldContinue: false
         };
@@ -354,8 +350,10 @@ class EventChoiceProcessor {
         target: choice.skillCheckTargetNumber
       });
       
-      // Send the result message
-      this.messageService.sendErrorMessage(userId, resultMessage);
+      // Prepend the skill check result to the failure node's prompt
+      if (choice.failureNode && choice.failureNode.prompt) {
+        choice.failureNode.prompt = `${resultMessage}\n\n${choice.failureNode.prompt}`;
+      }
       
       // Replace the nextNode with the failureNode
       choice.nextNode = choice.failureNode;
@@ -431,7 +429,7 @@ class EventChoiceProcessor {
   async executeChoice(choice, user, userId, activeEvent) {
     try {
       // Use eventNodeService to clone the selected choice
-      const clonedChoice = this.eventNodeService.cloneNode(choice);
+      let clonedChoice = this.eventNodeService.cloneNode(choice);
       
       // Add logging
       this.logger.debug('Selected choice details:', {
