@@ -1,9 +1,14 @@
-const Actor = require('../models/Actor');
-const logger = require('../config/logger');
-const questService = require('./questService');
-const User = require('../models/User');
-
 class ActorService {
+    constructor(deps = {}) {
+        // Models
+        this.Actor = deps.Actor || require('../models/Actor');
+        this.User = deps.User || require('../models/User');
+        
+        // Services
+        this.logger = deps.logger || require('../config/logger');
+        this.questService = deps.questService || require('./questService');
+    }
+
     async findActorInLocation(actorName, locationId, userId = null) {
         try {
             const actors = await this.getActorsInLocation(locationId, userId);
@@ -11,7 +16,7 @@ class ActorService {
                 actor.name.toLowerCase() === actorName.toLowerCase()
             );
         } catch (error) {
-            logger.error('Error finding actor:', error);
+            this.logger.error('Error finding actor:', error);
             throw error;
         }
     }
@@ -20,9 +25,9 @@ class ActorService {
         try {
             // If userId is provided, check for quest actor overrides first
             if (userId) {
-                const questActorOverrides = await questService.getQuestNodeActorOverrides(userId, locationId);
+                const questActorOverrides = await this.questService.getQuestNodeActorOverrides(userId, locationId);
                 
-                logger.debug('Checking quest actor overrides for location', {
+                this.logger.debug('Checking quest actor overrides for location', {
                     userId,
                     locationId,
                     hasQuestOverrides: !!questActorOverrides,
@@ -30,11 +35,11 @@ class ActorService {
                 });
 
                 if (questActorOverrides && questActorOverrides.length > 0) {
-                    const overrideActors = await Actor.find({
+                    const overrideActors = await this.Actor.find({
                         _id: { $in: questActorOverrides }
                     });
 
-                    logger.debug('Found quest override actors', {
+                    this.logger.debug('Found quest override actors', {
                         userId,
                         locationId,
                         overrideActorCount: overrideActors.length,
@@ -46,9 +51,9 @@ class ActorService {
             }
 
             // If no overrides found or no userId provided, return regular location actors
-            const regularActors = await Actor.find({ location: locationId });
+            const regularActors = await this.Actor.find({ location: locationId });
             
-            logger.debug('Returning regular actors for location', {
+            this.logger.debug('Returning regular actors for location', {
                 locationId,
                 userId: userId || 'none',
                 actorCount: regularActors.length,
@@ -57,14 +62,14 @@ class ActorService {
 
             return regularActors;
         } catch (error) {
-            logger.error('Error getting actors in location:', error);
+            this.logger.error('Error getting actors in location:', error);
             return [];
         }
     }
 
     async getActorChatMessage(actor, stateKey, currentIndex) {
         try {
-            logger.debug('Getting chat message for actor:', {
+            this.logger.debug('Getting chat message for actor:', {
                 actorId: actor._id,
                 actorName: actor.name,
                 stateKey,
@@ -73,13 +78,13 @@ class ActorService {
             });
 
             const sortedMessages = [...actor.chatMessages].sort((a, b) => a.order - b.order);
-            logger.debug('Sorted messages:', {
+            this.logger.debug('Sorted messages:', {
                 messagesCount: sortedMessages.length,
                 messages: sortedMessages.map(m => ({ order: m.order, message: m.message }))
             });
 
             const message = sortedMessages[currentIndex];
-            logger.debug('Selected message:', {
+            this.logger.debug('Selected message:', {
                 currentIndex,
                 message: message ? {
                     order: message.order,
@@ -91,7 +96,7 @@ class ActorService {
             const nextIndex = (currentIndex + 1) % sortedMessages.length;
             
             if (message.questCompletionEvents && message.questCompletionEvents.length > 0) {
-                logger.debug('Chat message has quest completion events:', {
+                this.logger.debug('Chat message has quest completion events:', {
                     actorId: actor._id,
                     actorName: actor.name,
                     messageIndex: currentIndex,
@@ -99,22 +104,22 @@ class ActorService {
                 });
 
                 const userId = stateKey.split('_').pop();
-                const user = await User.findById(userId);
+                const user = await this.User.findById(userId);
                 
                 if (user) {
-                    logger.debug('Processing chat quest completion events:', {
+                    this.logger.debug('Processing chat quest completion events:', {
                         userId: user._id.toString(),
                         events: message.questCompletionEvents
                     });
 
-                    const questUpdates = await questService.handleQuestProgression(
+                    const questUpdates = await this.questService.handleQuestProgression(
                         user,
                         actor._id.toString(),
                         message.questCompletionEvents,
                         null
                     );
 
-                    logger.debug('Quest progression result:', {
+                    this.logger.debug('Quest progression result:', {
                         questUpdates,
                         actorId: actor._id
                     });
@@ -126,7 +131,7 @@ class ActorService {
                 nextIndex
             };
             
-            logger.debug('Returning chat message result:', {
+            this.logger.debug('Returning chat message result:', {
                 messageContent: result.message,
                 nextIndex: result.nextIndex,
                 isMessageDefined: result.message !== undefined,
@@ -135,20 +140,24 @@ class ActorService {
             
             return result;
         } catch (error) {
-            logger.error('Error processing actor chat message:', error);
+            this.logger.error('Error processing actor chat message:', error);
             throw error;
         }
     }
 
     async findActorById(actorId) {
         try {
-            return await Actor.findById(actorId);
+            return await this.Actor.findById(actorId);
         } catch (error) {
-            logger.error('Error finding actor by ID:', error);
+            this.logger.error('Error finding actor by ID:', error);
             throw error;
         }
     }
 }
 
+// Create a singleton instance with default dependencies
 const actorService = new ActorService();
-module.exports = actorService; 
+
+// Export both the class and the singleton instance
+module.exports = actorService;
+module.exports.ActorService = ActorService; 

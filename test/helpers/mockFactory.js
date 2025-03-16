@@ -142,10 +142,31 @@ const createMockMobService = () => {
     };
 };
 
+const createMockActor = (overrides = {}) => {
+    return {
+        _id: 'actor123',
+        name: 'Test Actor',
+        description: 'A test actor for unit tests',
+        location: 'location123',
+        image: 'actor.png',
+        chatMessages: [
+            { message: 'Hello 1', order: 2 },
+            { message: 'Hello 3', order: 3 },
+            { message: 'Hello 2', order: 1 }
+        ],
+        save: jest.fn().mockResolvedValue(true),
+        ...overrides
+    };
+};
+
 const createMockDependencies = (overrides = {}) => {
     return {
         User: createMockUserModel(),
         Class: createMockClassModel(),
+        Actor: {
+            find: jest.fn(),
+            findById: jest.fn()
+        },
         Event: {},
         logger: createMockLogger(),
         socketService: createMockSocketService(),
@@ -154,7 +175,10 @@ const createMockDependencies = (overrides = {}) => {
         nodeService: {},
         mobService: createMockMobService(),
         eventService: {},
-        questService: {},
+        questService: {
+            getQuestNodeActorOverrides: jest.fn(),
+            handleQuestProgression: jest.fn()
+        },
         publishSystemMessage: jest.fn().mockResolvedValue(true),
         emailService: createMockEmailService(),
         ...overrides
@@ -165,12 +189,13 @@ module.exports = {
     createMockUser,
     createMockClass,
     createMockLogger,
+    createMockEmailService,
     createMockUserModel,
     createMockClassModel,
     createMockStateService,
     createMockSocketService,
     createMockMessageService,
     createMockMobService,
-    createMockEmailService,
+    createMockActor,
     createMockDependencies
 }; 
