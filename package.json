@@ -16,7 +16,8 @@
     ],
     "collectCoverageFrom": [
       "src/**/*.js"
-    ]
+    ],
+    "setupFiles": ["./test/setup.js"]
   },
   "dependencies": {
     "dotenv": "^16.4.7",

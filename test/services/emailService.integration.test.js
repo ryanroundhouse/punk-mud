@@ -3,7 +3,7 @@ const logger = require('../../src/config/logger');
 
 // These tests will be skipped by default since they require actual API keys
 // To run them, you need to set up environment variables and remove the .skip
-describe.skip('EmailService Integration', () => {
+describe('EmailService Integration', () => {
     let emailService;
     
     beforeAll(() => {
