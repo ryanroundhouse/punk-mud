@@ -1478,7 +1478,7 @@
                             choiceData.teleportToNode = choiceElement.querySelector('.teleport-select').value;
                             
                             // Also get next node if it exists (for response after teleport)
-                            const nextNodeElement = choiceElement.querySelector('.next-node-container .event-node');
+                            const nextNodeElement = choiceElement.querySelector('.next-node-container > .event-node');
                             if (nextNodeElement) {
                                 choiceData.nextNode = getNodeData(nextNodeElement);
                             }
@@ -1489,23 +1489,24 @@
                             const skillCheckTargetNumber = parseInt(choiceElement.querySelector('.skill-check-target').value);
                             
                             // Get next node (success outcome) if it exists
-                            const nextNodeElement = choiceElement.querySelector('.next-node-container .event-node');
+                            const nextNodeElement = choiceElement.querySelector('.next-node-container > .event-node');
                             if (nextNodeElement) {
                                 choiceData.nextNode = getNodeData(nextNodeElement);
                             }
                             
-                            // Get failure node if it exists
-                            const failureNodeElement = choiceElement.querySelector('.failure-node-container .event-node');
-                            const failureNode = failureNodeElement ? getNodeData(failureNodeElement) : undefined;
+                            // Get failure node if it exists - using direct child selector to prevent conflict
+                            const failureNodeElement = choiceElement.querySelector('.failure-node-container > .event-node');
+                            if (failureNodeElement) {
+                                choiceData.failureNode = getNodeData(failureNodeElement);
+                            }
                             
                             choiceData.skillCheckStat = skillCheckStat;
                             choiceData.skillCheckTargetNumber = skillCheckTargetNumber;
-                            choiceData.failureNode = failureNode;
                         }
                         // Otherwise handle next node if it exists
                         else {
                             // Get next node if it exists
-                            const nextNodeElement = choiceElement.querySelector('.next-node-container .event-node');
+                            const nextNodeElement = choiceElement.querySelector('.next-node-container > .event-node');
                             if (nextNodeElement) {
                                 choiceData.nextNode = getNodeData(nextNodeElement);
                             }
