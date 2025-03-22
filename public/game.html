@@ -761,8 +761,12 @@
                     nodeImage.src = node.image;
                     nodeImage.style.display = 'block';
                     
+                    // Set border color based on node type (default blue)
+                    nodeImage.style.borderColor = 'var(--neon-blue)';
+                    nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
+                    
+                    // Check for actual mob presence by making an ls request
                     try {
-                        // Check for actual mob presence by making an ls request
                         const lsResponse = await fetch(`/api/mobs/node/${node.address}`, {
                             headers: {
                                 'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -779,17 +783,11 @@
                             } else if (node.isRestPoint) {
                                 nodeImage.style.borderColor = 'var(--terminal-green)';
                                 nodeImage.style.boxShadow = '0 0 15px var(--terminal-green)';
-                            } else {
-                                nodeImage.style.borderColor = 'var(--neon-blue)';
-                                nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
                             }
-                        } else {
-                            throw new Error('Failed to get list data');
                         }
                     } catch (error) {
-                        // Set default border color on error
-                        nodeImage.style.borderColor = 'var(--neon-blue)';
-                        nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
+                        console.error('Error checking for mobs:', error);
+                        // Default border color already set
                     }
                 } else {
                     nodeImage.style.display = 'none';
@@ -910,13 +908,25 @@
                     console.error('Error parsing token:', e);
                 }
 
-                // Initialize chat and load current location
+                // Initialize socket connection first, BEFORE loading node
                 initializeChat();
                 
-                // Load terminal history before loading the current node
+                // Wait a moment for socket to fully connect
+                if (!socket.connected) {
+                    await new Promise(resolve => {
+                        socket.once('connect', resolve);
+                        // Add a timeout in case socket doesn't connect
+                        setTimeout(resolve, 1000);
+                    });
+                }
+                
+                console.log('Socket connected:', socket.connected);
+                
+                // Load terminal history after socket is connected
                 loadTerminalHistory();
                 
-                loadNode();
+                // Then load current location
+                await loadNode();
 
                 // Check if user is in combat
                 const combatResponse = await fetch('/api/combat/status', {
@@ -1065,6 +1075,17 @@
                 addChatMessage(data.username, data.message, new Date(data.timestamp));
                 // Store the message
                 storeChatMessage(data);
+                
+                // Check if this is a system message about an enemy appearing
+                if (data.username === 'SYSTEM' && data.message.match(/A .+ appears!/)) {
+                    // Update the node image border to red
+                    const nodeImage = document.getElementById('nodeImage');
+                    if (nodeImage && nodeImage.style.display !== 'none') {
+                        nodeImage.classList.remove('pulsing-border');
+                        nodeImage.style.borderColor = 'var(--neon-red)';
+                        nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
+                    }
+                }
             });
 
             socket.on('event start', (data) => {
@@ -1874,4 +1895,4 @@
         <img id="modalImage" class="modal-image">
     </div>
 </body>
-</html> 
+</html>
