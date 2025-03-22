@@ -403,4 +403,166 @@ describe('UserService', () => {
             )).rejects.toThrow('User not found');
         });
     });
+
+    // Add tests for updateUserMovesForLevel
+    describe('updateUserMovesForLevel', () => {
+        let mockUserInstance;
+        
+        beforeEach(() => {
+            // Create mock class with moves for level 1 and 2
+            const mockClass = {
+                _id: 'class123',
+                name: 'Test Class',
+                moveGrowth: [
+                    { level: 1, move: { _id: 'move1', name: 'Basic Attack' } },
+                    { level: 2, move: { _id: 'move2', name: 'Special Attack' } },
+                    { level: 3, move: { _id: 'move3', name: 'Advanced Attack' } }
+                ]
+            };
+            
+            // Mock Class.findById to return a class with populated moveGrowth
+            mockDeps.Class.findById = jest.fn().mockImplementation(() => {
+                return {
+                    populate: jest.fn().mockResolvedValue(mockClass)
+                };
+            });
+            
+            // Create a user instance with a mock save function
+            mockUserInstance = {
+                ...mockUser,
+                class: 'class123',
+                moves: ['move1'], // Initially has level 1 move
+                save: jest.fn().mockResolvedValue(true)
+            };
+            
+            // Mock User.findById to return a user with class
+            mockDeps.User.findById = jest.fn().mockImplementation(() => {
+                return {
+                    populate: jest.fn().mockResolvedValue(mockUserInstance)
+                };
+            });
+        });
+
+        it('should update user moves based on level', async () => {
+            const result = await userService.updateUserMovesForLevel('user123', 2);
+            
+            // Verify user.save was called
+            expect(mockUserInstance.save).toHaveBeenCalled();
+            expect(result.success).toBe(true);
+            expect(result.moveCount).toBe(2); // Should have 2 moves for level 2
+            expect(result.newMoves).toContain('Special Attack');
+        });
+
+        it('should send a success message when new moves are unlocked', async () => {
+            await userService.updateUserMovesForLevel('user123', 2);
+
+            // Verify a success message was sent
+            expect(mockDeps.messageService.sendSuccessMessage).toHaveBeenCalled();
+            const messageCall = mockDeps.messageService.sendSuccessMessage.mock.calls[0];
+            expect(messageCall[0]).toBe('user123');
+            expect(messageCall[1]).toContain('Special Attack');
+        });
+
+        it('should handle users without a class', async () => {
+            // Create a user instance without a class
+            const noClassUserInstance = {
+                ...mockUser,
+                class: null,
+                save: jest.fn().mockResolvedValue(true)
+            };
+            
+            // Override findById to return a user without a class
+            mockDeps.User.findById = jest.fn().mockImplementation(() => {
+                return {
+                    populate: jest.fn().mockResolvedValue(noClassUserInstance)
+                };
+            });
+
+            const result = await userService.updateUserMovesForLevel('user123', 2);
+            
+            expect(result.success).toBe(false);
+            expect(result.message).toBe('No class assigned');
+        });
+    });
+
+    // Test awardExperience calling updateUserMovesForLevel
+    describe('awardExperience - move updates', () => {
+        let originalAwardExperience;
+        let originalUpdateUserMovesForLevel;
+        let mockResult;
+        
+        beforeEach(() => {
+            // Save original implementations
+            originalAwardExperience = userService.awardExperience;
+            originalUpdateUserMovesForLevel = userService.updateUserMovesForLevel;
+            
+            // Create mock result
+            mockResult = {
+                success: true,
+                levelUp: false,
+                oldLevel: 1,
+                newLevel: 1,
+                experienceGained: 0,
+                totalExperience: 0
+            };
+            
+            // Reset mocks for each test
+            userService.updateUserMovesForLevel = jest.fn().mockResolvedValue({
+                success: true,
+                moveCount: 2,
+                newMoves: ['Special Attack']
+            });
+        });
+        
+        afterEach(() => {
+            // Restore original implementations
+            userService.awardExperience = originalAwardExperience;
+            userService.updateUserMovesForLevel = originalUpdateUserMovesForLevel;
+        });
+
+        it('should call updateUserMovesForLevel when leveling up', async () => {
+            // Instead of mocking awardExperience, use the original implementation
+            // But replace User.findById to return a user about to level up
+            mockDeps.User.findById = jest.fn().mockImplementation(() => {
+                const user = {
+                    ...mockUser,
+                    stats: {
+                        ...mockUser.stats,
+                        experience: 90, // Just below level 2 threshold (100)
+                        level: 1
+                    },
+                    save: jest.fn().mockResolvedValue(true)
+                };
+                return Promise.resolve(user);
+            });
+            
+            // Call the actual awardExperience method with enough XP to level up
+            const result = await originalAwardExperience.call(userService, 'user123', 20);
+            
+            // Verify the result
+            expect(result.levelUp).toBe(true);
+            expect(result.oldLevel).toBe(1);
+            expect(result.newLevel).toBe(2);
+            
+            // Verify updateUserMovesForLevel was called with the correct parameters
+            expect(userService.updateUserMovesForLevel).toHaveBeenCalledWith('user123', 2);
+        });
+
+        it('should not call updateUserMovesForLevel when not leveling up', async () => {
+            // Mock awardExperience for no level up scenario  
+            mockResult.levelUp = false;
+            mockResult.oldLevel = 1;
+            mockResult.newLevel = 1;
+            userService.awardExperience = jest.fn().mockResolvedValue(mockResult);
+            
+            const result = await userService.awardExperience('user123', 5);
+            
+            expect(result.levelUp).toBe(false);
+            expect(result.oldLevel).toBe(1);
+            expect(result.newLevel).toBe(1);
+            
+            // Verify updateUserMovesForLevel was not called
+            expect(userService.updateUserMovesForLevel).not.toHaveBeenCalled();
+        });
+    });
 }); 

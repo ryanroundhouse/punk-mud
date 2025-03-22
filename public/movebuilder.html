@@ -495,7 +495,7 @@
                     moveEntry.className = 'move-entry';
                     moveEntry.innerHTML = `
                         <div class="move-entry-name">${move.name}</div>
-                        <div class="move-entry-type">${move.type}</div>
+                        <div class="move-entry-type">${move.attackStat.substring(0,3)} → ${move.defenceStat.substring(0,3)}</div>
                     `;
                     moveEntry.addEventListener('click', () => loadMoveData(move));
                     movesListPanel.appendChild(moveEntry);

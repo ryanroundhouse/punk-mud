@@ -202,6 +202,9 @@ flee.............Attempt to escape combat
                 user.stats.hitpoints = baseHP + levelBonus + bodyBonus;
                 user.stats.currentHitpoints = user.stats.hitpoints;
 
+                // Update moves for the new level
+                await this.updateUserMovesForLevel(userId, newLevel);
+
                 // Update result object with level up info
                 result.levelUp = true;
                 result.newHP = user.stats.hitpoints;
@@ -250,6 +253,74 @@ flee.............Attempt to escape combat
             return result;
         } catch (error) {
             this.logger.error('Error awarding experience:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Updates a user's moves based on their current level
+     * @param {string} userId - The user's ID
+     * @param {number} level - The user's new level
+     * @returns {Promise<Object>} - Result of the operation
+     */
+    async updateUserMovesForLevel(userId, level) {
+        try {
+            const user = await this.User.findById(userId).populate('class');
+            if (!user) {
+                throw new Error('User not found');
+            }
+
+            if (!user.class) {
+                this.logger.debug('User has no class assigned, skipping move update');
+                return { success: false, message: 'No class assigned' };
+            }
+
+            // Get the class with populated moveGrowth
+            const classDoc = await this.Class.findById(user.class).populate('moveGrowth.move');
+            if (!classDoc) {
+                throw new Error('Class not found');
+            }
+
+            // Get all moves the user should have at their current level
+            const availableMoves = classDoc.moveGrowth
+                .filter(mg => mg.level <= level)
+                .map(mg => mg.move._id);
+
+            // Get newly unlocked moves
+            const newMoves = classDoc.moveGrowth
+                .filter(mg => mg.level <= level && mg.level > (level - 1))
+                .map(mg => mg.move);
+
+            // Update the user's moves
+            user.moves = availableMoves;
+            await user.save();
+
+            // Send notification about new moves if any were unlocked
+            if (newMoves.length > 0) {
+                const moveNames = newMoves.map(move => move.name).join(', ');
+                this.messageService.sendSuccessMessage(
+                    userId,
+                    `You've unlocked new ${newMoves.length > 1 ? 'moves' : 'a move'}: ${moveNames}!`
+                );
+            }
+
+            this.logger.debug('Updated user moves for level', {
+                userId, 
+                level, 
+                moveCount: availableMoves.length,
+                newMoveCount: newMoves.length
+            });
+
+            return {
+                success: true,
+                moveCount: availableMoves.length,
+                newMoves: newMoves.map(move => move.name)
+            };
+        } catch (error) {
+            this.logger.error('Error updating user moves for level:', error);
             return {
                 success: false,
                 error: error.message
