@@ -3,7 +3,10 @@ const logger = require('./logger');
 
 async function connectDB() {
     try {
-        await mongoose.connect('mongodb://mongodb:27017/myapp', {
+        // Use environment variable with fallback for development
+        const connectionString = process.env.MONGODB_URI || 'mongodb://mongodb:27017/myapp';
+        
+        await mongoose.connect(connectionString, {
             useNewUrlParser: true,
             useUnifiedTopology: true
         });

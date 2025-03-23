@@ -5,8 +5,11 @@ let redisClient;
 let redisSubscriber;
 
 async function connectRedis() {
+    // Use environment variable with fallback for development
+    const redisUrl = process.env.REDIS_URL || 'redis://redis:6379';
+    
     redisClient = createClient({
-        url: process.env.REDIS_URL || 'redis://redis:6379'
+        url: redisUrl
     });
 
     redisSubscriber = redisClient.duplicate();
