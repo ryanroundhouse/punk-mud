@@ -22,6 +22,7 @@ services:
       - LOG_LEVEL=info
     volumes:
       - app-logs:/app/logs
+      - ./public/assets:/app/public/assets
     networks:
       - app-network
     logging:

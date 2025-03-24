@@ -18,6 +18,7 @@ services:
       - PORT=3000
     volumes:
       - app-logs:/app/logs
+      - ./public/assets:/app/public/assets
     networks:
       - app-network
     logging:
