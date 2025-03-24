@@ -107,9 +107,9 @@ git pull origin main
 ### 2. Rebuild and Restart
 
 ```bash
-docker-compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 # or for secure deployment
-docker-compose -f docker-compose.prod.secure.yml --env-file .env.production up -d --build
+docker compose -f docker-compose.prod.secure.yml --env-file .env.production up -d --build
 ```
 
 ## Backup and Restore

@@ -11,7 +11,7 @@ docker cp "$LATEST_BACKUP" "$(docker-compose -f docker-compose.prod.secure.yml p
 
 # Restore using docker-compose exec with environment variables
 echo "Restoring backup..."
-docker-compose -f docker-compose.prod.secure.yml exec mongodb mongorestore \
+docker compose -f docker-compose.prod.secure.yml exec mongodb mongorestore \
   --username admin \
   --password=${MONGO_ADMIN_PASSWORD} \
   --authenticationDatabase admin \
