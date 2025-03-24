@@ -12,9 +12,6 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Explicit route for assets
-app.use('/assets', express.static(path.join(__dirname, '../public/assets')));
-
 app.use(requestLogger);
 
 // Debug logging for routes
