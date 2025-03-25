@@ -1120,10 +1120,18 @@
             });
 
             socket.on('users update', (users) => {
+                console.log('Received users update:', {
+                    timestamp: new Date().toISOString(),
+                    users: users,
+                    currentNode: currentNode,
+                    stackTrace: new Error().stack
+                });
+                
                 const presentUsersDiv = document.getElementById('presentUsers');
                 presentUsersDiv.innerHTML = '';
                 
                 users.forEach(username => {
+                    console.log('Adding user to presence list:', username);
                     const userDiv = document.createElement('div');
                     const userLink = document.createElement('a');
                     userLink.className = 'user-link';
@@ -1135,6 +1143,11 @@
                     };
                     userDiv.appendChild(userLink);
                     presentUsersDiv.appendChild(userDiv);
+                });
+
+                // Log final state of users list
+                console.log('Updated users list DOM elements:', {
+                    userElements: Array.from(presentUsersDiv.children).map(div => div.textContent)
                 });
             });
 

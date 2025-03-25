@@ -238,4 +238,75 @@ describe('StateService Integration Tests', () => {
         expect(mockSocket.emit).toHaveBeenCalledWith('users update', ['TestAvatar1']);
         expect(mockUser.findById).toHaveBeenCalledTimes(1);
     });
+
+    test('should remove user from node and update usernames in a single operation', async () => {
+        // Setup mock User findById implementation
+        mockUser.findById.mockImplementation(id => {
+            if (id === 'user1') {
+                return Promise.resolve({ avatarName: 'TestAvatar1' });
+            } else if (id === 'user2') {
+                return Promise.resolve({ avatarName: 'TestAvatar2' });
+            }
+            return Promise.resolve(null);
+        });
+        
+        const nodeAddress = 'test-node';
+        const mockSocket1 = { emit: jest.fn() };
+        const mockSocket2 = { emit: jest.fn() };
+        
+        // Setup client sockets
+        stateService.addClient('user1', mockSocket1);
+        stateService.addClient('user2', mockSocket2);
+        
+        // Add both users to the node first
+        await stateService.addUserToNodeAndUpdateUsernames('user1', nodeAddress);
+        await stateService.addUserToNodeAndUpdateUsernames('user2', nodeAddress);
+        
+        // Clear the mock calls from setup
+        mockSocket1.emit.mockClear();
+        mockSocket2.emit.mockClear();
+        mockUser.findById.mockClear();
+        
+        // Remove one user and update usernames
+        const nodeUsers = await stateService.removeUserFromNodeAndUpdateUsernames('user1', nodeAddress);
+        
+        // Verify operations occurred correctly
+        expect(nodeUsers.size).toBe(1);
+        expect(nodeUsers.has('user1')).toBe(false);
+        expect(nodeUsers.has('user2')).toBe(true);
+        expect(stateService.nodeUsernames.get(nodeAddress)).toEqual(['TestAvatar2']);
+        expect(mockSocket2.emit).toHaveBeenCalledWith('users update', ['TestAvatar2']);
+        expect(mockUser.findById).toHaveBeenCalledTimes(1);
+        expect(mockUser.findById).toHaveBeenCalledWith('user2');
+    });
+
+    test('should handle removing last user from node', async () => {
+        // Setup mock User findById implementation
+        mockUser.findById.mockImplementation(id => {
+            if (id === 'user1') {
+                return Promise.resolve({ avatarName: 'TestAvatar1' });
+            }
+            return Promise.resolve(null);
+        });
+        
+        const nodeAddress = 'test-node';
+        const mockSocket = { emit: jest.fn() };
+        
+        // Setup client socket and add user
+        stateService.addClient('user1', mockSocket);
+        await stateService.addUserToNodeAndUpdateUsernames('user1', nodeAddress);
+        
+        // Clear the mock calls from setup
+        mockSocket.emit.mockClear();
+        mockUser.findById.mockClear();
+        
+        // Remove the last user
+        const nodeUsers = await stateService.removeUserFromNodeAndUpdateUsernames('user1', nodeAddress);
+        
+        // Verify node is completely removed
+        expect(nodeUsers).toBeNull();
+        expect(stateService.nodeClients.has(nodeAddress)).toBe(false);
+        expect(stateService.nodeUsernames.has(nodeAddress)).toBe(false);
+        expect(mockUser.findById).not.toHaveBeenCalled();
+    });
 }); 

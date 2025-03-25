@@ -741,13 +741,6 @@ class CombatService {
                 const targetNode = await this.nodeService.getNodeByDirection(user._id.toString(), randomExit.direction);
                 // Then move the user to that node
                 await this.userService.moveUserToNode(user._id.toString(), randomExit.direction, targetNode);
-                
-                if (oldNode) {
-                    this.stateService.removeUserFromNode(user._id.toString(), oldNode);
-                    await this.socketService.unsubscribeFromNodeChat(oldNode);
-                }
-                await this.stateService.addUserToNodeAndUpdateUsernames(user._id.toString(), user.currentNode);
-                await this.socketService.subscribeToNodeChat(user.currentNode);
     
                 this.messageService.sendCombatMessage(
                     user._id.toString(),

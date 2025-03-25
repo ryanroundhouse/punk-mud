@@ -17,6 +17,7 @@ class StateService {
         this.userCombatStates = new Map(); // tracks combat state for each user
         this.combatantEffects = new Map(); // key: combatantId, value: array of active effects
         this.combatDelays = new Map(); // Tracks active move delays for combatants
+        this.userNodes = new Map(); // tracks current node for each user
         // Event state is now managed by EventStateManager
     }
 
@@ -31,6 +32,7 @@ class StateService {
         this.userCombatStates.clear();
         this.combatantEffects.clear();
         this.combatDelays.clear();
+        this.userNodes.clear();
         // Don't reset EventStateManager here as it's now separate
     }
 
@@ -67,6 +69,13 @@ class StateService {
     }
 
     addUserToNode(userId, nodeAddress) {
+        // First, remove user from any other nodes they might be in
+        for (const [existingNodeAddress, nodeUsers] of this.nodeClients.entries()) {
+            if (existingNodeAddress !== nodeAddress && nodeUsers.has(userId)) {
+                this.removeUserFromNode(userId, existingNodeAddress);
+            }
+        }
+
         let nodeUsers = this.nodeClients.get(nodeAddress);
         if (!nodeUsers) {
             nodeUsers = new Set();
@@ -85,20 +94,31 @@ class StateService {
 
     removeUserFromNode(userId, nodeAddress) {
         const nodeUsers = this.nodeClients.get(nodeAddress);
-        if (nodeUsers) {
-            nodeUsers.delete(userId);
-            
-            // Also remove from EventStateManager
-            eventStateManager.removeUserFromRoom(userId, nodeAddress);
-            
-            if (nodeUsers.size === 0) {
-                this.nodeClients.delete(nodeAddress);
-                this.nodeUsernames.delete(nodeAddress);
-                return null;
-            }
-            return nodeUsers;
+        if (!nodeUsers) {
+            return null;
         }
-        return null;
+
+        // Remove user from node
+        nodeUsers.delete(userId);
+
+        // Also remove from EventStateManager
+        eventStateManager.removeUserFromRoom(userId, nodeAddress);
+
+        // If node is empty, clean up node data
+        if (nodeUsers.size === 0) {
+            this.nodeClients.delete(nodeAddress);
+            this.nodeUsernames.delete(nodeAddress);
+            return null;
+        }
+
+        return nodeUsers;
+    }
+
+    async removeUserFromNodeAndUpdateUsernames(userId, nodeAddress) {
+        const nodeUsers = this.removeUserFromNode(userId, nodeAddress);
+        // Always update usernames for the node being left
+        await this.updateNodeUsernames(nodeAddress);
+        return nodeUsers;
     }
 
     getUsersInNode(nodeAddress) {
@@ -125,23 +145,62 @@ class StateService {
 
     async updateNodeUsernames(nodeAddress) {
         try {
+            this.logger.debug('Starting updateNodeUsernames:', { nodeAddress });
+            
             const nodeUsers = this.nodeClients.get(nodeAddress);
-            if (!nodeUsers) return [];
+            this.logger.debug('Retrieved node users:', { 
+                nodeAddress, 
+                hasUsers: !!nodeUsers, 
+                userCount: nodeUsers?.size,
+                userIds: nodeUsers ? Array.from(nodeUsers) : []
+            });
+            
+            // If node has no users, clear the usernames and notify any remaining subscribers
+            if (!nodeUsers || nodeUsers.size === 0) {
+                this.nodeUsernames.delete(nodeAddress);
+                return [];
+            }
 
             const usernames = await this.fetchUsernames(Array.from(nodeUsers));
+            // Sort usernames alphabetically for consistent ordering
+            usernames.sort();
+            
+            this.logger.debug('Fetched usernames:', { 
+                nodeAddress, 
+                usernames,
+                usernameCount: usernames.length 
+            });
+            
             this.nodeUsernames.set(nodeAddress, usernames);
             
             // Broadcast to all users in the node
             nodeUsers.forEach(userId => {
                 const socket = this.clients.get(userId);
+                this.logger.debug('Attempting to emit users update:', { 
+                    userId, 
+                    hasSocket: !!socket,
+                    socketId: socket?.id
+                });
+                
                 if (socket) {
                     socket.emit('users update', usernames);
+                    this.logger.debug('Emitted users update:', { 
+                        userId, 
+                        socketId: socket.id, 
+                        usernames 
+                    });
+                } else {
+                    this.logger.warn('No socket found for user:', { userId });
                 }
             });
             
             return usernames;
         } catch (error) {
-            this.logger.error('Error updating node usernames:', error);
+            this.logger.error('Error updating node usernames:', { 
+                nodeAddress, 
+                error: error.message,
+                stack: error.stack 
+            });
             return [];
         }
     }
@@ -341,18 +400,25 @@ class StateService {
 
     // New helper method that adds user and updates usernames
     async addUserToNodeAndUpdateUsernames(userId, nodeAddress) {
+        // First remove from any existing nodes and update their usernames
+        for (const [existingNodeAddress, nodeUsers] of this.nodeClients.entries()) {
+            if (existingNodeAddress !== nodeAddress && nodeUsers.has(userId)) {
+                await this.removeUserFromNodeAndUpdateUsernames(userId, existingNodeAddress);
+            }
+        }
+
+        // Then add to new node and update its usernames
         const nodeUsers = this.addUserToNode(userId, nodeAddress);
         await this.updateNodeUsernames(nodeAddress);
         return nodeUsers;
     }
 
-    // Helper method to ensure usernames are updated for a node
-    async ensureNodeUsernamesUpdated(nodeAddress) {
-        const nodeUsers = this.nodeClients.get(nodeAddress);
-        if (nodeUsers && nodeUsers.size > 0 && (!this.nodeUsernames.has(nodeAddress) || this.nodeUsernames.get(nodeAddress).length === 0)) {
-            await this.updateNodeUsernames(nodeAddress);
-        }
-        return this.nodeUsernames.get(nodeAddress) || [];
+    async moveUserToNode(userId, nodeAddress) {
+        // First add user to new node and update usernames (this will handle removing from old node)
+        await this.addUserToNodeAndUpdateUsernames(userId, nodeAddress);
+        
+        // Update the user's current node
+        this.userNodes.set(userId, nodeAddress);
     }
 }
 

@@ -184,6 +184,243 @@ describe('StateService', () => {
             expect(testStateService.nodeUsernames.get(nodeAddress)).toEqual(['TestAvatar']);
             expect(mockSocket.emit).toHaveBeenCalledWith('users update', ['TestAvatar']);
         });
+
+        test('should remove user from node and update usernames', async () => {
+            const userId1 = 'user123';
+            const userId2 = 'user456';
+            const nodeAddress = 'node1';
+            const mockSocket1 = { emit: jest.fn() };
+            const mockSocket2 = { emit: jest.fn() };
+            
+            // Setup mock for fetchUsernames
+            testStateService.fetchUsernames = jest.fn()
+                .mockResolvedValueOnce(['Avatar1', 'Avatar2'])  // First call when adding users
+                .mockResolvedValueOnce(['Avatar1', 'Avatar2'])  // Second call when adding users
+                .mockResolvedValueOnce(['Avatar2']);  // Third call after removing user1
+            
+            // Setup client sockets
+            testStateService.clients.set(userId1, mockSocket1);
+            testStateService.clients.set(userId2, mockSocket2);
+            
+            // Add both users to the node
+            await testStateService.addUserToNodeAndUpdateUsernames(userId1, nodeAddress);
+            await testStateService.addUserToNodeAndUpdateUsernames(userId2, nodeAddress);
+            
+            // Clear the mock calls from setup
+            mockSocket1.emit.mockClear();
+            mockSocket2.emit.mockClear();
+            testStateService.fetchUsernames.mockClear();
+            
+            // Remove user1 and update usernames
+            await testStateService.removeUserFromNodeAndUpdateUsernames(userId1, nodeAddress);
+            
+            // Wait for any pending promises to resolve
+            await Promise.resolve();
+            await Promise.resolve();
+            
+            // Verify node users set is returned
+            const nodeUsers = testStateService.getUsersInNode(nodeAddress);
+            expect(nodeUsers.size).toBe(1);
+            expect(nodeUsers.has(userId1)).toBe(false);
+            expect(nodeUsers.has(userId2)).toBe(true);
+            
+            // Verify updateNodeUsernames was called with remaining user
+            expect(testStateService.fetchUsernames).toHaveBeenCalledWith([userId2]);
+            expect(testStateService.nodeUsernames.get(nodeAddress)).toEqual(['Avatar2']);
+            
+            // Only user2's socket should receive the update since user1 was removed from the node
+            expect(mockSocket1.emit).not.toHaveBeenCalled();
+            expect(mockSocket2.emit).toHaveBeenCalledWith('users update', ['Avatar2']);
+        });
+
+        test('should handle removing last user from node and update usernames', async () => {
+            const userId = 'user123';
+            const nodeAddress = 'node1';
+            const mockSocket = { emit: jest.fn() };
+            
+            // Setup mock for fetchUsernames
+            testStateService.fetchUsernames = jest.fn().mockResolvedValue(['Avatar1']);
+            
+            // Setup client socket
+            testStateService.clients.set(userId, mockSocket);
+            
+            // Add user to the node
+            await testStateService.addUserToNodeAndUpdateUsernames(userId, nodeAddress);
+            
+            // Clear the mock calls from setup
+            mockSocket.emit.mockClear();
+            testStateService.fetchUsernames.mockClear();
+            
+            // Remove the last user
+            const result = await testStateService.removeUserFromNodeAndUpdateUsernames(userId, nodeAddress);
+            
+            // Verify node is completely removed
+            expect(result).toBeNull();
+            expect(testStateService.nodeClients.has(nodeAddress)).toBe(false);
+            expect(testStateService.nodeUsernames.has(nodeAddress)).toBe(false);
+            
+            // Verify fetchUsernames was not called since node was removed
+            expect(testStateService.fetchUsernames).not.toHaveBeenCalled();
+            expect(mockSocket.emit).not.toHaveBeenCalled();
+        });
+
+        test('should handle removing user from non-existent node when updating usernames', async () => {
+            const userId = 'user123';
+            const nodeAddress = 'nonExistentNode';
+            const mockSocket = { emit: jest.fn() };
+            
+            // Setup mock for fetchUsernames
+            testStateService.fetchUsernames = jest.fn();
+            
+            // Setup client socket
+            testStateService.clients.set(userId, mockSocket);
+            
+            const result = await testStateService.removeUserFromNodeAndUpdateUsernames(userId, nodeAddress);
+            
+            // Verify null is returned for non-existent node
+            expect(result).toBeNull();
+            
+            // Verify no username updates were attempted
+            expect(testStateService.fetchUsernames).not.toHaveBeenCalled();
+            expect(mockSocket.emit).not.toHaveBeenCalled();
+        });
+
+        it('should remove user from previous node when moving to new node', async () => {
+            // Setup initial state
+            const user1 = 'user1';
+            const socket1 = { id: 'socket1' };
+            const node1 = '122.124.10.10';
+            const node2 = '122.124.10.11';
+            
+            stateService.addClient(user1, socket1);
+            
+            // Add user to first node
+            stateService.addUserToNode(user1, node1);
+            expect(stateService.getUsersInNode(node1).has(user1)).toBe(true);
+            expect(stateService.getUsersInNode(node2).has(user1)).toBe(false);
+            
+            // Move user to second node
+            stateService.addUserToNode(user1, node2);
+            
+            // Verify user is only in the second node
+            expect(stateService.getUsersInNode(node1).has(user1)).toBe(false);
+            expect(stateService.getUsersInNode(node2).has(user1)).toBe(true);
+            
+            // Verify first node is cleaned up if empty
+            expect(stateService.nodeClients.has(node1)).toBe(false);
+            expect(stateService.nodeUsernames.has(node1)).toBe(false);
+        });
+
+        it('should correctly update usernames when user moves between nodes', async () => {
+            // Setup initial state
+            const user1 = 'user1';
+            const user2 = 'user2';
+            const socket1 = { id: 'socket1', emit: jest.fn() };
+            const socket2 = { id: 'socket2', emit: jest.fn() };
+            const node1 = '122.124.10.10';
+            const node2 = '122.124.10.11';
+            
+            // Mock fetchUsernames to return different values based on the users present
+            stateService.fetchUsernames = jest.fn()
+                .mockImplementation(async (userIds) => {
+                    return userIds.map(id => id === 'user1' ? 'User One' : 'User Two');
+                });
+            
+            // Add both users and their sockets
+            stateService.addClient(user1, socket1);
+            stateService.addClient(user2, socket2);
+            
+            // Initially put both users in node2
+            await stateService.addUserToNodeAndUpdateUsernames(user2, node2);
+            await stateService.addUserToNodeAndUpdateUsernames(user1, node2);
+            
+            // Verify both users see both usernames in node2 (sorted alphabetically)
+            expect(socket1.emit).toHaveBeenLastCalledWith('users update', ['User One', 'User Two']);
+            expect(socket2.emit).toHaveBeenLastCalledWith('users update', ['User One', 'User Two']);
+            
+            // Clear the mock call history
+            socket1.emit.mockClear();
+            socket2.emit.mockClear();
+            
+            // Move user1 to node1
+            await stateService.removeUserFromNodeAndUpdateUsernames(user1, node2);
+            await stateService.addUserToNodeAndUpdateUsernames(user1, node1);
+            
+            // Verify user1 sees only themselves in node1
+            expect(socket1.emit).toHaveBeenLastCalledWith('users update', ['User One']);
+            
+            // Verify user2 sees only themselves in node2
+            expect(socket2.emit).toHaveBeenLastCalledWith('users update', ['User Two']);
+            
+            // Verify the internal state
+            expect(Array.from(stateService.getUsersInNode(node1))).toEqual([user1]);
+            expect(Array.from(stateService.getUsersInNode(node2))).toEqual([user2]);
+        });
+
+        it('should maintain consistent username lists during user movement between nodes', async () => {
+            // Setup initial state
+            const user1 = 'user1';
+            const user2 = 'user2';
+            const socket1 = { id: 'socket1', emit: jest.fn() };
+            const socket2 = { id: 'socket2', emit: jest.fn() };
+            const node1 = '122.124.10.10';
+            const node2 = '122.124.10.11';
+            
+            // Mock fetchUsernames to return different values based on the users present
+            stateService.fetchUsernames = jest.fn()
+                .mockImplementation(async (userIds) => {
+                    return userIds.map(id => id === 'user1' ? 'User One' : 'User Two').sort();
+                });
+            
+            // Add both users and their sockets
+            stateService.addClient(user1, socket1);
+            stateService.addClient(user2, socket2);
+            
+            // Initially put both users in node1
+            await stateService.addUserToNodeAndUpdateUsernames(user1, node1);
+            await stateService.addUserToNodeAndUpdateUsernames(user2, node1);
+            
+            // Clear the mock call history
+            socket1.emit.mockClear();
+            socket2.emit.mockClear();
+            
+            // Move user1 to node2
+            await stateService.moveUserToNode(user1, node2);
+            
+            // Get all emitted updates for each socket
+            const socket1Updates = socket1.emit.mock.calls
+                .filter(call => call[0] === 'users update')
+                .map(call => call[1]);
+            const socket2Updates = socket2.emit.mock.calls
+                .filter(call => call[0] === 'users update')
+                .map(call => call[1]);
+            
+            // Verify that user1 never saw an inconsistent state during the move
+            socket1Updates.forEach(update => {
+                // User1 should either see both users in node1 or just themselves in node2
+                expect(update).toEqual(
+                    update.length === 2 
+                        ? ['User One', 'User Two']  // Initial state in node1
+                        : ['User One']              // Final state in node2
+                );
+            });
+            
+            // Verify that user2 never saw an inconsistent state
+            socket2Updates.forEach(update => {
+                // User2 should either see both users or just themselves
+                expect(update).toEqual(
+                    update.length === 2 
+                        ? ['User One', 'User Two']  // Initial state
+                        : ['User Two']              // Final state after user1 leaves
+                );
+            });
+            
+            // Verify final state
+            expect(Array.from(stateService.getUsersInNode(node1))).toEqual([user2]);
+            expect(Array.from(stateService.getUsersInNode(node2))).toEqual([user1]);
+            expect(stateService.nodeUsernames.get(node1)).toEqual(['User Two']);
+            expect(stateService.nodeUsernames.get(node2)).toEqual(['User One']);
+        });
     });
 
     describe('Username Management', () => {

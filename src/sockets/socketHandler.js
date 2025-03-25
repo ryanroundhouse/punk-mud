@@ -68,7 +68,8 @@ function socketHandler(io) {
             try {
                 const user = await User.findById(socket.user.userId);
                 if (user && user.currentNode) {
-                    stateService.removeUserFromNode(socket.user.userId, user.currentNode);
+                    // Remove user from node and unsubscribe from chat
+                    await stateService.removeUserFromNodeAndUpdateUsernames(socket.user.userId, user.currentNode);
                     await socketService.unsubscribeFromNodeChat(user.currentNode);
                 }
                 stateService.removeClient(socket.user.userId);

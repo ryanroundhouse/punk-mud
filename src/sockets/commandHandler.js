@@ -87,7 +87,7 @@ async function handleCommand(socket, data) {
                             
                             // Handle node subscriptions
                             if (oldNode) {
-                                stateService.removeUserFromNode(socket.user.userId, oldNode);
+                                await stateService.removeUserFromNodeAndUpdateUsernames(socket.user.userId, oldNode);
                                 await socketService.unsubscribeFromNodeChat(oldNode);
                             }
                             await stateService.addUserToNodeAndUpdateUsernames(socket.user.userId, targetNode.address);
@@ -143,7 +143,7 @@ async function handleCommand(socket, data) {
                     };
                     
                     if (oldNode) {
-                        stateService.removeUserFromNode(socket.user.userId, oldNode);
+                        await stateService.removeUserFromNodeAndUpdateUsernames(socket.user.userId, oldNode);
                         await socketService.unsubscribeFromNodeChat(oldNode);
                     }
                     
@@ -298,9 +298,6 @@ async function handleListCommand(socket, user, target) {
         hasMob: stateService.playerMobs.has(user._id.toString()),
         mobDetails: stateService.playerMobs.get(user._id.toString())
     });
-
-    // Ensure node usernames are up to date before proceeding
-    await stateService.ensureNodeUsernamesUpdated(user.currentNode);
     
     const nodeUsers = stateService.nodeUsernames.get(user.currentNode) || [];
     const actors = await actorService.getActorsInLocation(user.currentNode, user._id.toString());

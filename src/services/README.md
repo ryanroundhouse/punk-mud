@@ -92,5 +92,5 @@ stateService.clearActiveEvent(userId);
 // Other state management
 stateService.setUserCombatState(userId, combatState);
 stateService.addClient(userId, socket);
-stateService.addUserToNode(userId, nodeAddress);
+await stateService.addUserToNodeAndUpdateUsernames(userId, nodeAddress);
 ``` 

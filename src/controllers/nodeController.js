@@ -248,8 +248,8 @@ async function getCurrentNode(req, res) {
 
         // Handle node change
         if (user.currentNode) {
-            // Remove from old node and unsubscribe
-            stateService.removeUserFromNode(user._id.toString(), user.currentNode);
+            // Remove user from old node
+            await stateService.removeUserFromNodeAndUpdateUsernames(user._id.toString(), user.currentNode);
             await socketService.unsubscribeFromNodeChat(user.currentNode);
             
             // Add to new node and subscribe

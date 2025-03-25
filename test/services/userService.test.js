@@ -190,7 +190,7 @@ describe('UserService', () => {
             expect(userToKill.save).toHaveBeenCalled();
             
             // Check services were called correctly
-            expect(mockDeps.stateService.removeUserFromNode).toHaveBeenCalledWith('user123', 'oldNode123');
+            expect(mockDeps.stateService.removeUserFromNodeAndUpdateUsernames).toHaveBeenCalledWith('user123', 'oldNode123');
             expect(mockDeps.socketService.unsubscribeFromNodeChat).toHaveBeenCalledWith('oldNode123');
             expect(mockDeps.stateService.addUserToNodeAndUpdateUsernames).toHaveBeenCalledWith('user123', '122.124.10.10');
             expect(mockDeps.socketService.subscribeToNodeChat).toHaveBeenCalledWith('122.124.10.10');
@@ -377,7 +377,7 @@ describe('UserService', () => {
             expect(userToMove.save).toHaveBeenCalled();
             
             // Check services were called correctly
-            expect(mockDeps.stateService.removeUserFromNode).toHaveBeenCalledWith('user123', 'oldNode123');
+            expect(mockDeps.stateService.removeUserFromNodeAndUpdateUsernames).toHaveBeenCalledWith('user123', 'oldNode123');
             expect(mockDeps.stateService.addUserToNodeAndUpdateUsernames).toHaveBeenCalledWith('user123', 'newNode456');
             
             // Check messages were published

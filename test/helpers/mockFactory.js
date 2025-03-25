@@ -106,14 +106,34 @@ const createMockClassModel = () => {
 
 const createMockStateService = () => {
     return {
+        addClient: jest.fn(),
+        removeClient: jest.fn(),
         addUserToNode: jest.fn(),
         removeUserFromNode: jest.fn(),
+        getUsersInNode: jest.fn(),
+        updateNodeUsernames: jest.fn(),
+        setUserCombatState: jest.fn(),
+        getUserCombatState: jest.fn(),
         clearUserCombatState: jest.fn(),
-        clearCombatDelay: jest.fn(),
+        isUserInCombat: jest.fn(),
+        addCombatantEffect: jest.fn(),
+        getCombatantEffects: jest.fn(),
+        updateCombatantEffects: jest.fn(),
         clearCombatantEffects: jest.fn(),
-        getUserCombatState: jest.fn().mockReturnValue(null),
-        addUserToNodeAndUpdateUsernames: jest.fn().mockResolvedValue(new Set(['user123'])),
-        ensureNodeUsernamesUpdated: jest.fn().mockResolvedValue(['TestUser'])
+        setCombatDelay: jest.fn(),
+        getCombatDelay: jest.fn(),
+        clearCombatDelay: jest.fn(),
+        processDelays: jest.fn(),
+        setPlayerMob: jest.fn(),
+        getPlayerMob: jest.fn(),
+        clearPlayerMob: jest.fn(),
+        hasPlayerMob: jest.fn(),
+        setActiveEvent: jest.fn(),
+        getActiveEvent: jest.fn(),
+        clearActiveEvent: jest.fn(),
+        isInEvent: jest.fn(),
+        addUserToNodeAndUpdateUsernames: jest.fn(),
+        removeUserFromNodeAndUpdateUsernames: jest.fn()
     };
 };
 
