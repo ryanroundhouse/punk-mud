@@ -41,6 +41,9 @@ function socketHandler(io) {
                 // Subscribe to node's chat channel
                 await socketService.subscribeToNodeChat(user.currentNode);
                 
+                // Send connection message
+                await socketService.handleConnect(socket.user.userId, user.currentNode, user.avatarName);
+                
                 // Check for mob spawn on connection
                 await nodeService.getNodeEvent(socket.user.userId, user.currentNode);
 
@@ -67,9 +70,34 @@ function socketHandler(io) {
             
             try {
                 const user = await User.findById(socket.user.userId);
+                logger.debug('Found user for disconnect:', {
+                    userId: socket.user.userId,
+                    hasUser: !!user,
+                    currentNode: user?.currentNode,
+                    avatarName: user?.avatarName
+                });
+                
                 if (user && user.currentNode) {
-                    // Remove user from node and unsubscribe from chat
+                    // First remove user from node and update usernames
+                    logger.debug('Removing user from node:', {
+                        userId: socket.user.userId,
+                        nodeAddress: user.currentNode
+                    });
                     await stateService.removeUserFromNodeAndUpdateUsernames(socket.user.userId, user.currentNode);
+                    
+                    // Then send disconnection message to remaining users
+                    logger.debug('Sending disconnect message:', {
+                        userId: socket.user.userId,
+                        nodeAddress: user.currentNode,
+                        avatarName: user.avatarName
+                    });
+                    await socketService.handleDisconnect(socket.user.userId, user.currentNode, user.avatarName);
+                    
+                    // Finally unsubscribe from chat
+                    logger.debug('Unsubscribing from chat:', {
+                        userId: socket.user.userId,
+                        nodeAddress: user.currentNode
+                    });
                     await socketService.unsubscribeFromNodeChat(user.currentNode);
                 }
                 stateService.removeClient(socket.user.userId);

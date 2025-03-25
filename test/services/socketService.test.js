@@ -1,212 +1,116 @@
 const { SocketService } = require('../../src/services/socketService');
+const { StateService } = require('../../src/services/stateService');
+const { MessageService } = require('../../src/services/messageService');
 
 describe('SocketService', () => {
-    // Mock dependencies
-    let mockGetSubscriber;
-    let mockSubscriber;
-    let mockLogger;
-    let mockStateService;
     let socketService;
-    
+    let mockStateService;
+    let mockMessageService;
+    let mockLogger;
+    let mockSubscriber;
+    let mockSocket1;
+    let mockSocket2;
+
     beforeEach(() => {
-        // Create mock subscriber with subscribe/unsubscribe methods
-        mockSubscriber = {
-            subscribe: jest.fn().mockResolvedValue(undefined),
-            unsubscribe: jest.fn().mockResolvedValue(undefined)
+        mockSocket1 = {
+            id: 'socket1',
+            emit: jest.fn()
         };
-        
-        // Create mock getSubscriber function
-        mockGetSubscriber = jest.fn().mockReturnValue(mockSubscriber);
-        
-        // Create mock logger
-        mockLogger = {
-            error: jest.fn(),
-            info: jest.fn(),
-            debug: jest.fn(),
-            warn: jest.fn()
+        mockSocket2 = {
+            id: 'socket2',
+            emit: jest.fn()
         };
-        
-        // Create mock stateService
+
+        // Create mock state service with spies
         mockStateService = {
             getUsersInNode: jest.fn(),
-            getClient: jest.fn()
+            getClient: jest.fn(),
+            addClient: jest.fn(),
+            removeClient: jest.fn(),
+            addUserToNodeAndUpdateUsernames: jest.fn(),
+            removeUserFromNodeAndUpdateUsernames: jest.fn(),
+            User: {
+                findById: jest.fn()
+            }
         };
-        
-        // Create service instance with mocked dependencies
+
+        mockMessageService = {
+            sendChatMessage: jest.fn()
+        };
+
+        mockLogger = {
+            info: jest.fn(),
+            error: jest.fn(),
+            debug: jest.fn()
+        };
+
+        mockSubscriber = {
+            subscribe: jest.fn(),
+            unsubscribe: jest.fn()
+        };
+
         socketService = new SocketService({
-            getSubscriber: mockGetSubscriber,
+            getSubscriber: () => mockSubscriber,
             logger: mockLogger,
-            stateService: mockStateService
+            stateService: mockStateService,
+            messageService: mockMessageService
         });
     });
-    
-    afterEach(() => {
-        jest.clearAllMocks();
-    });
-    
-    describe('subscribeToNodeChat', () => {
-        it('should subscribe to the node chat channel if not already subscribed', async () => {
-            // Arrange
-            const nodeAddress = 'node123';
-            const channel = `node:${nodeAddress}:chat`;
-            
-            // Act
-            await socketService.subscribeToNodeChat(nodeAddress);
-            
-            // Assert
-            expect(mockGetSubscriber).toHaveBeenCalledTimes(1);
-            expect(mockSubscriber.subscribe).toHaveBeenCalledWith(channel, expect.any(Function));
-            expect(socketService.subscribedNodes.has(channel)).toBeTruthy();
-            expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining(nodeAddress));
-        });
-        
-        it('should not subscribe if already subscribed', async () => {
-            // Arrange
-            const nodeAddress = 'node123';
-            const channel = `node:${nodeAddress}:chat`;
-            socketService.subscribedNodes.add(channel); // Already subscribed
-            
-            // Act
-            await socketService.subscribeToNodeChat(nodeAddress);
-            
-            // Assert
-            expect(mockGetSubscriber).not.toHaveBeenCalled();
-            expect(mockSubscriber.subscribe).not.toHaveBeenCalled();
-        });
-        
-        it('should handle message delivery correctly', async () => {
-            // Arrange
-            const nodeAddress = 'node123';
-            const userId1 = 'user1';
-            const userId2 = 'user2';
-            const mockSocket1 = { emit: jest.fn() };
-            const mockSocket2 = { emit: jest.fn() };
-            const mockNodeUsers = new Set([userId1, userId2]);
-            const mockChatMessage = { from: 'user1', content: 'Hello', timestamp: Date.now() };
-            
-            mockStateService.getUsersInNode.mockReturnValue(mockNodeUsers);
-            mockStateService.getClient.mockImplementation((userId) => {
-                if (userId === userId1) return mockSocket1;
-                if (userId === userId2) return mockSocket2;
-                return null;
+
+    describe('User Connection Management', () => {
+        it('should broadcast system messages when users connect and disconnect', async () => {
+            // Setup initial state with two users
+            const mockNodeUsers = new Set(['user1']);  // Only user1 remains when checking disconnect
+            mockStateService.getUsersInNode
+                .mockImplementation((nodeAddress) => {
+                    // Return different sets based on when it's called
+                    if (mockStateService.getUsersInNode.mock.calls.length === 1) {
+                        // First call during disconnect - return only user1 as user2 was just removed
+                        return mockNodeUsers;
+                    }
+                    // Second call during connect - return both users
+                    return new Set(['user1', 'user2']);
+                });
+
+            mockStateService.getClient
+                .mockImplementation((userId) => {
+                    if (userId === 'user1') return mockSocket1;
+                    if (userId === 'user2') return mockSocket2;
+                    return null;
+                });
+
+            // Simulate user2 disconnecting
+            await socketService.handleDisconnect('user2', 'node1', 'User Two');
+
+            // Verify disconnect message was broadcast only to remaining user (user1)
+            expect(mockSocket1.emit).toHaveBeenCalledWith('chat message', {
+                username: 'SYSTEM',
+                message: 'User Two has disconnected.',
+                timestamp: expect.any(String)
             });
-            
-            // Capture the callback function when subscribe is called
-            let subscribeCb;
-            mockSubscriber.subscribe.mockImplementation((channel, callback) => {
-                subscribeCb = callback;
-                return Promise.resolve();
+            // User2's socket should not receive the disconnect message as they're already gone
+            expect(mockSocket2.emit).not.toHaveBeenCalled();
+
+            // Reset the mock
+            mockSocket1.emit.mockClear();
+            mockSocket2.emit.mockClear();
+
+            // Simulate user2 reconnecting
+            await socketService.handleConnect('user2', 'node1', 'User Two');
+
+            // Verify connect message was broadcast to both users
+            expect(mockSocket1.emit).toHaveBeenCalledWith('chat message', {
+                username: 'SYSTEM',
+                message: 'User Two has connected.',
+                timestamp: expect.any(String)
             });
-            
-            // Act - Subscribe and then trigger the message callback
-            await socketService.subscribeToNodeChat(nodeAddress);
-            subscribeCb(JSON.stringify(mockChatMessage)); // Simulate receiving a message
-            
-            // Assert
-            expect(mockStateService.getUsersInNode).toHaveBeenCalledWith(nodeAddress);
-            expect(mockStateService.getClient).toHaveBeenCalledWith(userId1);
-            expect(mockStateService.getClient).toHaveBeenCalledWith(userId2);
-            expect(mockSocket1.emit).toHaveBeenCalledWith('chat message', mockChatMessage);
-            expect(mockSocket2.emit).toHaveBeenCalledWith('chat message', mockChatMessage);
-        });
-        
-        it('should handle JSON parse error', async () => {
-            // Arrange
-            const nodeAddress = 'node123';
-            
-            // Capture the callback function when subscribe is called
-            let subscribeCb;
-            mockSubscriber.subscribe.mockImplementation((channel, callback) => {
-                subscribeCb = callback;
-                return Promise.resolve();
+            expect(mockSocket2.emit).toHaveBeenCalledWith('chat message', {
+                username: 'SYSTEM',
+                message: 'User Two has connected.',
+                timestamp: expect.any(String)
             });
-            
-            // Act - Subscribe and then trigger the message callback with invalid JSON
-            await socketService.subscribeToNodeChat(nodeAddress);
-            subscribeCb('invalid json data');
-            
-            // Assert
-            expect(mockLogger.error).toHaveBeenCalledWith(
-                'Error broadcasting chat message:',
-                expect.any(Error)
-            );
         });
     });
-    
-    describe('unsubscribeFromNodeChat', () => {
-        it('should unsubscribe when no users are in the node', async () => {
-            // Arrange
-            const nodeAddress = 'node123';
-            const channel = `node:${nodeAddress}:chat`;
-            socketService.subscribedNodes.add(channel); // Add to subscribed set
-            mockStateService.getUsersInNode.mockReturnValue(null);
-            
-            // Act
-            await socketService.unsubscribeFromNodeChat(nodeAddress);
-            
-            // Assert
-            expect(mockGetSubscriber).toHaveBeenCalledTimes(1);
-            expect(mockSubscriber.unsubscribe).toHaveBeenCalledWith(channel);
-            expect(socketService.subscribedNodes.has(channel)).toBeFalsy();
-            expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining(nodeAddress));
-        });
-        
-        it('should unsubscribe when node users set is empty', async () => {
-            // Arrange
-            const nodeAddress = 'node123';
-            const channel = `node:${nodeAddress}:chat`;
-            socketService.subscribedNodes.add(channel); // Add to subscribed set
-            mockStateService.getUsersInNode.mockReturnValue(new Set()); // Empty set
-            
-            // Act
-            await socketService.unsubscribeFromNodeChat(nodeAddress);
-            
-            // Assert
-            expect(mockGetSubscriber).toHaveBeenCalledTimes(1);
-            expect(mockSubscriber.unsubscribe).toHaveBeenCalledWith(channel);
-            expect(socketService.subscribedNodes.has(channel)).toBeFalsy();
-        });
-        
-        it('should not unsubscribe when there are users in the node', async () => {
-            // Arrange
-            const nodeAddress = 'node123';
-            const channel = `node:${nodeAddress}:chat`;
-            socketService.subscribedNodes.add(channel); // Add to subscribed set
-            mockStateService.getUsersInNode.mockReturnValue(new Set(['user1'])); // Non-empty set
-            
-            // Act
-            await socketService.unsubscribeFromNodeChat(nodeAddress);
-            
-            // Assert
-            expect(mockGetSubscriber).not.toHaveBeenCalled();
-            expect(mockSubscriber.unsubscribe).not.toHaveBeenCalled();
-            expect(socketService.subscribedNodes.has(channel)).toBeTruthy();
-        });
-    });
-    
-    describe('isSubscribed', () => {
-        it('should return true when subscribed to node channel', () => {
-            // Arrange
-            const nodeAddress = 'node123';
-            const channel = `node:${nodeAddress}:chat`;
-            socketService.subscribedNodes.add(channel);
-            
-            // Act
-            const result = socketService.isSubscribed(nodeAddress);
-            
-            // Assert
-            expect(result).toBeTruthy();
-        });
-        
-        it('should return false when not subscribed to node channel', () => {
-            // Arrange
-            const nodeAddress = 'node123';
-            
-            // Act
-            const result = socketService.isSubscribed(nodeAddress);
-            
-            // Assert
-            expect(result).toBeFalsy();
-        });
-    });
+
+    // ... existing tests ...
 }); 

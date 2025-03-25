@@ -1,6 +1,7 @@
 const { getSubscriber } = require('../config/redis');
 const logger = require('../config/logger');
 const stateService = require('./stateService');
+const messageService = require('./messageService');
 
 class SocketService {
     /**
@@ -9,11 +10,13 @@ class SocketService {
      * @param {Function} dependencies.getSubscriber - Function to get Redis subscriber
      * @param {Object} dependencies.logger - Logger instance
      * @param {Object} dependencies.stateService - StateService instance
+     * @param {Object} dependencies.messageService - MessageService instance
      */
     constructor(dependencies = {}) {
         this.getSubscriber = dependencies.getSubscriber || getSubscriber;
         this.logger = dependencies.logger || logger;
         this.stateService = dependencies.stateService || stateService;
+        this.messageService = dependencies.messageService || messageService;
         this.subscribedNodes = new Set();
     }
 
@@ -76,6 +79,71 @@ class SocketService {
      */
     isSubscribed(nodeAddress) {
         return this.subscribedNodes.has(`node:${nodeAddress}:chat`);
+    }
+
+    async handleConnect(userId, nodeAddress, username) {
+        try {
+            // Get all users in the node
+            const nodeUsers = this.stateService.getUsersInNode(nodeAddress);
+            if (!nodeUsers) return;
+
+            // Broadcast connection message to all users in the node
+            nodeUsers.forEach(receiverId => {
+                const socket = this.stateService.getClient(receiverId);
+                if (socket) {
+                    socket.emit('chat message', {
+                        username: 'SYSTEM',
+                        message: `${username} has connected.`,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            });
+        } catch (error) {
+            this.logger.error('Error handling user connection:', error);
+        }
+    }
+
+    async handleDisconnect(userId, nodeAddress, username) {
+        try {
+            this.logger.debug('Handling disconnect:', { userId, nodeAddress, username });
+            
+            // Get all users in the node
+            const nodeUsers = this.stateService.getUsersInNode(nodeAddress);
+            this.logger.debug('Retrieved node users for disconnect:', { 
+                nodeAddress, 
+                hasUsers: !!nodeUsers,
+                userCount: nodeUsers?.size,
+                users: nodeUsers ? Array.from(nodeUsers) : []
+            });
+            
+            if (!nodeUsers) return;
+
+            // Broadcast disconnection message to all users in the node
+            nodeUsers.forEach(receiverId => {
+                const socket = this.stateService.getClient(receiverId);
+                this.logger.debug('Attempting to send disconnect message to user:', {
+                    receiverId,
+                    hasSocket: !!socket,
+                    socketId: socket?.id
+                });
+                
+                if (socket) {
+                    const message = {
+                        username: 'SYSTEM',
+                        message: `${username} has disconnected.`,
+                        timestamp: new Date().toISOString()
+                    };
+                    socket.emit('chat message', message);
+                    this.logger.debug('Sent disconnect message:', { 
+                        receiverId, 
+                        socketId: socket.id,
+                        message 
+                    });
+                }
+            });
+        } catch (error) {
+            this.logger.error('Error handling user disconnection:', error);
+        }
     }
 }
 

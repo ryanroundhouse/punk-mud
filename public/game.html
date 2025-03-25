@@ -1068,16 +1068,28 @@
             });
 
             socket.on('chat message', (data) => {
-                // Skip system disconnect messages
-                if (data.username === 'SYSTEM' && data.message.includes('has disconnected')) {
+                console.log('Received chat message:', {
+                    timestamp: new Date().toISOString(),
+                    data,
+                    currentUsername
+                });
+                
+                // Skip system messages about mobs appearing
+                if (data.username === 'SYSTEM' && data.message.match(/^A .+ appears!$/)) {
+                    console.log('Skipping mob appear message');
                     return;
                 }
+                
                 addChatMessage(data.username, data.message, new Date(data.timestamp));
+                console.log('Added chat message to display');
+                
                 // Store the message
                 storeChatMessage(data);
+                console.log('Stored chat message');
                 
                 // Check if this is a system message about an enemy appearing
                 if (data.username === 'SYSTEM' && data.message.match(/A .+ appears!/)) {
+                    console.log('Handling mob appear message UI update');
                     // Update the node image border to red
                     const nodeImage = document.getElementById('nodeImage');
                     if (nodeImage && nodeImage.style.display !== 'none') {
