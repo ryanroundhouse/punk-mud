@@ -1017,6 +1017,11 @@
                 return;
             }
 
+            // Skip connection/disconnection messages
+            if (message.match(/^.+ has (connected|disconnected)$/)) {
+                return;
+            }
+
             const messageDiv = document.createElement('div');
             messageDiv.className = 'chat-message';
             
