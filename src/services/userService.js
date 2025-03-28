@@ -243,6 +243,13 @@ flee.............Attempt to escape combat
 
             await user.save();
 
+            // Send player status update to update health/energy bars
+            // This should be sent after the user is saved and regardless of suppressMessage
+            this.messageService.sendPlayerStatusMessage(
+                userId,
+                `HP: ${user.stats.currentHitpoints}/${user.stats.hitpoints} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
+            );
+
             // Add additional information to the result
             result.experienceGained = amount;
             result.totalExperience = user.stats.experience;

@@ -270,6 +270,12 @@ describe('UserService', () => {
             
             // Check message was sent
             expect(mockDeps.messageService.sendSuccessMessage).toHaveBeenCalled();
+
+            // Check player status update was sent with new HP values
+            expect(mockDeps.messageService.sendPlayerStatusMessage).toHaveBeenCalledWith(
+                'user123',
+                `HP: ${userAboutToLevelUp.stats.currentHitpoints}/${userAboutToLevelUp.stats.hitpoints} | Energy: ${userAboutToLevelUp.stats.currentEnergy}/${userAboutToLevelUp.stats.energy}`
+            );
         });
 
         it('should handle player death instead of awarding XP if player is dead', async () => {
