@@ -288,7 +288,7 @@
 
         async function loadNodes() {
             try {
-                const response = await fetch('/api/nodes', {
+                const response = await fetch('/api/nodes/public', {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
