@@ -16,7 +16,7 @@ async function addDefaultStats() {
         console.log(`Found ${users.length} users without stats`);
 
         const defaultStats = {
-            hitPoints: 100,
+            hitPoints: 20,
             armor: 0,
             body: 1,
             reflexes: 1,

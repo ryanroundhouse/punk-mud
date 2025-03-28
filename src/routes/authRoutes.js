@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { login, authenticate } = require('../controllers/authController');
 const { authenticateToken } = require('../middlewares/auth');
-const rateLimiterMiddleware = require('../middlewares/rateLimiter');
+const { rateLimiterMiddleware } = require('../middlewares/rateLimiter');
 
 // Authentication routes
 router.post('/login', rateLimiterMiddleware, login);
