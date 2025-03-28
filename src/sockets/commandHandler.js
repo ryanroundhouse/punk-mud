@@ -14,14 +14,15 @@ const messageService = require('../services/messageService');
 const HELP_TEXT = `
 Available Commands:
 ------------------
-ls................List all players and NPCs in current location
-ls <name>.........View details of player or NPC in current location
-chat <actor>......Talk to an NPC in current location
-quests............View your active quests and current hints
-fight <mob>.......Engage in combat with a mob
-rest..............Rest to restore health (only at rest points)
-map...............Open the world map view
-?.................Display this help message
+north|south|east|west.......Move north/south/east/west
+ls..........................List all players and NPCs in current location
+ls <name>...................View details of player or NPC in current location
+chat <actor>................Talk to an NPC in current location
+quests......................View your active quests and current hints
+fight <mob>.................Engage in combat with a mob
+rest........................Rest to restore health (only at rest points)
+map.........................Open the world map view
+?...........................Display this help message
 `.trim();
 
 async function handleCommand(socket, data) {
