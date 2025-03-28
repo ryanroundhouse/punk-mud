@@ -1018,7 +1018,7 @@
             }
 
             // Skip connection/disconnection messages
-            if (message.match(/^.+ has (connected|disconnected)$/)) {
+            if (username === 'SYSTEM' && message.match(/^.+ has (connected|disconnected)\.$/)) {
                 return;
             }
 
