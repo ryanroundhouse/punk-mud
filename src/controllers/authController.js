@@ -7,10 +7,18 @@ const logger = require('../config/logger');
 // Generate random 5-digit code
 const generateAuthCode = () => Math.floor(10000 + Math.random() * 90000).toString();
 
+// More strict email validation regex that prevents domains starting with dots
+const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/;
+
 async function login(req, res) {
     try {
         const { email } = req.body;
         logger.info(`Processing login for email: ${email}`);
+        
+        // Validate email format
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
         
         // Generate auth code
         const authCode = generateAuthCode();
