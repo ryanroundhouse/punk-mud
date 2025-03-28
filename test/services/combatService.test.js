@@ -50,7 +50,8 @@ const createMockDependencies = () => {
     // Create mock nodeService
     nodeService: {
       getNode: jest.fn().mockResolvedValue({ exits: [{ direction: 'north', target: 'node2' }] }),
-      getNodeByDirection: jest.fn().mockResolvedValue({ _id: 'node2' })
+      getNodeByDirection: jest.fn().mockResolvedValue({ _id: 'node2' }),
+      getNodeByAddress: jest.fn().mockResolvedValue({ exits: [{ direction: 'north', target: 'room2' }] })
     },
     // Create mock socketService
     socketService: {
@@ -1012,6 +1013,193 @@ describe('CombatService', () => {
       
       // Verify quest service was called to process quest updates
       expect(mockDeps.questService.handleMobKill).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('handleFleeCommand', () => {
+    beforeEach(() => {
+      // Reset all mocks before each test
+      jest.clearAllMocks();
+      // Set up default mock values
+      mockDeps.stateService.userCombatStates.get.mockReturnValue({ mobInstanceId: 'mob1' });
+      mockDeps.stateService.playerMobs.get.mockReturnValue(createTestMob());
+    });
+
+    it('should return an error when not in combat', async () => {
+      const user = createTestUser();
+      mockDeps.stateService.userCombatStates.get.mockReturnValueOnce(null);
+      
+      await combatService.handleFleeCommand(user);
+      
+      expect(mockDeps.messageService.sendErrorMessage).toHaveBeenCalledWith(
+        'user1',
+        'You are not in combat!'
+      );
+    });
+
+    it('should return an error when target is no longer available', async () => {
+      const user = createTestUser();
+      mockDeps.stateService.playerMobs.get.mockReturnValueOnce(null);
+      
+      await combatService.handleFleeCommand(user);
+      
+      expect(mockDeps.messageService.sendErrorMessage).toHaveBeenCalledWith(
+        'user1',
+        'Your target is no longer available.'
+      );
+      expect(mockDeps.stateService.userCombatStates.delete).toHaveBeenCalledWith('user1');
+    });
+
+    it('should handle successful flee attempt', async () => {
+      const user = createTestUser();
+      const mob = createTestMob();
+      const currentNode = {
+        exits: [{ direction: 'north', target: 'room2' }]
+      };
+      const targetNode = { address: 'room2', name: 'Target Room' };
+      
+      // Set up successful flee (random value < 0.5)
+      combatService.setMockRandomValues([0.4, 0.1]); // First for flee success, second for exit selection
+      
+      // Set up node data
+      mockDeps.nodeService.getNodeByAddress.mockResolvedValueOnce(currentNode);
+      mockDeps.nodeService.getNodeByDirection.mockResolvedValueOnce(targetNode);
+      
+      // Mock mob's attack result
+      const mockMobMove = { name: 'Slash', delay: 1 };
+      const mockMob = {
+        ...mob,
+        moves: [mockMobMove]
+      };
+      mockDeps.stateService.playerMobs.get.mockReturnValueOnce(mockMob);
+      
+      // Mock the calculateAttackResult for mob's attack
+      const mockAttackResult = { success: true, effects: [], damage: 5, message: 'The attack hits!' };
+      jest.spyOn(combatService, 'calculateAttackResult').mockReturnValueOnce(mockAttackResult);
+      
+      await combatService.handleFleeCommand(user);
+      
+      // Should clear combat state
+      expect(mockDeps.stateService.clearUserCombatState).toHaveBeenCalledWith('user1');
+      expect(mockDeps.mobService.clearUserMob).toHaveBeenCalledWith('user1');
+      
+      // Should move player to new node
+      expect(mockDeps.userService.moveUserToNode).toHaveBeenCalledWith(
+        'user1',
+        'north',
+        targetNode
+      );
+      
+      // Should send success message
+      expect(mockDeps.messageService.sendCombatMessage).toHaveBeenCalledWith(
+        'user1',
+        expect.stringContaining('You successfully flee from combat!')
+      );
+    });
+
+    it('should handle failed flee attempt', async () => {
+      const user = createTestUser();
+      const mob = createTestMob();
+      
+      // Set up failed flee (random value >= 0.5)
+      combatService.setMockRandomValues([0.9]); // Ensure flee fails
+      
+      // Mock mob's attack result
+      const mockMobMove = { name: 'Slash', delay: 1 };
+      const mockMob = {
+        ...mob,
+        moves: [mockMobMove]
+      };
+      mockDeps.stateService.playerMobs.get.mockReturnValueOnce(mockMob);
+      
+      // Mock the calculateAttackResult for mob's attack
+      const mockAttackResult = { success: true, effects: [], damage: 5, message: 'The attack hits!' };
+      jest.spyOn(combatService, 'calculateAttackResult').mockReturnValueOnce(mockAttackResult);
+      
+      await combatService.handleFleeCommand(user);
+      
+      // Should NOT clear combat state on failed flee
+      expect(mockDeps.stateService.clearUserCombatState).not.toHaveBeenCalled();
+      expect(mockDeps.mobService.clearUserMob).not.toHaveBeenCalled();
+      
+      // Should NOT move player
+      expect(mockDeps.userService.moveUserToNode).not.toHaveBeenCalled();
+      
+      // Should send failure message
+      expect(mockDeps.messageService.sendCombatMessage).toHaveBeenCalledWith(
+        'user1',
+        expect.stringContaining('You fail to escape!')
+      );
+    });
+
+    it('should handle mob attack during flee attempt', async () => {
+      const user = createTestUser();
+      const mob = createTestMob();
+      
+      // Set up the mob's attack
+      const mockMobMove = { name: 'Slash', delay: 1 };
+      mockDeps.stateService.playerMobs.get.mockReturnValueOnce({
+        ...mob,
+        moves: [mockMobMove]
+      });
+      
+      // Set up a successful attack from the mob
+      combatService.setMockRandomValues([0.8, 0.9, 0.1]); // High roll for mob attack, low for player defense
+      
+      // Mock the calculateAttackResult to return a specific damage value
+      const mockAttackResult = { success: true, effects: [], damage: 10, message: 'The attack hits!' };
+      jest.spyOn(combatService, 'calculateAttackResult').mockReturnValueOnce(mockAttackResult);
+      
+      await combatService.handleFleeCommand(user);
+      
+      // Should update player HP in database
+      expect(mockDeps.User.findByIdAndUpdate).toHaveBeenCalledWith(
+        'user1',
+        expect.objectContaining({
+          'stats.currentHitpoints': 90 // 100 - 10 damage
+        })
+      );
+      
+      // Should send HP status update
+      expect(mockDeps.messageService.sendPlayerStatusMessage).toHaveBeenCalled();
+    });
+
+    it('should return error when there are no exits to flee to', async () => {
+      const user = createTestUser();
+      const mob = createTestMob();
+      const currentNode = {
+        exits: [] // No exits available
+      };
+      
+      // Set up successful flee chance (but should fail due to no exits)
+      combatService.setMockRandomValues([0.1]); // Ensure flee attempt is successful
+      
+      // Set up node data
+      mockDeps.nodeService.getNodeByAddress.mockResolvedValueOnce(currentNode);
+      
+      // Mock mob's attack result
+      const mockMobMove = { name: 'Slash', delay: 1 };
+      const mockMob = {
+        ...mob,
+        moves: [mockMobMove]
+      };
+      mockDeps.stateService.playerMobs.get.mockReturnValueOnce(mockMob);
+      
+      // Mock the calculateAttackResult for mob's attack
+      const mockAttackResult = { success: true, effects: [], damage: 5, message: 'The attack hits!' };
+      jest.spyOn(combatService, 'calculateAttackResult').mockReturnValueOnce(mockAttackResult);
+      
+      await combatService.handleFleeCommand(user);
+      
+      expect(mockDeps.messageService.sendErrorMessage).toHaveBeenCalledWith(
+        'user1',
+        'There is nowhere to flee to!'
+      );
+      
+      // Should NOT clear combat state or move player
+      expect(mockDeps.stateService.clearUserCombatState).not.toHaveBeenCalled();
+      expect(mockDeps.mobService.clearUserMob).not.toHaveBeenCalled();
+      expect(mockDeps.userService.moveUserToNode).not.toHaveBeenCalled();
     });
   });
 }); 

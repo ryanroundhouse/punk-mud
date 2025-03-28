@@ -723,7 +723,7 @@ class CombatService {
                                 `${mobInstance.name}: ${mobCurrentHP} HP`;
     
             if (fleeSuccess) {
-                const currentNode = await this.nodeService.getNode(user.currentNode);
+                const currentNode = await this.nodeService.getNodeByAddress(user.currentNode);
                 const exits = currentNode.exits || [];
                 
                 if (exits.length === 0) {
