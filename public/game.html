@@ -1462,6 +1462,7 @@
                         });
                         break;
                     case 'chat':
+                    case 'c':
                         if (!targetName) {
                             socket.emit('console response', { 
                                 message: 'Usage: chat <actor or enemy name>' 
@@ -1475,6 +1476,7 @@
                         }
                         break;
                     case 'fight':
+                    case 'f':
                         if (!targetName) {
                             socket.emit('console response', {
                                 message: 'Usage: fight <mob name>'
@@ -1487,9 +1489,11 @@
                         });
                         break;
                     case 'quests':
+                    case 'q':
                         socket.emit('console command', { command: 'quests' });
                         break;
                     case '?':
+                    case 'help':
                         socket.emit('console command', { command: 'help' });
                         break;
                     case 'map':
