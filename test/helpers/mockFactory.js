@@ -150,7 +150,8 @@ const createMockMessageService = () => {
         sendConsoleResponse: jest.fn(),
         sendSuccessMessage: jest.fn(),
         sendErrorMessage: jest.fn(),
-        sendInfoMessage: jest.fn()
+        sendInfoMessage: jest.fn(),
+        sendPlayerStatusMessage: jest.fn()
     };
 };
 

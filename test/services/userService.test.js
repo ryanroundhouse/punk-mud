@@ -206,6 +206,12 @@ describe('UserService', () => {
                 type: 'player death',
                 newLocation: '122.124.10.10'
             });
+
+            // Check player status update was sent
+            expect(mockDeps.messageService.sendPlayerStatusMessage).toHaveBeenCalledWith(
+                'user123',
+                `HP: ${userToKill.stats.currentHitpoints}/${userToKill.stats.hitpoints} | Energy: ${userToKill.stats.currentEnergy}/${userToKill.stats.energy}`
+            );
         });
 
         it('should throw an error when user is not found', async () => {

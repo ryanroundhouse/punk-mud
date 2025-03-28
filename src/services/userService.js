@@ -123,6 +123,12 @@ flee.............Attempt to escape combat
                 newLocation: user.currentNode
             });
 
+            // Send player status update to update health/energy bars
+            this.messageService.sendPlayerStatusMessage(
+                userId,
+                `HP: ${user.stats.currentHitpoints}/${user.stats.hitpoints} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
+            );
+
             return {
                 success: true,
                 newLocation: user.currentNode,
