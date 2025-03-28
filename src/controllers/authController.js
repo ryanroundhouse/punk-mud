@@ -42,6 +42,10 @@ async function login(req, res) {
         try {
             await emailService.sendAuthCode(email, authCode);
             logger.info('Auth code email sent successfully');
+            // Reset rate limit on successful email send
+            if (res.resetRateLimit) {
+                res.resetRateLimit();
+            }
         } catch (emailError) {
             logger.error('Failed to send email:', emailError);
             throw new Error('Failed to send authentication code email');
@@ -93,6 +97,11 @@ async function authenticate(req, res) {
             JWT_SECRET,
             { expiresIn: '24h' }
         );
+
+        // Reset rate limit on successful authentication
+        if (res.resetRateLimit) {
+            res.resetRateLimit();
+        }
 
         res.json({ 
             message: 'Authentication successful',
