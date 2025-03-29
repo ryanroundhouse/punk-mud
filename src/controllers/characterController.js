@@ -40,8 +40,21 @@ async function registerAvatar(req, res) {
         const email = req.user.email;
         logger.info(`Registering avatar name "${avatarName}" for email: ${email}`);
 
-        // Check if avatar name is already taken
-        const existingAvatar = await User.findOne({ avatarName });
+        // Basic validation
+        if (!avatarName || avatarName.trim() === '') {
+            return res.status(400).json({ error: 'Avatar name is required' });
+        }
+
+        // Check if trying to use reserved name "SYSTEM" (case insensitive)
+        if (avatarName.toUpperCase() === 'SYSTEM') {
+            return res.status(400).json({ error: 'This avatar name is reserved' });
+        }
+
+        // Check if avatar name is already taken (case insensitive)
+        const existingAvatar = await User.findOne({ 
+            avatarName: { $regex: new RegExp(`^${avatarName}$`, 'i') } 
+        });
+        
         if (existingAvatar) {
             return res.status(400).json({ error: 'Avatar name already taken' });
         }
