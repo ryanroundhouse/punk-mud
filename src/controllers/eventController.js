@@ -2,6 +2,50 @@ const Event = require('../models/Event');
 const logger = require('../config/logger');
 const mongoose = require('mongoose');
 
+// Function to recursively add MongoDB ObjectIds to all nodes in the event tree
+function assignNodeIds(node) {
+    if (!node) return;
+    
+    // Assign an ID to this node if it doesn't have one
+    if (!node._id) {
+        node._id = new mongoose.Types.ObjectId();
+    } else if (typeof node._id === 'object' && node._id.$oid) {
+        // Convert $oid format to actual ObjectId
+        node._id = new mongoose.Types.ObjectId(node._id.$oid);
+    } else if (typeof node._id === 'string') {
+        // Convert string ID to ObjectId
+        node._id = new mongoose.Types.ObjectId(node._id);
+    }
+    
+    // Process choices
+    if (node.choices && Array.isArray(node.choices)) {
+        node.choices.forEach(choice => {
+            // Assign an ID to the choice if it doesn't have one
+            if (!choice._id) {
+                choice._id = new mongoose.Types.ObjectId();
+            } else if (typeof choice._id === 'object' && choice._id.$oid) {
+                // Convert $oid format to actual ObjectId
+                choice._id = new mongoose.Types.ObjectId(choice._id.$oid);
+            } else if (typeof choice._id === 'string') {
+                // Convert string ID to ObjectId
+                choice._id = new mongoose.Types.ObjectId(choice._id);
+            }
+            
+            // Process nextNode recursively
+            if (choice.nextNode) {
+                assignNodeIds(choice.nextNode);
+            }
+            
+            // Process failureNode for skill checks
+            if (choice.failureNode) {
+                assignNodeIds(choice.failureNode);
+            }
+        });
+    }
+    
+    return node;
+}
+
 async function getEvents(req, res) {
     try {
         const events = await Event.find()
@@ -72,6 +116,20 @@ async function validateNode(node) {
 
     if (!node.prompt) {
         return { valid: false, message: 'Node prompt is required' };
+    }
+
+    // Validate blockIfQuestEventIds if present
+    if (node.blockIfQuestEventIds) {
+        if (!Array.isArray(node.blockIfQuestEventIds)) {
+            return { valid: false, message: 'blockIfQuestEventIds must be an array' };
+        }
+        
+        // Ensure all IDs are strings
+        for (const id of node.blockIfQuestEventIds) {
+            if (typeof id !== 'string') {
+                return { valid: false, message: 'All quest event IDs in blockIfQuestEventIds must be strings' };
+            }
+        }
     }
 
     if (!Array.isArray(node.choices)) {
@@ -184,6 +242,9 @@ async function createOrUpdateEvent(req, res) {
             });
         }
 
+        // Ensure all nodes have proper IDs before saving
+        assignNodeIds(rootNode);
+        
         let event;
         if (_id) {
             // Update existing event

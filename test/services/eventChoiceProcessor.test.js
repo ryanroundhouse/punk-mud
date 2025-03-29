@@ -118,6 +118,84 @@ describe('EventChoiceProcessor', () => {
       expect(result[1].choice.text).toBe('Choice 3');
     });
     
+    it('should filter out choices with blockIfQuestEventIds that match user completed events', () => {
+      // Update mockUserData to include completedEventIds
+      const userWithCompletedEvents = {
+        ...mockUserData,
+        quests: [
+          { 
+            questId: 'existing-quest', 
+            completed: false,
+            completedEventIds: ['event1', 'event2', 'event3']
+          }
+        ]
+      };
+      
+      const choices = [
+        { text: 'Choice 1', nextNode: {} },
+        { text: 'Choice 2', nextNode: { blockIfQuestEventIds: ['event2', 'event5'] } },
+        { text: 'Choice 3', nextNode: { blockIfQuestEventIds: ['event7', 'event8'] } }
+      ];
+      
+      const result = processor.filterChoicesByRestrictions(choices, userWithCompletedEvents);
+      
+      expect(result).toHaveLength(2);
+      expect(result[0].choice.text).toBe('Choice 1');
+      expect(result[1].choice.text).toBe('Choice 3');
+    });
+    
+    it('should filter out choices with blockIfQuestEventIds that match user current events', () => {
+      // Update mockUserData to include currentEventId
+      const userWithCurrentEvent = {
+        ...mockUserData,
+        quests: [
+          { 
+            questId: 'existing-quest', 
+            completed: false,
+            completedEventIds: ['event1'],
+            currentEventId: 'event5'
+          }
+        ]
+      };
+      
+      const choices = [
+        { text: 'Choice 1', nextNode: {} },
+        { text: 'Choice 2', nextNode: { blockIfQuestEventIds: ['event2', 'event5'] } },
+        { text: 'Choice 3', nextNode: { blockIfQuestEventIds: ['event7', 'event8'] } }
+      ];
+      
+      const result = processor.filterChoicesByRestrictions(choices, userWithCurrentEvent);
+      
+      expect(result).toHaveLength(2);
+      expect(result[0].choice.text).toBe('Choice 1');
+      expect(result[1].choice.text).toBe('Choice 3');
+    });
+    
+    it('should keep choices with blockIfQuestEventIds that don\'t match user events', () => {
+      // Update mockUserData to include both completedEventIds and currentEventId
+      const userWithEvents = {
+        ...mockUserData,
+        quests: [
+          { 
+            questId: 'existing-quest', 
+            completed: false,
+            completedEventIds: ['event1', 'event2'],
+            currentEventId: 'event3'
+          }
+        ]
+      };
+      
+      const choices = [
+        { text: 'Choice 1', nextNode: {} },
+        { text: 'Choice 2', nextNode: { blockIfQuestEventIds: ['event4', 'event5'] } },
+        { text: 'Choice 3', nextNode: { blockIfQuestEventIds: ['event6'] } }
+      ];
+      
+      const result = processor.filterChoicesByRestrictions(choices, userWithEvents);
+      
+      expect(result).toHaveLength(3); // All choices should be kept
+    });
+    
     it('should filter out choices with noClass restriction when user has a class', () => {
       const choices = [
         { text: 'Choice 1', nextNode: {} },

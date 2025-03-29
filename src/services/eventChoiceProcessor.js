@@ -73,6 +73,30 @@ class EventChoiceProcessor {
       totalChoices: choices.length
     });
     
+    // Get the user's completed quest event IDs and current event IDs
+    const userCompletedQuestEventIds = [];
+    const userCurrentQuestEventIds = [];
+    
+    if (user.quests && Array.isArray(user.quests)) {
+      user.quests.forEach(userQuest => {
+        // Collect completed event IDs
+        if (userQuest.completedEventIds && Array.isArray(userQuest.completedEventIds)) {
+          userCompletedQuestEventIds.push(...userQuest.completedEventIds);
+        }
+        
+        // Collect current event ID if it exists
+        if (userQuest.currentEventId) {
+          userCurrentQuestEventIds.push(userQuest.currentEventId);
+        }
+      });
+    }
+    
+    this.logger.debug('User quest event IDs:', {
+      userId: user._id.toString(),
+      completedEventIds: userCompletedQuestEventIds,
+      currentEventIds: userCurrentQuestEventIds
+    });
+    
     return choices
       .map((choice, index) => ({ choice, originalIndex: index }))
       .filter(({ choice }) => {
@@ -82,6 +106,27 @@ class EventChoiceProcessor {
             userQuest.questId.toString() === choice.nextNode.activateQuestId.toString()
           );
           if (hasQuest) return false;
+        }
+        
+        // Check blockIfQuestEventIds - if user has completed or is on any of these events, block the choice
+        if (choice.nextNode?.blockIfQuestEventIds && choice.nextNode.blockIfQuestEventIds.length > 0) {
+          const hasBlockingEvent = choice.nextNode.blockIfQuestEventIds.some(eventId => 
+            userCompletedQuestEventIds.includes(eventId) || userCurrentQuestEventIds.includes(eventId)
+          );
+          
+          if (hasBlockingEvent) {
+            this.logger.debug('Choice blocked by blockIfQuestEventIds', {
+              userId: user._id.toString(),
+              blockingEventIds: choice.nextNode.blockIfQuestEventIds,
+              userCompletedEventIds: userCompletedQuestEventIds.filter(id => 
+                choice.nextNode.blockIfQuestEventIds.includes(id)
+              ),
+              userCurrentEventIds: userCurrentQuestEventIds.filter(id => 
+                choice.nextNode.blockIfQuestEventIds.includes(id)
+              )
+            });
+            return false;
+          }
         }
 
         // Check node restrictions
@@ -515,9 +560,6 @@ class EventChoiceProcessor {
 
       // Validate the next node structure
       if (clonedChoice.nextNode) {
-        // Ensure the next node has an ID and choices array
-        this.eventNodeService.ensureNodeHasId(clonedChoice.nextNode);
-        
         // Ensure node has a choices array
         if (!clonedChoice.nextNode.choices) {
           clonedChoice.nextNode.choices = [];
@@ -563,9 +605,6 @@ class EventChoiceProcessor {
           isEnd: true
         };
       }
-
-      // Ensure the next node has an ID
-      this.eventNodeService.ensureNodeHasId(clonedChoice.nextNode);
 
       // Update event state
       this.logger.debug('Updating event state with next node', {

@@ -145,6 +145,49 @@ class EventService {
     }
     
     isEventAvailable(event, user) {
+        // Check for blockIfQuestEventIds first - if any are completed, the event is blocked
+        if (event.rootNode.blockIfQuestEventIds && event.rootNode.blockIfQuestEventIds.length > 0) {
+            // Collect all completed quest event IDs from the user
+            const completedQuestEventIds = [];
+            const currentQuestEventIds = [];
+            
+            if (user.quests && Array.isArray(user.quests)) {
+                user.quests.forEach(userQuest => {
+                    // Add completed event IDs
+                    if (userQuest.completedEventIds && Array.isArray(userQuest.completedEventIds)) {
+                        completedQuestEventIds.push(...userQuest.completedEventIds);
+                    }
+                    
+                    // Add current event ID if it exists
+                    if (userQuest.currentEventId) {
+                        currentQuestEventIds.push(userQuest.currentEventId);
+                    }
+                });
+            }
+            
+            // Check if user has completed any of the blocking quest events
+            // or if user's current event ID matches any blocking quest event
+            const hasCompletedBlockingEvent = event.rootNode.blockIfQuestEventIds.some(eventId => 
+                completedQuestEventIds.includes(eventId) || currentQuestEventIds.includes(eventId)
+            );
+            
+            if (hasCompletedBlockingEvent) {
+                this.logger.debug('Event filtered out - blocked by completed or current quest events:', {
+                    eventId: event._id,
+                    eventTitle: event.title,
+                    blockingEventIds: event.rootNode.blockIfQuestEventIds,
+                    userCompletedEvents: completedQuestEventIds.filter(id => 
+                        event.rootNode.blockIfQuestEventIds.includes(id)
+                    ),
+                    userCurrentEvents: currentQuestEventIds.filter(id =>
+                        event.rootNode.blockIfQuestEventIds.includes(id)
+                    )
+                });
+                return false;
+            }
+        }
+
+        // If there's no required quest, the event is available
         if (!event.rootNode.requiredQuestId) return true;
         
         // Check if user has the required quest active
@@ -272,6 +315,48 @@ class EventService {
                 }
             }
         }
+        
+        // Check blockIfQuestEventIds - block event if user has completed any of these quest events
+        if (node.blockIfQuestEventIds && node.blockIfQuestEventIds.length > 0) {
+            // Collect all completed quest event IDs from the user
+            const completedQuestEventIds = [];
+            const currentQuestEventIds = [];
+            
+            if (user.quests && Array.isArray(user.quests)) {
+                user.quests.forEach(userQuest => {
+                    // Add completed event IDs
+                    if (userQuest.completedEventIds && Array.isArray(userQuest.completedEventIds)) {
+                        completedQuestEventIds.push(...userQuest.completedEventIds);
+                    }
+                    
+                    // Add current event ID if it exists
+                    if (userQuest.currentEventId) {
+                        currentQuestEventIds.push(userQuest.currentEventId);
+                    }
+                });
+            }
+            
+            // Check if user has completed any of the blocking quest events
+            // or if user's current event ID matches any blocking quest event
+            const hasBlockingEvent = node.blockIfQuestEventIds.some(eventId => 
+                completedQuestEventIds.includes(eventId) || currentQuestEventIds.includes(eventId)
+            );
+            
+            if (hasBlockingEvent) {
+                this.logger.debug('Event blocked by blockIfQuestEventIds:', {
+                    userId: user._id.toString(),
+                    blockingEventIds: node.blockIfQuestEventIds,
+                    userCompletedEvents: completedQuestEventIds.filter(id => 
+                        node.blockIfQuestEventIds.includes(id)
+                    ),
+                    userCurrentEvents: currentQuestEventIds.filter(id =>
+                        node.blockIfQuestEventIds.includes(id)
+                    )
+                });
+                return false;
+            }
+        }
+        
         return true;
     }
     

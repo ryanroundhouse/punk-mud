@@ -27,6 +27,11 @@ const eventNodeSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    // Optional array of quest event IDs that block this option if completed
+    blockIfQuestEventIds: [{
+        type: String,
+        trim: true
+    }],
     // Optional quest to activate when this option is chosen
     activateQuestId: {
         type: mongoose.Schema.Types.ObjectId,

@@ -461,6 +461,106 @@ describe('EventService', () => {
       expect(isUserOnRequiredQuestEventSpy).toHaveBeenCalledWith(user, event);
       expect(result).toBe(true);
     });
+
+    it('should return false if user has completed any of the blocking quest events', () => {
+      // Arrange
+      const user = { 
+        _id: 'user123',
+        quests: [
+          { 
+            questId: 'quest1', 
+            completed: false, 
+            completedEventIds: ['event2', 'event3', 'event4'] 
+          }
+        ]
+      };
+      // Add a spy to log parameters for debugging
+      const debugSpy = jest.spyOn(service.logger, 'debug');
+      
+      const event = { 
+        _id: 'event1',
+        title: 'Test Event', 
+        rootNode: { 
+          blockIfQuestEventIds: ['event3', 'event5']
+        }
+      };
+      
+      // Act
+      const result = service.isEventAvailable(event, user);
+      
+      // Assert
+      expect(result).toBe(false);
+      expect(debugSpy).toHaveBeenCalledWith('Event filtered out - blocked by completed or current quest events:', expect.objectContaining({
+        eventId: 'event1',
+        eventTitle: 'Test Event',
+        blockingEventIds: ['event3', 'event5'],
+        userCompletedEvents: ['event3']
+      }));
+    });
+
+    it('should return false if user is currently on a blocking quest event', () => {
+      // Arrange
+      const user = { 
+        _id: 'user123',
+        quests: [
+          { 
+            questId: 'quest1', 
+            completed: false, 
+            completedEventIds: ['event2'],
+            currentEventId: 'event5'
+          }
+        ]
+      };
+      // Add a spy to log parameters for debugging
+      const debugSpy = jest.spyOn(service.logger, 'debug');
+      
+      const event = { 
+        _id: 'event1',
+        title: 'Test Event', 
+        rootNode: { 
+          blockIfQuestEventIds: ['event3', 'event5']
+        }
+      };
+      
+      // Act
+      const result = service.isEventAvailable(event, user);
+      
+      // Assert
+      expect(result).toBe(false);
+      expect(debugSpy).toHaveBeenCalledWith('Event filtered out - blocked by completed or current quest events:', expect.objectContaining({
+        eventId: 'event1',
+        eventTitle: 'Test Event',
+        blockingEventIds: ['event3', 'event5'],
+        userCurrentEvents: ['event5']
+      }));
+    });
+
+    it('should return true if user has not completed any of the blocking quest events', () => {
+      // Arrange
+      const user = { 
+        _id: 'user123',
+        quests: [
+          { 
+            questId: 'quest1', 
+            completed: false, 
+            completedEventIds: ['event2', 'event7', 'event8'],
+            currentEventId: 'event9'
+          }
+        ]
+      };
+      const event = { 
+        _id: 'event1', 
+        rootNode: { 
+          blockIfQuestEventIds: ['event3', 'event5']
+        }
+      };
+      
+      // Act
+      const result = service.isEventAvailable(event, user);
+      
+      // Assert
+      expect(result).toBe(true);
+    });
   });
   
   describe('isUserOnRequiredQuestEvent', () => {
@@ -514,26 +614,25 @@ describe('EventService', () => {
   });
   
   describe('startEvent', () => {
-    it('should validate node structure and set active event', async () => {
+    it('should set active event', async () => {
       // Arrange
       const userId = 'user123';
       const event = { 
         _id: 'event1', 
+        actorId: 'actor1',
         title: 'Event 1', 
-        actorId: 'actor123',
         rootNode: { 
           prompt: 'Test prompt',
           choices: []
         }
       };
       
-      const user = { 
-        _id: 'user123',
-        class: { name: 'Hunter' }
-      };
+      const user = { _id: 'user123' };
       
       mockUser.findById.mockResolvedValue(user);
-      mockEventNodeService.validateNodeStructure.mockReturnValue(event.rootNode);
+      
+      // We no longer validate node structure, just ensure consistent quest events
+      mockEventNodeService.ensureConsistentQuestEvents.mockReturnValue(event.rootNode);
       
       const passesNodeRestrictionsSpy = jest.spyOn(service, 'passesNodeRestrictions')
         .mockReturnValue(true);
@@ -548,7 +647,7 @@ describe('EventService', () => {
       const result = await service.startEvent(userId, event);
       
       // Assert
-      expect(mockEventNodeService.validateNodeStructure).toHaveBeenCalledWith(event.rootNode);
+      // validateNodeStructure was removed, so we don't test for it
       expect(mockEventNodeService.ensureConsistentQuestEvents).toHaveBeenCalledWith(event.rootNode);
       expect(mockUser.findById).toHaveBeenCalledWith(userId);
       expect(passesNodeRestrictionsSpy).toHaveBeenCalledWith(event.rootNode, user);
@@ -573,7 +672,8 @@ describe('EventService', () => {
       };
       
       mockUser.findById.mockResolvedValue(null);
-      mockEventNodeService.validateNodeStructure.mockReturnValue(event.rootNode);
+      // We no longer validate node structure
+      mockEventNodeService.ensureConsistentQuestEvents.mockReturnValue(event.rootNode);
       
       // Act
       const result = await service.startEvent(userId, event);
@@ -606,7 +706,8 @@ describe('EventService', () => {
       };
       
       mockUser.findById.mockResolvedValue(user);
-      mockEventNodeService.validateNodeStructure.mockReturnValue(event.rootNode);
+      // We no longer validate node structure
+      mockEventNodeService.ensureConsistentQuestEvents.mockReturnValue(event.rootNode);
       
       const passesNodeRestrictionsSpy = jest.spyOn(service, 'passesNodeRestrictions')
         .mockReturnValue(false);
@@ -629,7 +730,8 @@ describe('EventService', () => {
         rootNode: {}
       };
       
-      mockEventNodeService.validateNodeStructure.mockImplementation(() => {
+      // Changed from validateNodeStructure to ensureConsistentQuestEvents
+      mockEventNodeService.ensureConsistentQuestEvents.mockImplementation(() => {
         throw new Error('Test error');
       });
       
@@ -728,6 +830,90 @@ describe('EventService', () => {
       
       // Assert
       expect(result).toBe(false);
+    });
+
+    it('should return false if user has completed any of the blockIfQuestEventIds', () => {
+      // Arrange
+      const node = { 
+        prompt: 'Test prompt',
+        blockIfQuestEventIds: ['event2', 'event5'] 
+      };
+      const user = { 
+        _id: 'user123',
+        quests: [
+          { 
+            questId: 'quest1', 
+            completed: false, 
+            completedEventIds: ['event1', 'event2', 'event3'] 
+          }
+        ]
+      };
+      
+      // Act
+      const result = service.passesNodeRestrictions(node, user);
+      
+      // Assert
+      expect(result).toBe(false);
+      expect(mockLogger.debug).toHaveBeenCalledWith('Event blocked by blockIfQuestEventIds:', expect.objectContaining({
+        userId: 'user123',
+        blockingEventIds: ['event2', 'event5'],
+        userCompletedEvents: ['event2']
+      }));
+    });
+    
+    it('should return false if user is currently on any of the blockIfQuestEventIds', () => {
+      // Arrange
+      const node = { 
+        prompt: 'Test prompt',
+        blockIfQuestEventIds: ['event2', 'event5'] 
+      };
+      const user = { 
+        _id: 'user123',
+        quests: [
+          { 
+            questId: 'quest1', 
+            completed: false, 
+            completedEventIds: ['event1', 'event3'],
+            currentEventId: 'event5'
+          }
+        ]
+      };
+      
+      // Act
+      const result = service.passesNodeRestrictions(node, user);
+      
+      // Assert
+      expect(result).toBe(false);
+      expect(mockLogger.debug).toHaveBeenCalledWith('Event blocked by blockIfQuestEventIds:', expect.objectContaining({
+        userId: 'user123',
+        blockingEventIds: ['event2', 'event5'],
+        userCurrentEvents: ['event5']
+      }));
+    });
+    
+    it('should return true if user has not completed any of the blockIfQuestEventIds', () => {
+      // Arrange
+      const node = { 
+        prompt: 'Test prompt',
+        blockIfQuestEventIds: ['event5', 'event6'] 
+      };
+      const user = { 
+        _id: 'user123',
+        quests: [
+          { 
+            questId: 'quest1', 
+            completed: false, 
+            completedEventIds: ['event1', 'event2', 'event3'],
+            currentEventId: 'event4'
+          }
+        ]
+      };
+      
+      // Act
+      const result = service.passesNodeRestrictions(node, user);
+      
+      // Assert
+      expect(result).toBe(true);
     });
   });
   

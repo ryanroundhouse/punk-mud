@@ -474,6 +474,13 @@
                                     <input type="text" class="quest-event-id" placeholder="Quest event ID...">
                                 </div>
                                 <div class="form-group">
+                                    <label>Block If Quest Event IDs (comma-separated):</label>
+                                    <input type="text" class="block-quest-events" placeholder="Quest event IDs that block this option...">
+                                    <p class="help-text" style="color: var(--neon-blue); font-size: 0.8rem; margin-top: 0.3rem;">
+                                        This option will be blocked if the player has completed any of these quest events.
+                                    </p>
+                                </div>
+                                <div class="form-group">
                                     <label>Activate Quest:</label>
                                     <select class="quest-select">
                                         <option value="">No Quest to Activate</option>
@@ -511,6 +518,15 @@
     </div>
 
     <script>
+        // Generate a MongoDB-compatible ObjectId
+        function generateObjectId() {
+            const timestamp = Math.floor(new Date().getTime() / 1000).toString(16).padStart(8, '0');
+            const machineId = Math.floor(Math.random() * 16777216).toString(16).padStart(6, '0');
+            const processId = Math.floor(Math.random() * 65536).toString(16).padStart(4, '0');
+            const counter = Math.floor(Math.random() * 16777216).toString(16).padStart(6, '0');
+            return timestamp + machineId + processId + counter;
+        }
+
         // Initialize variables
         let allEvents = [];
         let allActors = [];
@@ -747,6 +763,17 @@
             const nodeContainer = document.createElement('div');
             nodeContainer.className = 'event-node';
             
+            // Assign an ID to the node if it doesn't have one already
+            if (!nodeData._id) {
+                nodeData._id = generateObjectId();
+            } else if (typeof nodeData._id === 'object' && nodeData._id.$oid) {
+                // Convert from {$oid: string} format to simple string
+                nodeData._id = nodeData._id.$oid;
+            }
+            
+            // Store the node ID as a data attribute
+            nodeContainer.dataset.nodeId = nodeData._id;
+            
             // For debugging
             console.log('Creating event node with data:', nodeData);
             console.log('Available quests:', allQuests);
@@ -785,6 +812,13 @@
                     <input type="text" class="quest-event-id" value="${nodeData.requiredQuestEventId || ''}" placeholder="Quest event ID...">
                 </div>
                 <div class="form-group">
+                    <label>Block If Quest Event IDs (comma-separated):</label>
+                    <input type="text" class="block-quest-events" value="${nodeData.blockIfQuestEventIds?.join(',') || ''}" placeholder="Quest event IDs that block this option...">
+                    <p class="help-text" style="color: var(--neon-blue); font-size: 0.8rem; margin-top: 0.3rem;">
+                        This option will be blocked if the player has completed any of these quest events.
+                    </p>
+                </div>
+                <div class="form-group">
                     <label>Activate Quest:</label>
                     <select class="quest-select">
                         <option value="">No Quest to Activate</option>
@@ -812,8 +846,7 @@
             // Add existing choices if any
             if (nodeData.choices) {
                 nodeData.choices.forEach(choice => {
-                    const choiceContainer = addChoice(nodeContainer.querySelector('.node-choices'));
-                    choiceContainer.querySelector('.choice-text').value = choice.text;
+                    const choiceContainer = addChoice(nodeContainer.querySelector('.node-choices'), choice);
                     
                     // Handle mob selection if present
                     if (choice.mobId) {
@@ -921,14 +954,26 @@
         }
 
         // Add choice to event node
-        function addChoice(container) {
+        function addChoice(container, choiceData = {}) {
             const choiceContainer = document.createElement('div');
             choiceContainer.className = 'choice-container';
+            
+            // Assign an ID to the choice if it doesn't have one already
+            if (!choiceData._id) {
+                choiceData._id = generateObjectId();
+            } else if (typeof choiceData._id === 'object' && choiceData._id.$oid) {
+                // Convert from {$oid: string} format to simple string
+                choiceData._id = choiceData._id.$oid;
+            }
+            
+            // Store the choice ID as a data attribute
+            choiceContainer.dataset.choiceId = choiceData._id;
+            
             choiceContainer.innerHTML = `
                 <span class="remove-choice">×</span>
                 <div class="form-group">
                     <label>Choice Text:</label>
-                    <textarea class="choice-text" required></textarea>
+                    <textarea class="choice-text" required>${choiceData.text || ''}</textarea>
                 </div>
                 <div class="form-group">
                     <label>Combat Mob (optional):</label>
@@ -1237,9 +1282,13 @@
             const eventTree = document.getElementById('eventTree');
             eventTree.innerHTML = '';
             
+            // Log the event structure for debugging
+            console.log('Loading event with structure:', JSON.stringify(event.rootNode, null, 2));
+            
             // Create root node with the event's root node data
             const rootNode = createEventNode({
                 ...event.rootNode,
+                _id: event.rootNode._id, // Preserve the root node's ID
                 requiredQuestId: event.rootNode.requiredQuestId?._id || event.rootNode.requiredQuestId,
                 activateQuestId: event.rootNode.activateQuestId?._id || event.rootNode.activateQuestId
             });
@@ -1436,94 +1485,52 @@
                     return;
                 }
                 
-                function getNodeData(nodeElement) {
-                    const restrictions = Array.from(nodeElement.querySelectorAll('.restriction-checkbox:checked'))
-                        .map(checkbox => checkbox.value);
+                // Get all node data
+                const rootNodeData = getNodeData(document.querySelector('.root-node'));
 
-                    const questSelects = nodeElement.querySelectorAll('.quest-select');
-                    const nodeData = {
-                        prompt: nodeElement.querySelector('.node-prompt').value,
-                        restrictions: restrictions.length > 0 ? restrictions : undefined,
-                        requiredQuestId: questSelects[0]?.value || undefined,
-                        requiredQuestEventId: nodeElement.querySelector('.quest-event-id').value || undefined,
-                        activateQuestId: questSelects[1]?.value || undefined,
-                        questCompletionEvents: nodeElement.querySelector('.quest-events').value
-                            .split(',')
-                            .map(id => id.trim())
-                            .filter(id => id.length > 0),
-                        choices: []
-                    };
-
-                    // Remove undefined fields
-                    if (!nodeData.restrictions) delete nodeData.restrictions;
-                    if (!nodeData.requiredQuestId) delete nodeData.requiredQuestId;
-                    if (!nodeData.requiredQuestEventId) delete nodeData.requiredQuestEventId;
-                    if (!nodeData.activateQuestId) delete nodeData.activateQuestId;
-                    if (nodeData.questCompletionEvents.length === 0) delete nodeData.questCompletionEvents;
-
-                    // Get all choices for this node
-                    const choiceElements = nodeElement.querySelector('.node-choices').children;
-                    for (const choiceElement of choiceElements) {
-                        const choiceData = {
-                            text: choiceElement.querySelector('.choice-text').value
-                        };
-
-                        // Get mobId if selected
-                        const mobSelect = choiceElement.querySelector('.mob-select');
-                        if (mobSelect && mobSelect.value) {
-                            choiceData.mobId = mobSelect.value;
-                        }
-                        // Handle teleport selection if present
-                        else if (choiceElement.querySelector('.teleport-select').value) {
-                            choiceData.teleportToNode = choiceElement.querySelector('.teleport-select').value;
+                // Log the complete event structure to verify IDs
+                console.log('Saving event with structure:', JSON.stringify(rootNodeData, null, 2));
+                
+                // Count how many nodes and choices have IDs
+                let totalNodes = 1; // Start with root node
+                let nodesWithIds = rootNodeData._id ? 1 : 0;
+                let totalChoices = 0;
+                let choicesWithIds = 0;
+                
+                function countNodes(node) {
+                    if (!node) return;
+                    
+                    if (node.choices && Array.isArray(node.choices)) {
+                        totalChoices += node.choices.length;
+                        
+                        node.choices.forEach(choice => {
+                            if (choice._id) choicesWithIds++;
                             
-                            // Also get next node if it exists (for response after teleport)
-                            const nextNodeElement = choiceElement.querySelector('.next-node-container > .event-node');
-                            if (nextNodeElement) {
-                                choiceData.nextNode = getNodeData(nextNodeElement);
-                            }
-                        }
-                        // Check if this choice has a skill check
-                        else if (choiceElement.querySelector('.has-skill-check').checked) {
-                            const skillCheckStat = choiceElement.querySelector('.skill-check-stat').value;
-                            const skillCheckTargetNumber = parseInt(choiceElement.querySelector('.skill-check-target').value);
-                            
-                            // Get next node (success outcome) if it exists
-                            const nextNodeElement = choiceElement.querySelector('.next-node-container > .event-node');
-                            if (nextNodeElement) {
-                                choiceData.nextNode = getNodeData(nextNodeElement);
+                            if (choice.nextNode) {
+                                totalNodes++;
+                                if (choice.nextNode._id) nodesWithIds++;
+                                countNodes(choice.nextNode);
                             }
                             
-                            // Get failure node if it exists - using direct child selector to prevent conflict
-                            const failureNodeElement = choiceElement.querySelector('.failure-node-container > .event-node');
-                            if (failureNodeElement) {
-                                choiceData.failureNode = getNodeData(failureNodeElement);
+                            if (choice.failureNode) {
+                                totalNodes++;
+                                if (choice.failureNode._id) nodesWithIds++;
+                                countNodes(choice.failureNode);
                             }
-                            
-                            choiceData.skillCheckStat = skillCheckStat;
-                            choiceData.skillCheckTargetNumber = skillCheckTargetNumber;
-                        }
-                        // Otherwise handle next node if it exists
-                        else {
-                            // Get next node if it exists
-                            const nextNodeElement = choiceElement.querySelector('.next-node-container > .event-node');
-                            if (nextNodeElement) {
-                                choiceData.nextNode = getNodeData(nextNodeElement);
-                            }
-                        }
-
-                        nodeData.choices.push(choiceData);
+                        });
                     }
-
-                    return nodeData;
                 }
-
+                
+                countNodes(rootNodeData);
+                
+                console.log(`ID coverage: ${nodesWithIds}/${totalNodes} nodes and ${choicesWithIds}/${totalChoices} choices have IDs`);
+                
                 const eventData = {
                     _id: form.dataset.eventId || undefined,
                     title: document.getElementById('eventTitle').value,
                     actorId: document.getElementById('actorSelect').value || undefined,
                     requiresEnergy: document.getElementById('requiresEnergy').checked,
-                    rootNode: getNodeData(document.querySelector('.root-node')),
+                    rootNode: rootNodeData,
                     events: eventChances.length > 0 ? eventChances : undefined
                 };
 
@@ -1598,6 +1605,96 @@
                 link.style.color = 'var(--neon-pink)';
             }
         });
+
+        // Right before the save event button handler
+        function getNodeData(nodeElement) {
+            const restrictions = Array.from(nodeElement.querySelectorAll('.restriction-checkbox:checked'))
+                .map(checkbox => checkbox.value);
+
+            const questSelects = nodeElement.querySelectorAll('.quest-select');
+            const nodeData = {
+                _id: nodeElement.dataset.nodeId || generateObjectId(),
+                prompt: nodeElement.querySelector('.node-prompt').value,
+                restrictions: restrictions.length > 0 ? restrictions : undefined,
+                requiredQuestId: questSelects[0]?.value || undefined,
+                requiredQuestEventId: nodeElement.querySelector('.quest-event-id').value || undefined,
+                blockIfQuestEventIds: nodeElement.querySelector('.block-quest-events').value
+                    .split(',')
+                    .map(id => id.trim())
+                    .filter(id => id.length > 0),
+                activateQuestId: questSelects[1]?.value || undefined,
+                questCompletionEvents: nodeElement.querySelector('.quest-events').value
+                    .split(',')
+                    .map(id => id.trim())
+                    .filter(id => id.length > 0),
+                choices: []
+            };
+
+            // Remove undefined fields
+            if (!nodeData.restrictions) delete nodeData.restrictions;
+            if (!nodeData.requiredQuestId) delete nodeData.requiredQuestId;
+            if (!nodeData.requiredQuestEventId) delete nodeData.requiredQuestEventId;
+            if (nodeData.blockIfQuestEventIds.length === 0) delete nodeData.blockIfQuestEventIds;
+            if (!nodeData.activateQuestId) delete nodeData.activateQuestId;
+            if (nodeData.questCompletionEvents.length === 0) delete nodeData.questCompletionEvents;
+
+            // Get all choices for this node
+            const choiceElements = nodeElement.querySelector('.node-choices').children;
+            for (const choiceElement of choiceElements) {
+                const choiceData = {
+                    _id: choiceElement.dataset.choiceId || generateObjectId(),
+                    text: choiceElement.querySelector('.choice-text').value
+                };
+
+                // Get mobId if selected
+                const mobSelect = choiceElement.querySelector('.mob-select');
+                if (mobSelect && mobSelect.value) {
+                    choiceData.mobId = mobSelect.value;
+                }
+                // Handle teleport selection if present
+                else if (choiceElement.querySelector('.teleport-select').value) {
+                    choiceData.teleportToNode = choiceElement.querySelector('.teleport-select').value;
+                    
+                    // Also get next node if it exists (for response after teleport)
+                    const nextNodeElement = choiceElement.querySelector('.next-node-container > .event-node');
+                    if (nextNodeElement) {
+                        choiceData.nextNode = getNodeData(nextNodeElement);
+                    }
+                }
+                // Check if this choice has a skill check
+                else if (choiceElement.querySelector('.has-skill-check').checked) {
+                    const skillCheckStat = choiceElement.querySelector('.skill-check-stat').value;
+                    const skillCheckTargetNumber = parseInt(choiceElement.querySelector('.skill-check-target').value);
+                    
+                    // Get next node (success outcome) if it exists
+                    const nextNodeElement = choiceElement.querySelector('.next-node-container > .event-node');
+                    if (nextNodeElement) {
+                        choiceData.nextNode = getNodeData(nextNodeElement);
+                    }
+                    
+                    // Get failure node if it exists - using direct child selector to prevent conflict
+                    const failureNodeElement = choiceElement.querySelector('.failure-node-container > .event-node');
+                    if (failureNodeElement) {
+                        choiceData.failureNode = getNodeData(failureNodeElement);
+                    }
+                    
+                    choiceData.skillCheckStat = skillCheckStat;
+                    choiceData.skillCheckTargetNumber = skillCheckTargetNumber;
+                }
+                // Otherwise handle next node if it exists
+                else {
+                    // Get next node if it exists
+                    const nextNodeElement = choiceElement.querySelector('.next-node-container > .event-node');
+                    if (nextNodeElement) {
+                        choiceData.nextNode = getNodeData(nextNodeElement);
+                    }
+                }
+
+                nodeData.choices.push(choiceData);
+            }
+
+            return nodeData;
+        }
     </script>
 </body>
 </html> 

@@ -16,7 +16,6 @@ docker compose -f docker-compose.prod.secure.yml exec mongodb mongorestore \
   --password=${MONGO_ADMIN_PASSWORD} \
   --authenticationDatabase admin \
   --archive=/tmp/backup.archive \
-  --excludeCollection=app.users \
   --drop \
   --verbose
 
