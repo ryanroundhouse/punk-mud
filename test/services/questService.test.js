@@ -698,6 +698,73 @@ describe('QuestService', () => {
                 questService.userService = originalUserService;
             }
         });
+        
+        it('should add currentEventId to completedEventIds when progressing a quest', async () => {
+            // Arrange
+            const user = getMockUser();
+            const currentEventId = 'initialEventId';
+            const nextEventId = 'nextEventId';
+            
+            // Set up initial quest state
+            user.quests = [{
+                questId: 'questId',
+                currentEventId: currentEventId,
+                completedEventIds: ['previousEvent'],
+                completed: false
+            }];
+            
+            // Set up the mock quest
+            const mockQuestWithValidEvents = {
+                _id: 'questId',
+                title: 'Test Quest',
+                events: [
+                    {
+                        _id: currentEventId,
+                        message: 'Current event',
+                        eventType: 'chat',
+                        isStart: false,
+                        isEnd: false,
+                        choices: [{ 
+                            text: 'Continue', 
+                            nextEventId: nextEventId 
+                        }]
+                    },
+                    {
+                        _id: nextEventId,
+                        message: 'Next event',
+                        eventType: 'chat',
+                        isStart: false,
+                        isEnd: false,
+                        choices: []
+                    }
+                ]
+            };
+            
+            mockQuest.find.mockResolvedValue([mockQuestWithValidEvents]);
+            
+            // Mock user.save to capture the state change
+            user.save = jest.fn().mockResolvedValue(user);
+            
+            // Mock findOneAndUpdate to simulate database update
+            mockUser.findOneAndUpdate = jest.fn().mockImplementation((query, update, options) => {
+                // Simple implementation that applies the update
+                if (update.$push && update.$push['quests.0.completedEventIds']) {
+                    user.quests[0].completedEventIds.push(update.$push['quests.0.completedEventIds']);
+                }
+                if (update.$set && update.$set['quests.0.currentEventId']) {
+                    user.quests[0].currentEventId = update.$set['quests.0.currentEventId'];
+                }
+                return Promise.resolve(user);
+            });
+            
+            // Act
+            await questService.handleQuestProgression(user, 'actorId', [nextEventId]);
+            
+            // Assert
+            expect(user.quests[0].completedEventIds).toContain(currentEventId);
+            expect(user.quests[0].currentEventId).toBe(nextEventId);
+            expect(mockUser.findOneAndUpdate).toHaveBeenCalled();
+        });
     });
 
     describe('handleMobKill', () => {

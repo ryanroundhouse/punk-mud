@@ -555,9 +555,11 @@ class QuestService {
                                         
                                         // Prepare update object with atomic operators
                                         const updateQuery = {
-                                            [`quests.${questIndex}.completed`]: true,
-                                            [`quests.${questIndex}.completedAt`]: new Date(),
-                                            [`quests.${questIndex}.currentEventId`]: userQuest.currentEventId,
+                                            $set: {
+                                                [`quests.${questIndex}.completed`]: true,
+                                                [`quests.${questIndex}.completedAt`]: new Date(),
+                                                [`quests.${questIndex}.currentEventId`]: userQuest.currentEventId,
+                                            }
                                         };
                                         
                                         // Add the completed event ID to the array
@@ -576,7 +578,7 @@ class QuestService {
                                         // Execute the atomic update
                                         const updatedUser = await this.User.findOneAndUpdate(
                                             { _id: user._id },
-                                            { $set: updateQuery },
+                                            updateQuery,
                                             { new: true } // Return the updated document
                                         );
                                         
@@ -623,7 +625,9 @@ class QuestService {
                                         
                                         // Prepare update object
                                         const updateQuery = {
-                                            [`quests.${questIndex}.currentEventId`]: userQuest.currentEventId
+                                            $set: {
+                                                [`quests.${questIndex}.currentEventId`]: userQuest.currentEventId
+                                            }
                                         };
                                         
                                         // Add the completed event ID to the array
@@ -642,7 +646,7 @@ class QuestService {
                                         // Execute the atomic update
                                         const updatedUser = await this.User.findOneAndUpdate(
                                             { _id: user._id },
-                                            { $set: updateQuery },
+                                            updateQuery,
                                             { new: true } // Return the updated document
                                         );
                                         
@@ -955,7 +959,9 @@ class QuestService {
                         
                         // Prepare update object with atomic operators
                         const updateQuery = {
-                            [`quests.${questIndex}.currentEventId`]: userQuest.currentEventId,
+                            $set: {
+                                [`quests.${questIndex}.currentEventId`]: userQuest.currentEventId,
+                            }
                         };
                         
                         // Add completedEventIds
@@ -967,8 +973,10 @@ class QuestService {
                         
                         // Handle completion if needed
                         if (isComplete) {
-                            updateQuery[`quests.${questIndex}.completed`] = true;
-                            updateQuery[`quests.${questIndex}.completedAt`] = new Date();
+                            updateQuery.$set = {
+                                [`quests.${questIndex}.completed`]: true,
+                                [`quests.${questIndex}.completedAt`]: new Date(),
+                            };
                         }
                         
                         this.logger.debug('Executing findOneAndUpdate for quest progress/completion:', {
@@ -981,7 +989,7 @@ class QuestService {
                         // Execute the atomic update
                         const updatedUser = await this.User.findOneAndUpdate(
                             { _id: user._id },
-                            { $set: updateQuery },
+                            updateQuery,
                             { new: true } // Return the updated document
                         );
                         
