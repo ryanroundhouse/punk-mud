@@ -4,5 +4,5 @@ node_modules/
 *.log 
 logs/
 coverage/
-public/assets
+public/assets/characters
 .DS_Store

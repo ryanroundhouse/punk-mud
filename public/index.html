@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PUNK MUD - Login</title>
+    <link rel="icon" type="image/x-icon" href="/assets/art/favicon.ico">
     <style>
         :root {
             --neon-pink: #ff2e88;
@@ -42,10 +43,8 @@
         }
 
         .logo {
-            width: 200px;
-            height: 200px;
+            width: 80%;
             margin-bottom: 2rem;
-            filter: drop-shadow(0 0 10px var(--neon-blue));
         }
 
         .login-form {
@@ -102,31 +101,7 @@
 </head>
 <body>
     <div class="container">
-        <svg class="logo" viewBox="0 0 100 100">
-            <defs>
-                <linearGradient id="neon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style="stop-color:#ff2e88" />
-                    <stop offset="100%" style="stop-color:#00fff9" />
-                </linearGradient>
-            </defs>
-            <path fill="url(#neon-gradient)" d="M50 5
-                L90 25
-                L90 75
-                L50 95
-                L10 75
-                L10 25
-                Z" />
-            <path fill="none" stroke="#00fff9" stroke-width="2" d="M30 40
-                L70 40
-                M40 55
-                L60 55
-                M45 70
-                L55 70" />
-            <circle cx="35" cy="30" r="3" fill="#00fff9" />
-            <circle cx="65" cy="30" r="3" fill="#00fff9" />
-        </svg>
-        
-        <div class="glitch-text">PUNK MUD</div>
+        <img class="logo" src="/assets/art/punk mud logo.png" alt="PUNK MUD Logo">
         
         <form id="loginForm" class="login-form">
             <div id="emailStep">
