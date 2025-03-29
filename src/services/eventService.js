@@ -205,9 +205,8 @@ class EventService {
 
     async startEvent(userId, event) {
         try {
-            // Validate and ensure consistent quest events in the root node
-            const rootNode = this.eventNodeService.validateNodeStructure(event.rootNode);
-            this.eventNodeService.ensureConsistentQuestEvents(rootNode);
+            // Ensure consistent quest events in the root node
+            const rootNode = this.eventNodeService.ensureConsistentQuestEvents(event.rootNode);
             
             this.logger.debug('Starting event:', {
                 userId,

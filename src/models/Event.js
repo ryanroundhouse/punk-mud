@@ -2,6 +2,11 @@ const mongoose = require('mongoose');
 
 // Create a schema that can reference itself
 const eventNodeSchema = new mongoose.Schema({
+    _id: {
+        type: mongoose.Schema.Types.ObjectId,
+        auto: true,
+        required: true
+    },
     prompt: {
         type: String,
         required: true
@@ -38,7 +43,8 @@ const eventNodeSchema = new mongoose.Schema({
             required: true
         },
         nextNode: {
-            type: mongoose.Schema.Types.Mixed  // This allows for recursive structure
+            type: mongoose.Schema.Types.Mixed,
+            required: true
         },
         // Optional teleport node ID to jump to when this choice is selected
         teleportToNode: {
@@ -73,7 +79,11 @@ const eventNodeSchema = new mongoose.Schema({
             }
         }
     }]
-}, { _id: false });
+}, { 
+    _id: true,
+    strict: true,
+    validateBeforeSave: true
+});
 
 const eventSchema = new mongoose.Schema({
     title: {
@@ -103,6 +113,9 @@ const eventSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     }
+}, {
+    strict: true,
+    validateBeforeSave: true
 });
 
 eventSchema.pre('save', function(next) {

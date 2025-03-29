@@ -696,6 +696,12 @@
         const MAX_STORED_MESSAGES = 50;
 
         function storeChatMessage(messageData) {
+            // Skip system messages about connections and disconnections
+            if (messageData.username === 'SYSTEM' && 
+                messageData.message.match(/^.+ has (connected|disconnected)\.$/)) {
+                return;
+            }
+            
             let messages = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]');
             messages.push(messageData);
             // Keep only the last MAX_STORED_MESSAGES messages
@@ -708,10 +714,16 @@
         function loadStoredChatMessages() {
             const messages = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]');
             messages.forEach(msg => {
+                // Skip system messages about connections and disconnections
+                if (msg.username === 'SYSTEM' && 
+                    msg.message.match(/^.+ has (connected|disconnected)\.$/)) {
+                    return;
+                }
+                
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'chat-message';
                 
-                const isSystemMessage = msg.type === 'system';
+                const isSystemMessage = msg.username === 'SYSTEM';
                 const isOwnMessage = msg.username === currentUsername;
                 
                 if (isSystemMessage) {
@@ -747,8 +759,24 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
+        // Add this function to clean up existing connection/disconnection messages
+        function cleanUpStoredChatMessages() {
+            const messages = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]');
+            const filteredMessages = messages.filter(msg => 
+                !(msg.username === 'SYSTEM' && 
+                  msg.message.match(/^.+ has (connected|disconnected)\.$/))
+            );
+            
+            if (filteredMessages.length !== messages.length) {
+                localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(filteredMessages));
+            }
+        }
+
         // Update the window.onload function
         window.onload = async () => {
+            // Clean up existing connection/disconnection messages
+            cleanUpStoredChatMessages();
+            
             const token = localStorage.getItem('token');
             if (!token) {
                 // Try to get token from URL if not in localStorage (this is just a fallback)
@@ -958,10 +986,16 @@
             });
 
             socket.on('chat message', (msg) => {
+                // Skip system messages about connections and disconnections
+                if (msg.username === 'SYSTEM' && 
+                    msg.message.match(/^.+ has (connected|disconnected)\.$/)) {
+                    return;
+                }
+                
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'chat-message';
                 
-                const isSystemMessage = msg.type === 'system';
+                const isSystemMessage = msg.username === 'SYSTEM';
                 const isOwnMessage = msg.username === currentUsername;
                 
                 if (isSystemMessage) {

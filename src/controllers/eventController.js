@@ -11,7 +11,6 @@ async function getEvents(req, res) {
             .populate('rootNode.activateQuestId');
         
         // We need to manually populate mob references in choices at any level
-        // This is a recursive function to populate mobId in all choices
         const populateMobIds = async (node) => {
             if (!node || !node.choices) return;
             
@@ -75,8 +74,8 @@ async function validateNode(node) {
         return { valid: false, message: 'Node prompt is required' };
     }
 
-    if (!node.choices || !Array.isArray(node.choices) || node.choices.length === 0) {
-        return { valid: false, message: 'Node must have at least one choice' };
+    if (!Array.isArray(node.choices)) {
+        return { valid: false, message: 'Node must have a choices array' };
     }
 
     for (const choice of node.choices) {
@@ -89,8 +88,6 @@ async function validateNode(node) {
             return { valid: false, message: 'Choice must have either a mob, a next node, a teleport destination, or a skill check' };
         }
 
-        // Note: teleportToNode can be combined with nextNode to allow continuing the event after teleporting
-        
         // If there's a skill check stat, validate related fields
         if (choice.skillCheckStat) {
             // Validate stat is one of the allowed values

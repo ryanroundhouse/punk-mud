@@ -384,6 +384,16 @@ class EventChoiceProcessor {
       // Process quest completion events if they exist
       if (nextNode && nextNode.questCompletionEvents && nextNode.questCompletionEvents.length > 0) {
         this.logger.debug(`Processing quest completion events: ${nextNode.questCompletionEvents.join(', ')}`);
+        
+        this.logger.debug('User state before quest completion processing:', {
+          userId,
+          version: updatedUser.__v,
+          questCount: updatedUser.quests?.length || 0,
+          activeQuests: updatedUser.quests?.filter(q => !q.completed)?.length || 0,
+          completedQuests: updatedUser.quests?.filter(q => q.completed)?.length || 0,
+          questIds: updatedUser.quests?.map(q => ({ id: q.questId, completed: q.completed }))
+        });
+        
         await this.questService.handleQuestProgression(
           updatedUser,
           actorId,
@@ -393,11 +403,28 @@ class EventChoiceProcessor {
         // Refresh user after quest progression
         const UserModel = this.User;
         updatedUser = await UserModel.findById(userId);
+        
+        this.logger.debug('User state after quest completion processing:', {
+          userId,
+          version: updatedUser.__v,
+          questCount: updatedUser.quests?.length || 0,
+          activeQuests: updatedUser.quests?.filter(q => !q.completed)?.length || 0,
+          completedQuests: updatedUser.quests?.filter(q => q.completed)?.length || 0,
+          questIds: updatedUser.quests?.map(q => ({ id: q.questId, completed: q.completed }))
+        });
       }
 
       // Process quest activation if it exists
       if (nextNode && nextNode.activateQuestId) {
         this.logger.debug(`Processing quest activation: ${nextNode.activateQuestId}`);
+        
+        this.logger.debug('User state before quest activation:', {
+          userId,
+          version: updatedUser.__v,
+          questCount: updatedUser.quests?.length || 0,
+          activatingQuestId: nextNode.activateQuestId?.toString?.() || nextNode.activateQuestId
+        });
+        
         await this.questService.handleQuestProgression(
           updatedUser,
           actorId,
@@ -408,11 +435,22 @@ class EventChoiceProcessor {
         // Refresh user after quest activation
         const UserModel = this.User;
         updatedUser = await UserModel.findById(userId);
+        
+        this.logger.debug('User state after quest activation:', {
+          userId,
+          version: updatedUser.__v,
+          questCount: updatedUser.quests?.length || 0,
+          activeQuests: updatedUser.quests?.filter(q => !q.completed)?.length || 0
+        });
       }
 
       return updatedUser;
     } catch (error) {
-      this.logger.error(`Error in handleQuestEvents: ${error.message}`);
+      this.logger.error(`Error in handleQuestEvents: ${error.message}`, {
+        stack: error.stack,
+        userId,
+        choiceText: choice.text?.substring(0, 30)
+      });
       return user;
     }
   }
@@ -477,11 +515,26 @@ class EventChoiceProcessor {
 
       // Validate the next node structure
       if (clonedChoice.nextNode) {
-        // Validate and ensure the next node has proper structure
-        clonedChoice.nextNode = this.eventNodeService.validateNodeStructure(clonedChoice.nextNode);
+        // Ensure the next node has an ID and choices array
+        this.eventNodeService.ensureNodeHasId(clonedChoice.nextNode);
+        
+        // Ensure node has a choices array
+        if (!clonedChoice.nextNode.choices) {
+          clonedChoice.nextNode.choices = [];
+        }
       }
 
       // Process quest events
+      this.logger.debug('Before handling quest events:', {
+        userId,
+        choiceText: clonedChoice.text?.substring(0, 30) + '...',
+        hasNextNode: !!clonedChoice.nextNode,
+        questCompletionEvents: clonedChoice.nextNode?.questCompletionEvents || [],
+        hasActivateQuest: !!clonedChoice.nextNode?.activateQuestId,
+        userVersion: user.__v,
+        userQuestCount: user.quests?.length || 0
+      });
+      
       user = await this.handleQuestEvents(
         clonedChoice, 
         user, 
@@ -489,6 +542,14 @@ class EventChoiceProcessor {
         activeEvent.actorId, 
         activeEvent.isStoryEvent
       );
+      
+      this.logger.debug('After handling quest events:', {
+        userId,
+        userVersion: user.__v,
+        userQuestCount: user.quests?.length || 0,
+        activeQuests: user.quests?.filter(q => !q.completed)?.length || 0,
+        completedQuests: user.quests?.filter(q => q.completed)?.length || 0
+      });
 
       // Check if we've reached the end of a branch
       if (!clonedChoice.nextNode) {
