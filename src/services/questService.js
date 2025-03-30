@@ -695,12 +695,12 @@ class QuestService {
                 const questToStart = allQuests.find(q => q._id.toString() === questToActivate.toString());
                 
                 if (questToStart) {
-                    // Check if quest is already active
-                    const isQuestActive = user.quests.some(uq => 
-                        uq.questId === questToStart._id.toString() && !uq.completed
+                    // Check if quest is already in user's quests (active OR completed)
+                    const questExists = user.quests.some(uq => 
+                        uq.questId === questToStart._id.toString()
                     );
 
-                    if (!isQuestActive) {
+                    if (!questExists) {
                         const startEvent = questToStart.events.find(event => event.isStart);
                         
                         if (startEvent) {
