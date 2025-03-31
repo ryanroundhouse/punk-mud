@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUNK MUD - User Admin</title>
+    <link rel="icon" type="image/x-icon" href="/assets/art/favicon.ico">
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+            --terminal-green: #00ff00;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .builder-container {
+            width: 95%;
+            height: 90vh;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-pink),
+                       0 0 40px rgba(255, 46, 136, 0.3);
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .layout-container {
+            display: flex;
+            gap: 2rem;
+            height: 100%;
+        }
+
+        .left-panel {
+            flex: 1;
+            height: 100%;
+            position: relative;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-blue) var(--dark-bg);
+            min-width: 0;
+        }
+
+        .left-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .left-panel::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        .left-panel::-webkit-scrollbar-thumb {
+            background-color: var(--neon-blue);
+            border-radius: 4px;
+        }
+
+        .user-details {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1.5rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+            box-sizing: border-box;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 300px;
+            grid-template-rows: auto 1fr auto;
+            gap: 1.5rem;
+        }
+
+        .details-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .details-full {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .details-group {
+            margin-bottom: 0;
+            position: relative;
+            width: 100%;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--neon-blue);
+        }
+
+        .detail-value {
+            padding: 0.8rem;
+            border-radius: 5px;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            min-height: 1.2rem;
+        }
+
+        .description-value {
+            min-height: 100px;
+        }
+
+        .image-display-section {
+            position: static;
+            width: 100%;
+        }
+
+        .image-container {
+            width: 100%;
+            height: 200px;
+            border: 2px solid var(--neon-blue);
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            margin-bottom: 1rem;
+        }
+
+        .character-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+
+        .no-image-text {
+            color: var(--neon-blue);
+            font-style: italic;
+            opacity: 0.7;
+        }
+
+        .right-panel {
+            width: 300px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem;
+            border-radius: 5px;
+            border: 1px solid var(--terminal-green);
+            display: flex;
+            flex-direction: column;
+            margin-top: 1rem;
+            height: calc(100% - 3rem);
+        }
+
+        .filter-container {
+            margin-bottom: 1rem;
+        }
+
+        .users-list {
+            flex: 1;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-blue) var(--dark-bg);
+        }
+
+        .user-entry {
+            padding: 0.8rem;
+            border-bottom: 1px solid var(--neon-blue);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .user-entry:hover {
+            background: rgba(0, 255, 249, 0.1);
+        }
+
+        .user-entry-name {
+            color: var(--neon-pink);
+            font-weight: bold;
+            margin-bottom: 0.3rem;
+        }
+
+        .user-entry-email {
+            color: var(--neon-blue);
+            font-size: 0.9rem;
+        }
+
+        .action-button {
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .action-button:hover {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea,
+        .location-select {
+            width: 100%;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+            padding: 0.8rem;
+            border-radius: 5px;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        /* Stats display */
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .stat-item {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 0.8rem;
+        }
+
+        .stat-name {
+            color: var(--neon-blue);
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+
+        .stat-value {
+            color: var(--terminal-green);
+            font-size: 1.2rem;
+            text-align: center;
+        }
+
+        /* Experience progress bar */
+        .exp-progress-container {
+            margin-top: 1rem;
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .exp-progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .exp-progress-bar {
+            height: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--neon-blue);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .exp-progress-fill {
+            height: 100%;
+            background: var(--neon-pink);
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        /* Moves display */
+        .moves-container {
+            margin-top: 1rem;
+        }
+
+        .move-item {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .move-name {
+            color: var(--neon-pink);
+            font-weight: bold;
+            margin-bottom: 0.3rem;
+        }
+
+        .move-description {
+            color: var(--terminal-green);
+            font-size: 0.9rem;
+        }
+
+        /* Raw JSON display */
+        .json-container {
+            margin-top: 1rem;
+        }
+
+        .json-textarea {
+            width: 100%;
+            height: 300px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 0.8rem;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            resize: vertical;
+        }
+
+        /* Quest status styles */
+        .quests-container {
+            margin-top: 1rem;
+        }
+
+        .quest-hints {
+            margin-top: 0.5rem;
+            padding-left: 1.5rem;
+            color: var(--neon-blue);
+        }
+
+        .quest-hints li {
+            margin-bottom: 0.3rem;
+        }
+
+        /* Hamburger menu styles */
+        .hamburger-menu {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+        }
+
+        .hamburger-button {
+            background: transparent;
+            border: none;
+            color: var(--neon-pink);
+            font-size: 2rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .hamburger-button:hover {
+            color: var(--neon-blue);
+            transform: scale(1.1);
+        }
+
+        .menu-content {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: rgba(10, 10, 15, 0.95);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 0.5rem;
+            display: none;
+            min-width: 200px;
+            box-shadow: 0 0 20px rgba(0, 255, 249, 0.3);
+        }
+
+        .menu-content.show {
+            display: block;
+        }
+
+        .menu-content a {
+            display: block;
+            color: var(--terminal-green);
+            text-decoration: none;
+            padding: 0.8rem 1rem;
+            transition: all 0.3s ease;
+            border-radius: 3px;
+        }
+
+        .menu-content a:hover {
+            background: rgba(0, 255, 249, 0.1);
+            color: var(--neon-blue);
+        }
+
+        .menu-content a + a {
+            margin-top: 0.2rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Hamburger menu -->
+    <div class="hamburger-menu">
+        <button class="hamburger-button">☰</button>
+        <div class="menu-content">
+            <a href="/game.html">Return to Game</a>
+            <a href="/actorbuilder.html">Actor Builder</a>
+            <a href="/mobbuilder.html">Mob Builder</a>
+            <a href="/movebuilder.html">Move Builder</a>
+            <a href="/nodebuilder.html">Node Builder</a>
+            <a href="/questbuilder.html">Quest Builder</a>
+            <a href="/classbuilder.html">Class Builder</a>
+            <a href="/eventbuilder.html">Event Builder</a>
+            <a href="/useradmin.html">User Admin</a>
+        </div>
+    </div>
+
+    <div class="builder-container">
+        <div class="layout-container">
+            <div class="left-panel">
+                <h2>User/Character Details</h2>
+                <div class="user-details" id="userDetails">
+                    <div class="details-grid">
+                        <div class="details-col">
+                            <div class="details-group">
+                                <label>User ID:</label>
+                                <div id="userId" class="detail-value"></div>
+                            </div>
+                            
+                            <div class="details-group">
+                                <label>Email:</label>
+                                <div id="userEmail" class="detail-value"></div>
+                            </div>
+                            
+                            <div class="details-group">
+                                <label>Avatar Name:</label>
+                                <div id="avatarName" class="detail-value"></div>
+                            </div>
+                            
+                            <div class="details-group">
+                                <label>Class:</label>
+                                <div id="characterClass" class="detail-value"></div>
+                            </div>
+                        </div>
+
+                        <div class="image-display-section">
+                            <div class="image-container">
+                                <img id="characterImage" class="character-image">
+                                <span class="no-image-text" id="noImageText">No image uploaded</span>
+                            </div>
+                        </div>
+
+                        <div class="details-full">
+                            <div class="details-group">
+                                <label>Description:</label>
+                                <div id="characterDescription" class="detail-value description-value"></div>
+                            </div>
+                            
+                            <div class="details-group">
+                                <label>Character Stats:</label>
+                                <div class="stats-container" id="statsContainer">
+                                    <!-- Stats will be displayed here -->
+                                </div>
+                                
+                                <div class="exp-progress-container">
+                                    <label>Experience Progress:</label>
+                                    <div class="exp-progress-label">
+                                        <span id="currentExp">0</span>
+                                        <span id="requiredExp">0</span>
+                                    </div>
+                                    <div class="exp-progress-bar">
+                                        <div class="exp-progress-fill" id="expProgressFill"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="details-group">
+                                <label>Character Moves:</label>
+                                <div id="movesContainer" class="moves-container">
+                                    <!-- Moves will be displayed here -->
+                                </div>
+                            </div>
+                            
+                            <div class="details-group">
+                                <label>Quest Status:</label>
+                                <div id="questsContainer" class="quests-container">
+                                    <!-- Quest status will be displayed here -->
+                                </div>
+                            </div>
+                            
+                            <div class="details-group">
+                                <label>Raw User Document:</label>
+                                <div class="json-container">
+                                    <textarea id="userJsonDisplay" class="json-textarea" readonly></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="filter-container">
+                    <input type="text" 
+                           id="userFilter" 
+                           placeholder="Filter users..."
+                           class="chat-input">
+                </div>
+                <div class="users-list" id="usersListPanel">
+                    <!-- Users will be listed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allUsers = [];
+        const userFilter = document.getElementById('userFilter');
+        
+        // Check authentication
+        window.onload = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/auth/verify-token', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                // Load users
+                await loadUsers();
+            } catch (error) {
+                console.error('Authentication error:', error);
+                window.location.href = '/';
+            }
+        };
+
+        // Load all users
+        async function loadUsers() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    window.location.href = '/';
+                    return;
+                }
+
+                const response = await fetch('/api/admin/users', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                allUsers = Array.isArray(data) ? data : [];
+                filterAndDisplayUsers();
+            } catch (error) {
+                console.error('Error loading users:', error);
+                allUsers = []; // Ensure allUsers is always an array
+                filterAndDisplayUsers();
+            }
+        }
+
+        // Filter and display users
+        function filterAndDisplayUsers() {
+            const filterValue = userFilter.value.toLowerCase();
+            const usersListPanel = document.getElementById('usersListPanel');
+            usersListPanel.innerHTML = '';
+            
+            allUsers
+                .filter(user => 
+                    (user.avatarName && user.avatarName.toLowerCase().includes(filterValue)) ||
+                    (user.email && user.email.toLowerCase().includes(filterValue))
+                )
+                .forEach(user => {
+                    const userEntry = document.createElement('div');
+                    userEntry.className = 'user-entry';
+                    userEntry.innerHTML = `
+                        <div class="user-entry-name">${user.avatarName || 'No Avatar Name'}</div>
+                        <div class="user-entry-email">${user.email}</div>
+                    `;
+                    userEntry.addEventListener('click', () => loadUserData(user._id));
+                    usersListPanel.appendChild(userEntry);
+                });
+        }
+
+        // Add filter event listener
+        userFilter.addEventListener('input', filterAndDisplayUsers);
+
+        // Load user data by ID
+        async function loadUserData(userId) {
+            try {
+                const token = localStorage.getItem('token');
+                
+                const response = await fetch(`/api/admin/users/${userId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const userData = await response.json();
+                displayUserData(userData);
+                
+                // Highlight selected user
+                document.querySelectorAll('.user-entry').forEach(entry => {
+                    entry.style.backgroundColor = '';
+                });
+                
+                const entries = Array.from(document.querySelectorAll('.user-entry'));
+                const selectedEntry = entries.find(entry => 
+                    entry.querySelector('.user-entry-name').textContent === (userData.avatarName || 'No Avatar Name')
+                );
+                
+                if (selectedEntry) {
+                    selectedEntry.style.backgroundColor = 'rgba(0, 255, 249, 0.2)';
+                }
+            } catch (error) {
+                console.error('Error loading user data:', error);
+                alert('Error loading user data');
+            }
+        }
+
+        // Display user data
+        function displayUserData(user) {
+            // Display raw JSON data
+            document.getElementById('userJsonDisplay').value = JSON.stringify(user, null, 2);
+            
+            // Basic user info
+            document.getElementById('userId').textContent = user._id || '';
+            document.getElementById('userEmail').textContent = user.email || '';
+            document.getElementById('avatarName').textContent = user.avatarName || 'No Avatar Name';
+            document.getElementById('characterClass').textContent = user.class ? user.class.name : 'No Class';
+            document.getElementById('characterDescription').textContent = user.description || 'No description';
+            
+            // Character image
+            const characterImage = document.getElementById('characterImage');
+            const noImageText = document.getElementById('noImageText');
+            
+            if (user.image) {
+                characterImage.src = user.image;
+                characterImage.style.display = 'block';
+                noImageText.style.display = 'none';
+            } else {
+                characterImage.style.display = 'none';
+                noImageText.style.display = 'block';
+            }
+            
+            // Character stats
+            const statsContainer = document.getElementById('statsContainer');
+            statsContainer.innerHTML = '';
+            
+            if (user.stats) {
+                // Create stat items for each stat using PUNK MUD's character stats
+                const stats = [
+                    { name: 'Level', value: user.stats.level || 1 },
+                    { name: 'Hitpoints', value: `${user.stats.health || 0}/${user.stats.maxHealth || 0}` },
+                    { name: 'Energy', value: `${user.stats.energy || 0}/${user.stats.maxEnergy || 0}` },
+                    { name: 'Armor', value: user.stats.armor || 0 },
+                    { name: 'Body', value: user.stats.body || 0 },
+                    { name: 'Reflexes', value: user.stats.reflexes || 0 },
+                    { name: 'Agility', value: user.stats.agility || 0 },
+                    { name: 'Charisma', value: user.stats.charisma || 0 },
+                    { name: 'Tech', value: user.stats.tech || 0 },
+                    { name: 'Luck', value: user.stats.luck || 0 },
+                    { name: 'Experience', value: user.stats.experience || 0 }
+                ];
+                
+                stats.forEach(stat => {
+                    const statItem = document.createElement('div');
+                    statItem.className = 'stat-item';
+                    statItem.innerHTML = `
+                        <div class="stat-name">${stat.name}</div>
+                        <div class="stat-value">${stat.value}</div>
+                    `;
+                    statsContainer.appendChild(statItem);
+                });
+                
+                // Experience progress
+                if (user.expProgress) {
+                    document.getElementById('currentExp').textContent = `${user.expProgress.current}`;
+                    document.getElementById('requiredExp').textContent = `${user.expProgress.required}`;
+                    document.getElementById('expProgressFill').style.width = `${user.expProgress.percentage}%`;
+                }
+            }
+            
+            // Character moves
+            const movesContainer = document.getElementById('movesContainer');
+            movesContainer.innerHTML = '';
+            
+            if (user.moves && user.moves.length > 0) {
+                user.moves.forEach(move => {
+                    const moveItem = document.createElement('div');
+                    moveItem.className = 'move-item';
+                    moveItem.innerHTML = `
+                        <div class="move-name">${move.name}</div>
+                        <div class="move-description">${move.description || 'No description'}</div>
+                    `;
+                    movesContainer.appendChild(moveItem);
+                });
+            } else {
+                movesContainer.innerHTML = '<p>No moves available</p>';
+            }
+            
+            // Quest status
+            const questsContainer = document.getElementById('questsContainer');
+            questsContainer.innerHTML = '';
+            
+            if (user.quests && user.quests.length > 0) {
+                // Create sections for active and completed quests
+                const activeQuests = user.quests.filter(quest => !quest.completed);
+                const completedQuests = user.quests.filter(quest => quest.completed);
+                
+                // Handle active quests
+                if (activeQuests.length > 0) {
+                    const activeSection = document.createElement('div');
+                    activeSection.innerHTML = '<h4 style="color: var(--neon-blue); margin-top: 0;">Active Quests</h4>';
+                    questsContainer.appendChild(activeSection);
+                    
+                    // Create loading indicator for active quests
+                    const activeQuestsContainer = document.createElement('div');
+                    activeQuestsContainer.id = 'activeQuestsContainer';
+                    activeQuestsContainer.innerHTML = '<p>Loading quest details...</p>';
+                    questsContainer.appendChild(activeQuestsContainer);
+                    
+                    // Process each active quest
+                    Promise.all(activeQuests.map(quest => fetchQuestDetails(quest.questId)))
+                        .then(questDetails => {
+                            activeQuestsContainer.innerHTML = '';
+                            
+                            questDetails.forEach((details, index) => {
+                                const quest = activeQuests[index];
+                                const questItem = document.createElement('div');
+                                questItem.className = 'move-item';
+                                
+                                // Default quest name if we couldn't fetch details
+                                let questTitle = `Quest ID: ${quest.questId}`;
+                                
+                                // Use quest title if we got details
+                                if (details && details.title) {
+                                    questTitle = details.title;
+                                }
+                                
+                                questItem.innerHTML = `
+                                    <div class="move-name">${questTitle}</div>
+                                    <div class="move-description">
+                                        <strong>Started:</strong> ${new Date(quest.startedAt).toLocaleString()}
+                                    </div>
+                                `;
+                                activeQuestsContainer.appendChild(questItem);
+                            });
+                        })
+                        .catch(error => {
+                            console.error('Error fetching active quest details:', error);
+                            activeQuestsContainer.innerHTML = '<p>Error loading quest details</p>';
+                        });
+                } else {
+                    const activeSection = document.createElement('div');
+                    activeSection.innerHTML = '<h4 style="color: var(--neon-blue); margin-top: 0;">Active Quests</h4><p>No active quests</p>';
+                    questsContainer.appendChild(activeSection);
+                }
+                
+                // Handle completed quests
+                if (completedQuests.length > 0) {
+                    const completedSection = document.createElement('div');
+                    completedSection.innerHTML = '<h4 style="color: var(--neon-blue); margin-top: 1rem;">Completed Quests</h4>';
+                    questsContainer.appendChild(completedSection);
+                    
+                    // Create container for completed quests
+                    const completedQuestsContainer = document.createElement('div');
+                    completedQuestsContainer.id = 'completedQuestsContainer';
+                    completedQuestsContainer.innerHTML = '<p>Loading quest details...</p>';
+                    questsContainer.appendChild(completedQuestsContainer);
+                    
+                    // Process each completed quest
+                    Promise.all(completedQuests.map(quest => fetchQuestDetails(quest.questId)))
+                        .then(questDetails => {
+                            completedQuestsContainer.innerHTML = '';
+                            
+                            questDetails.forEach((details, index) => {
+                                const quest = completedQuests[index];
+                                const questItem = document.createElement('div');
+                                questItem.className = 'move-item';
+                                
+                                // Default quest name
+                                let questTitle = `Quest ID: ${quest.questId}`;
+                                
+                                // Use quest title if available
+                                if (details && details.title) {
+                                    questTitle = details.title;
+                                }
+                                
+                                questItem.innerHTML = `
+                                    <div class="move-name">${questTitle}</div>
+                                    <div class="move-description">
+                                        <strong>Completed:</strong> ${new Date(quest.completedAt).toLocaleString()}
+                                    </div>
+                                `;
+                                completedQuestsContainer.appendChild(questItem);
+                            });
+                        })
+                        .catch(error => {
+                            console.error('Error fetching completed quest details:', error);
+                            completedQuestsContainer.innerHTML = '<p>Error loading quest details</p>';
+                        });
+                } else {
+                    const completedSection = document.createElement('div');
+                    completedSection.innerHTML = '<h4 style="color: var(--neon-blue); margin-top: 1rem;">Completed Quests</h4><p>No completed quests</p>';
+                    questsContainer.appendChild(completedSection);
+                }
+            } else {
+                questsContainer.innerHTML = '<p>No quests available</p>';
+            }
+        }
+
+        // Helper function to fetch quest details by ID
+        async function fetchQuestDetails(questId) {
+            try {
+                const token = localStorage.getItem('token');
+                
+                const response = await fetch(`/api/quests/${questId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    console.warn(`Could not fetch details for quest ${questId}: ${response.status}`);
+                    return null;
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.warn(`Error fetching quest ${questId}:`, error);
+                return null;
+            }
+        }
+
+        // Add hamburger menu functionality
+        const hamburgerButton = document.querySelector('.hamburger-button');
+        const menuContent = document.querySelector('.menu-content');
+
+        hamburgerButton.addEventListener('click', () => {
+            menuContent.classList.toggle('show');
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!hamburgerButton.contains(e.target) && !menuContent.contains(e.target)) {
+                menuContent.classList.remove('show');
+            }
+        });
+
+        // Highlight current page in menu
+        document.querySelectorAll('.menu-content a').forEach(link => {
+            if (link.href === window.location.href) {
+                link.style.color = 'var(--neon-pink)';
+            }
+        });
+    </script>
+</body>
+</html> 
