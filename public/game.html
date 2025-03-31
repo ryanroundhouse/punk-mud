@@ -694,10 +694,17 @@
         // Add new constants for terminal history
         const TERMINAL_HISTORY_KEY_PREFIX = 'terminalHistory_';
         const MAX_TERMINAL_HISTORY = 20;
+        // Add tracking variables for node updates
+        let lastNodeUpdate = 0;
+        let pendingNodeUpdate = false;
 
         // Function to request node data via WebSocket
         function requestNodeData(address = null) {
             if (socket && socket.connected) {
+                console.log('Requesting node data:', {
+                    timestamp: new Date().toISOString(),
+                    address: address || 'current location'
+                });
                 socket.emit('get node data', { address: address });
             } else {
                 console.error('Socket not connected - cannot request node data');
@@ -1040,6 +1047,15 @@
                 responseLine.textContent = data.message;
                 terminalOutput.insertBefore(responseLine, inputLine);
                 inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                
+                // Set flag for pending node update
+                pendingNodeUpdate = true;
+                
+                // Request node data if it hasn't been updated recently
+                const now = Date.now();
+                if (now - lastNodeUpdate > 2000) {
+                    setTimeout(() => requestNodeData(), 100);
+                }
             });
 
             socket.on('event end', (data) => {
@@ -1050,6 +1066,12 @@
                 responseLine.textContent = data.message;
                 terminalOutput.insertBefore(responseLine, inputLine);
                 inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                
+                // Request node data when event ends if we have a pending update
+                if (pendingNodeUpdate) {
+                    setTimeout(() => requestNodeData(), 100);
+                    pendingNodeUpdate = false;
+                }
             });
 
             socket.on('event choice', (data) => {
@@ -1061,6 +1083,9 @@
                 responseLine.textContent = data.message;
                 terminalOutput.insertBefore(responseLine, inputLine);
                 inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                
+                // Make sure we're ready to update node data when the event completes
+                pendingNodeUpdate = true;
             });
 
             socket.on('users update', (users) => {
@@ -1095,7 +1120,7 @@
                 });
             });
 
-            // Update the console response handler
+            // Update the console response handler to check for event responses
             socket.on('console response', (data) => {
                 // Handle playerStatus messages by updating the health bar
                 if (data.type === 'playerStatus') {
@@ -1116,6 +1141,17 @@
                     (data.message && data.message.includes('You successfully flee from combat!')) ||
                     (data.type === 'move' && data.message && data.message.includes('You have been teleported to'))) {
                     requestNodeData();
+                }
+                
+                // Check if this is an event response and ensure we get node data
+                if (data.type === 'event') {
+                    pendingNodeUpdate = true;
+                    // Request node data if it's been a while since the last update
+                    const now = Date.now();
+                    if (now - lastNodeUpdate > 2000) {
+                        // Small delay to allow event processing to complete
+                        setTimeout(() => requestNodeData(), 100);
+                    }
                 }
                 
                 // Set color based on message type
@@ -1252,7 +1288,7 @@
                 document.getElementById('terminalInput').focus();
             });
 
-            // Add handler for node data
+            // Update the node data handler to track last update time
             socket.on('node data', (nodeData) => {
                 console.log('Received node data:', {
                     timestamp: new Date().toISOString(),
@@ -1263,6 +1299,8 @@
                 });
                 
                 displayNode(nodeData);
+                lastNodeUpdate = Date.now();
+                pendingNodeUpdate = false;
             });
         }
 

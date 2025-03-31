@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PUNK MUD - Mobile</title>
+    <link rel="icon" type="image/x-icon" href="/assets/art/favicon.ico">
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+            --terminal-green: #00ff00;
+            --neon-red: #ff0000;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            display: flex;
+            flex-direction: column;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            overflow: hidden;
+        }
+
+        .status-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(10, 10, 15, 0.8);
+            padding: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .health-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+        }
+
+        .health-label {
+            color: var(--neon-pink);
+            font-weight: bold;
+            text-shadow: 0 0 5px var(--neon-pink);
+            font-size: 0.8rem;
+        }
+
+        .health-label:nth-of-type(2) {
+            color: var(--neon-blue);
+            text-shadow: 0 0 5px var(--neon-blue);
+        }
+
+        .health-bar {
+            height: 15px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--neon-pink);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            flex: 1;
+        }
+
+        .energy-bar {
+            border-color: var(--neon-blue);
+        }
+
+        .health-fill {
+            height: 100%;
+            background: var(--neon-pink);
+            width: 100%;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .energy-bar .health-fill {
+            background: var(--neon-blue);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .health-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-size: 0.7rem;
+            line-height: 15px;
+            text-shadow: 0 0 2px black;
+            font-weight: bold;
+            z-index: 1;
+        }
+
+        .logout-button {
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.3rem 0.6rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            cursor: pointer;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            margin-left: 0.5rem;
+        }
+
+        .logout-button:hover, .logout-button:active {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .mobile-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100%;
+            position: relative;
+            padding-top: 35px; /* Space for status bar */
+        }
+
+        .node-info {
+            width: 100%;
+            position: relative;
+        }
+
+        .node-name {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            color: var(--neon-pink);
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px var(--neon-pink);
+            text-align: center;
+            background: rgba(10, 10, 15, 0.7);
+            padding: 0.3rem;
+            z-index: 10;
+        }
+
+        .node-image {
+            width: 100%;
+            height: 35vh;
+            object-fit: cover;
+            border-bottom: 2px solid var(--neon-blue);
+            box-shadow: 0 0 15px var(--neon-blue);
+            display: block;
+        }
+
+        .console-container {
+            flex: 1;
+            overflow-y: auto;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 1rem;
+            border-bottom: 1px solid var(--terminal-green);
+            position: relative;
+            max-height: 30vh;
+        }
+
+        .console-output {
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            line-height: 1.4;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            max-height: calc(30vh - 2rem);
+        }
+
+        .console-output > div {
+            margin-bottom: 0.5rem;
+        }
+
+        .controls-container {
+            display: flex;
+            flex-direction: column;
+            padding: 0.5rem;
+            background: rgba(10, 10, 15, 0.8);
+            height: calc(35vh - 1rem);
+        }
+
+        .direction-controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            flex: 3;
+        }
+
+        .direction-button {
+            background: rgba(0, 255, 249, 0.1);
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        .direction-button:active {
+            background: rgba(0, 255, 249, 0.3);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .direction-button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .action-controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            flex: 1;
+        }
+
+        .action-button {
+            background: rgba(255, 46, 136, 0.1);
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            border-radius: 5px;
+            padding: 0.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .action-button:active {
+            background: rgba(255, 46, 136, 0.3);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .image-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-image {
+            max-width: 95%;
+            max-height: 95vh;
+            object-fit: contain;
+            border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 30px var(--neon-blue);
+        }
+
+        .actor-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 70vh;
+            background-color: rgba(10, 10, 15, 0.95);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            border-bottom: 2px solid var(--neon-blue);
+            box-shadow: 0 0 30px var(--neon-blue);
+        }
+
+        .actor-modal-content {
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            max-width: 95%;
+            height: 95%;
+        }
+
+        .actor-modal-image {
+            max-height: 30vh;
+            max-width: 100%;
+            object-fit: contain;
+            border: 2px solid var(--neon-blue);
+            border-radius: 5px;
+            box-shadow: 0 0 15px var(--neon-blue);
+            margin-bottom: 1rem;
+        }
+
+        .actor-modal-text {
+            flex: 1;
+            overflow-y: auto;
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+        }
+
+        .rest-point-indicator {
+            color: var(--terminal-green);
+            text-shadow: 0 0 5px var(--terminal-green);
+            animation: pulse 2s infinite;
+            text-align: center;
+            padding: 0.3rem;
+            font-weight: bold;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body>
+    <div class="status-bar">
+        <div class="health-container">
+            <span class="health-label">HP</span>
+            <div class="health-bar">
+                <div class="health-text">100/100</div>
+                <div class="health-fill"></div>
+            </div>
+            <span class="health-label">EP</span>
+            <div class="health-bar energy-bar">
+                <div class="health-text">30/30</div>
+                <div class="health-fill"></div>
+            </div>
+        </div>
+        <button class="logout-button" id="logoutButton">Exit</button>
+    </div>
+    
+    <div class="mobile-container">
+        <div class="node-info">
+            <div class="node-name" id="nodeName"></div>
+            <img id="nodeImage" class="node-image" src="" alt="Location Image">
+        </div>
+        
+        <div class="console-container">
+            <div class="console-output" id="consoleOutput">
+                <!-- Terminal output will be displayed here -->
+            </div>
+        </div>
+        
+        <div class="controls-container">
+            <div class="direction-controls">
+                <div></div>
+                <button class="direction-button" id="btnNorth" data-direction="north">N</button>
+                <div></div>
+                <button class="direction-button" id="btnWest" data-direction="west">W</button>
+                <div></div>
+                <button class="direction-button" id="btnEast" data-direction="east">E</button>
+                <div></div>
+                <button class="direction-button" id="btnSouth" data-direction="south">S</button>
+                <div></div>
+            </div>
+            <div class="action-controls">
+                <button class="action-button" id="btnLook">LOOK</button>
+                <button class="action-button" id="btnList">LIST</button>
+                <button class="action-button" id="btnHelp">HELP</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="imageModal" class="image-modal" style="display: none;">
+        <img id="modalImage" class="modal-image" alt="Enlarged Image">
+    </div>
+
+    <!-- Add socket.io client library before the script tag -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+        let socket;
+        let currentNode = null;
+        let currentUsername = null;
+        const TERMINAL_HISTORY_KEY_PREFIX = 'terminalHistory_';
+        const MAX_TERMINAL_HISTORY = 20;
+
+        // Function to request node data via WebSocket
+        function requestNodeData(address = null) {
+            if (socket && socket.connected) {
+                socket.emit('get node data', { address: address });
+            } else {
+                console.error('Socket not connected - cannot request node data');
+            }
+        }
+
+        // Function to display node data received via WebSocket
+        function displayNode(nodeData) {
+            currentNode = nodeData;
+
+            // Update node name
+            document.getElementById('nodeName').textContent = nodeData.name;
+            
+            // Handle image and update border color based on node status
+            const nodeImage = document.getElementById('nodeImage');
+            if (nodeData.image) {
+                nodeImage.src = nodeData.image;
+                nodeImage.style.display = 'block';
+                
+                // Set border color based on node type (default blue)
+                nodeImage.style.borderColor = 'var(--neon-blue)';
+                nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
+                
+                // Update border color if enemies are present
+                if (nodeData.enemies && nodeData.enemies.length > 0) {
+                    nodeImage.style.borderColor = 'var(--neon-red)';
+                    nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
+                } else if (nodeData.isRestPoint) {
+                    nodeImage.style.borderColor = 'var(--terminal-green)';
+                    nodeImage.style.boxShadow = '0 0 15px var(--terminal-green)';
+                }
+            } else {
+                nodeImage.src = '/assets/art/default-location.jpg'; // Use a default image
+            }
+
+            // Update available exits (enable/disable buttons)
+            updateDirectionButtons(nodeData.exits || []);
+            
+            // Add rest point indicator if applicable
+            if (nodeData.isRestPoint) {
+                const restIndicator = document.createElement('div');
+                restIndicator.className = 'rest-point-indicator';
+                restIndicator.textContent = '*** REST POINT ***';
+                if (!document.querySelector('.rest-point-indicator')) {
+                    const consoleOutput = document.getElementById('consoleOutput');
+                    consoleOutput.appendChild(restIndicator);
+                }
+            } else {
+                const indicator = document.querySelector('.rest-point-indicator');
+                if (indicator) {
+                    indicator.remove();
+                }
+            }
+            
+            // Add description to console output
+            const consoleOutput = document.getElementById('consoleOutput');
+            const descriptionLine = document.createElement('div');
+            descriptionLine.style.color = 'var(--neon-blue)';
+            descriptionLine.textContent = nodeData.description;
+            consoleOutput.appendChild(descriptionLine);
+            
+            // Auto-scroll console to bottom
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        // Update direction buttons based on available exits
+        function updateDirectionButtons(exits) {
+            // Disable all direction buttons first
+            const directionButtons = document.querySelectorAll('.direction-button');
+            directionButtons.forEach(button => {
+                button.disabled = true;
+            });
+            
+            // Then enable only the available exits
+            exits.forEach(exit => {
+                const direction = exit.direction;
+                const button = document.querySelector(`[data-direction="${direction}"]`);
+                if (button) {
+                    button.disabled = false;
+                }
+            });
+        }
+
+        // Initialize WebSocket connection
+        function initializeSocket() {
+            const token = localStorage.getItem('token');
+            
+            socket = io({
+                auth: {
+                    token: token
+                }
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('Socket connection error:', error);
+                addConsoleMessage('Connection error. Please try again later.', 'error');
+            });
+
+            socket.on('connect', () => {
+                addConsoleMessage('Connected to server.', 'success');
+                requestNodeData();
+            });
+
+            socket.on('disconnect', () => {
+                addConsoleMessage('Disconnected from server.', 'error');
+            });
+
+            // Add handler for node data
+            socket.on('node data', (nodeData) => {
+                console.log('Received node data:', {
+                    timestamp: new Date().toISOString(),
+                    address: nodeData.address,
+                    name: nodeData.name
+                });
+                
+                displayNode(nodeData);
+            });
+
+            // Update the console response handler
+            socket.on('console response', (data) => {
+                // Handle playerStatus messages by updating the health bar
+                if (data.type === 'playerStatus') {
+                    updateHealthBar(data.message);
+                    return;
+                }
+                
+                // Store the console response
+                storeTerminalHistory('', data);
+                
+                // Check if this is a movement response or successful flee
+                if ((data.message && data.message.startsWith('You move ')) || 
+                    (data.message && data.message.includes('You successfully flee from combat!')) ||
+                    (data.type === 'move' && data.message && data.message.includes('You have been teleported to'))) {
+                    requestNodeData();
+                }
+                
+                // Add message to console with appropriate styling
+                addConsoleMessage(data.message, data.type);
+
+                // Handle special response types
+                if (data.type === 'list' && data.redirect) {
+                    if (data.isActor) {
+                        showActorModal(data);
+                    } else {
+                        window.location.href = `/character.html?view=${encodeURIComponent(data.target)}`;
+                    }
+                }
+            });
+
+            socket.on('event start', (data) => {
+                addConsoleMessage(data.message, 'event');
+            });
+
+            socket.on('event end', (data) => {
+                addConsoleMessage(data.message, 'event');
+            });
+
+            socket.on('event choice', (data) => {
+                addConsoleMessage(data.message, 'event');
+            });
+
+            socket.on('player death', (data) => {
+                // Refresh the location immediately
+                requestNodeData();
+                
+                // Add a visual separator for death
+                addConsoleMessage('*** YOU HAVE DIED ***', 'death');
+            });
+        }
+
+        // Function to add messages to console output
+        function addConsoleMessage(message, type = 'default') {
+            const consoleOutput = document.getElementById('consoleOutput');
+            const messageLine = document.createElement('div');
+            
+            // Set color based on message type
+            switch(type) {
+                case 'error':
+                    messageLine.style.color = 'var(--neon-red)';
+                    break;
+                case 'success':
+                    messageLine.style.color = 'var(--neon-blue)';
+                    break;
+                case 'combat':
+                    messageLine.style.color = 'var(--neon-pink)';
+                    break;
+                case 'event':
+                    messageLine.style.color = 'var(--neon-blue)';
+                    break;
+                case 'death':
+                    messageLine.style.color = 'var(--neon-red)';
+                    messageLine.style.textAlign = 'center';
+                    messageLine.style.fontWeight = 'bold';
+                    messageLine.style.borderTop = '1px solid var(--neon-red)';
+                    messageLine.style.borderBottom = '1px solid var(--neon-red)';
+                    messageLine.style.margin = '0.5rem 0';
+                    messageLine.style.padding = '0.5rem 0';
+                    break;
+                default:
+                    messageLine.style.color = 'var(--terminal-green)';
+            }
+            
+            messageLine.textContent = message;
+            consoleOutput.appendChild(messageLine);
+            
+            // Limit number of messages in console
+            while (consoleOutput.children.length > 50) {
+                consoleOutput.removeChild(consoleOutput.firstChild);
+            }
+            
+            // Auto-scroll to bottom
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        // Function to update health and energy bars
+        function updateHealthBar(message) {
+            // Extract current and max HP from the message (format: "HP: current/max | Energy: current/max")
+            const hpMatch = message.match(/HP: (\d+)\/(\d+)/);
+            const energyMatch = message.match(/Energy: (\d+)\/(\d+)/);
+            
+            if (hpMatch) {
+                const currentHP = parseInt(hpMatch[1]);
+                const maxHP = parseInt(hpMatch[2]);
+                const hpPercentage = (currentHP / maxHP) * 100;
+
+                // Update the health bar fill
+                const healthBars = document.querySelectorAll('.health-bar');
+                const healthFill = healthBars[0].querySelector('.health-fill');
+                const healthText = healthBars[0].querySelector('.health-text');
+
+                healthFill.style.width = `${hpPercentage}%`;
+                healthText.textContent = `${currentHP}/${maxHP}`;
+
+                // Update colors based on health percentage
+                if (hpPercentage <= 25) {
+                    healthFill.style.background = 'var(--neon-red)';
+                    healthFill.style.boxShadow = '0 0 10px var(--neon-red)';
+                } else if (hpPercentage <= 50) {
+                    healthFill.style.background = '#ffa500';
+                    healthFill.style.boxShadow = '0 0 10px #ffa500';
+                } else {
+                    healthFill.style.background = 'var(--neon-pink)';
+                    healthFill.style.boxShadow = '0 0 10px var(--neon-pink)';
+                }
+            }
+
+            if (energyMatch) {
+                const currentEnergy = parseInt(energyMatch[1]);
+                const maxEnergy = parseInt(energyMatch[2]);
+                const energyPercentage = (currentEnergy / maxEnergy) * 100;
+
+                // Update the energy bar fill
+                const healthBars = document.querySelectorAll('.health-bar');
+                const energyFill = healthBars[1].querySelector('.health-fill');
+                const energyText = healthBars[1].querySelector('.health-text');
+
+                energyFill.style.width = `${energyPercentage}%`;
+                energyText.textContent = `${currentEnergy}/${maxEnergy}`;
+
+                // Update colors based on energy percentage
+                if (energyPercentage <= 25) {
+                    energyFill.style.background = 'var(--neon-red)';
+                    energyFill.style.boxShadow = '0 0 10px var(--neon-red)';
+                } else if (energyPercentage <= 50) {
+                    energyFill.style.background = '#ffa500';
+                    energyFill.style.boxShadow = '0 0 10px #ffa500';
+                } else {
+                    energyFill.style.background = 'var(--neon-blue)';
+                    energyFill.style.boxShadow = '0 0 10px var(--neon-blue)';
+                }
+            }
+        }
+
+        // Function to show actor modal
+        function showActorModal(data) {
+            // Create modal container
+            const modal = document.createElement('div');
+            modal.className = 'actor-modal';
+
+            // Create content container
+            const content = document.createElement('div');
+            content.className = 'actor-modal-content';
+
+            // Add image if available
+            if (data.image) {
+                const img = document.createElement('img');
+                img.src = data.image;
+                img.className = 'actor-modal-image';
+                img.addEventListener('click', function() {
+                    const modalImage = document.getElementById('modalImage');
+                    const imageModal = document.getElementById('imageModal');
+                    modalImage.src = data.image;
+                    imageModal.style.display = 'flex';
+                });
+                content.appendChild(img);
+            }
+
+            // Add text content
+            const text = document.createElement('div');
+            text.className = 'actor-modal-text';
+            const formattedDesc = `${data.target}\n` + 
+                '='.repeat(data.target.length) + '\n\n' +
+                data.description;
+            text.textContent = formattedDesc;
+            content.appendChild(text);
+
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+
+            // Close modal on any input
+            function closeModal() {
+                modal.remove();
+                document.removeEventListener('touchstart', closeModal);
+                document.removeEventListener('keydown', closeModal);
+            }
+
+            document.addEventListener('touchstart', closeModal);
+            document.addEventListener('keydown', closeModal);
+        }
+
+        // Function to store terminal history
+        function storeTerminalHistory(command, response) {
+            if (!currentUsername) return;
+            
+            const terminalHistoryKey = TERMINAL_HISTORY_KEY_PREFIX + currentUsername;
+            let history = JSON.parse(localStorage.getItem(terminalHistoryKey) || '[]');
+            
+            // Add as a new entry with responses array
+            history.push({ 
+                command, 
+                responses: [response], 
+                timestamp: new Date().toISOString() 
+            });
+            
+            // Keep only the last MAX_TERMINAL_HISTORY entries
+            if (history.length > MAX_TERMINAL_HISTORY) {
+                history = history.slice(history.length - MAX_TERMINAL_HISTORY);
+            }
+            
+            localStorage.setItem(terminalHistoryKey, JSON.stringify(history));
+        }
+
+        // Set up event listeners for buttons
+        function setupEventListeners() {
+            // Direction buttons
+            document.querySelectorAll('.direction-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    const direction = this.getAttribute('data-direction');
+                    if (direction && !this.disabled) {
+                        socket.emit('console command', { 
+                            command: 'move',
+                            direction: direction
+                        });
+                    }
+                });
+            });
+            
+            // Action buttons
+            document.getElementById('btnLook').addEventListener('click', function() {
+                addConsoleMessage(`Looking around ${currentNode.name}...`, 'default');
+                socket.emit('console command', { command: 'look' });
+            });
+            
+            document.getElementById('btnList').addEventListener('click', function() {
+                socket.emit('console command', { command: 'list' });
+            });
+            
+            document.getElementById('btnHelp').addEventListener('click', function() {
+                socket.emit('console command', { command: 'help' });
+            });
+            
+            // Logout button
+            document.getElementById('logoutButton').addEventListener('click', function() {
+                if (socket) {
+                    socket.disconnect();
+                }
+                localStorage.removeItem('token');
+                window.location.href = '/';
+            });
+            
+            // Node image click to enlarge
+            document.getElementById('nodeImage').addEventListener('click', function() {
+                const modalImage = document.getElementById('modalImage');
+                const imageModal = document.getElementById('imageModal');
+                modalImage.src = this.src;
+                imageModal.style.display = 'flex';
+            });
+            
+            // Close modal on click
+            document.getElementById('imageModal').addEventListener('click', function() {
+                this.style.display = 'none';
+            });
+        }
+
+        // Set up the app when page loads
+        window.onload = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                // Verify token validity
+                const response = await fetch('/api/auth/verify-token', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                // Parse username from token
+                try {
+                    const tokenParts = token.split('.');
+                    if (tokenParts.length === 3) {
+                        const payload = JSON.parse(atob(tokenParts[1]));
+                        currentUsername = payload.avatarName;
+                    }
+                } catch (e) {
+                    console.error('Error parsing token:', e);
+                }
+
+                // Set up event listeners
+                setupEventListeners();
+                
+                // Initialize socket connection
+                initializeSocket();
+                
+                // Check if user is in combat
+                const combatResponse = await fetch('/api/combat/status', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (combatResponse.ok) {
+                    const combatStatus = await combatResponse.json();
+                    if (combatStatus.inCombat) {
+                        // Show combat status
+                        const statusMessage = `You are in combat with ${combatStatus.enemyName}!\n` +
+                                           `Your HP: ${combatStatus.playerHealth}\n` +
+                                           `${combatStatus.enemyName}'s HP: ${combatStatus.enemyHealth}\n` +
+                                           `Use combat moves to fight!`;
+                        
+                        addConsoleMessage(statusMessage, 'combat');
+                        
+                        // Then get combat help text
+                        setTimeout(() => {
+                            socket.emit('console command', { command: 'help' });
+                        }, 500);
+                    }
+                }
+
+            } catch (error) {
+                console.error('Authentication error:', error);
+                window.location.href = '/';
+            }
+        };
+    </script>
+</body>
+</html> 

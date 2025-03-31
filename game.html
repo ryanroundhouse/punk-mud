@@ -1,0 +1,105 @@
+// Add tracking variable for node updates
+let lastNodeUpdate = 0;
+let pendingNodeUpdate = false;
+
+// Update the event handling functions to ensure node data is requested
+socket.on('event start', (data) => {
+    // Add event start message to terminal
+    const inputLine = terminalInput.parentElement;
+    const responseLine = document.createElement('div');
+    responseLine.style.color = 'var(--neon-blue)';
+    responseLine.textContent = data.message;
+    terminalOutput.insertBefore(responseLine, inputLine);
+    inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    
+    // Set flag for pending node update
+    pendingNodeUpdate = true;
+    
+    // Request node data if it hasn't been updated recently
+    const now = Date.now();
+    if (now - lastNodeUpdate > 2000) {
+        requestNodeData();
+    }
+});
+
+socket.on('event end', (data) => {
+    // Add event end message to terminal
+    const inputLine = terminalInput.parentElement;
+    const responseLine = document.createElement('div');
+    responseLine.style.color = 'var(--neon-blue)';
+    responseLine.textContent = data.message;
+    terminalOutput.insertBefore(responseLine, inputLine);
+    inputLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    
+    // Request node data when event ends if we have a pending update
+    if (pendingNodeUpdate) {
+        requestNodeData();
+        pendingNodeUpdate = false;
+    }
+});
+
+// Update the node data handler to track last update time
+socket.on('node data', (nodeData) => {
+    console.log('Received node data:', {
+        timestamp: new Date().toISOString(),
+        address: nodeData.address,
+        name: nodeData.name,
+        exitCount: nodeData.exits?.length || 0,
+        enemyCount: nodeData.enemies?.length || 0
+    });
+    
+    displayNode(nodeData);
+    lastNodeUpdate = Date.now();
+    pendingNodeUpdate = false;
+});
+
+// Add a check after console commands to ensure node data is updated when needed
+socket.on('console response', (data) => {
+    // Handle playerStatus messages by updating the health bar
+    if (data.type === 'playerStatus') {
+        updateHealthBar(data.message);
+        return;
+    }
+    
+    const inputLine = terminalInput.parentElement;
+    const responseLine = document.createElement('div');
+    
+    // Store the last command and its response
+    const lastCommand = commandHistory.length > 0 ? 
+        commandHistory[commandHistory.length - 1] : '';
+    storeTerminalHistory(lastCommand, data);
+    
+    // Check if this is a movement response or successful flee
+    if ((data.message && data.message.startsWith('You move ')) || 
+        (data.message && data.message.includes('You successfully flee from combat!')) ||
+        (data.type === 'move' && data.message && data.message.includes('You have been teleported to'))) {
+        requestNodeData();
+    }
+    
+    // Check if this is an event response and ensure we get node data
+    if (data.type === 'event') {
+        pendingNodeUpdate = true;
+        // Request node data if it's been a while since the last update
+        const now = Date.now();
+        if (now - lastNodeUpdate > 2000) {
+            // Small delay to allow event processing to complete
+            setTimeout(() => requestNodeData(), 100);
+        }
+    }
+    
+    // Set color based on message type
+    // ... existing code for color setting and message display ...
+});
+
+// Update function to request node data via WebSocket
+function requestNodeData(address = null) {
+    if (socket && socket.connected) {
+        console.log('Requesting node data:', {
+            timestamp: new Date().toISOString(),
+            address: address || 'current location'
+        });
+        socket.emit('get node data', { address: address });
+    } else {
+        console.error('Socket not connected - cannot request node data');
+    }
+} 
