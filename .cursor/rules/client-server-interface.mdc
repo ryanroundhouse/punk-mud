@@ -1,3 +1,8 @@
+---
+description: When deciding on communication between client and server
+globs: 
+alwaysApply: false
+---
 # PUNK MUD Client-Server Interface Documentation
 
 This document provides a comprehensive overview of all client-server interactions in PUNK MUD, organized from the client's perspective.
