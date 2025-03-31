@@ -16,38 +16,12 @@ This document provides a comprehensive overview of all client-server interaction
   - **Response**: Success/Error
   - **Used**: On game page load to ensure user is authenticated
 
-### Nodes (Locations)
-- `GET /api/nodes/current`
-  - **Purpose**: Gets the user's current location
-  - **Request**: Token in Authorization header
-  - **Response**: Node object with details (name, description, image, exits)
-  - **Used**: On page load and after teleportation events
-
-- `GET /api/nodes/:address`
-  - **Purpose**: Gets details of a specific node by address
-  - **Request**: Token in Authorization header
-  - **Response**: Node object with details
-  - **Used**: When loading a specific location
-
-- `GET /api/nodes/public`
-  - **Purpose**: Gets a list of all publicly visible nodes
-  - **Request**: Token in Authorization header
-  - **Response**: Array of node objects
-  - **Used**: To populate exit names in the UI
-
 ### Combat
 - `GET /api/combat/status`
   - **Purpose**: Checks if user is in combat
   - **Request**: Token in Authorization header
   - **Response**: Combat status object (inCombat, enemyName, playerHealth, enemyHealth)
   - **Used**: On page load to restore combat state
-
-### Mobs
-- `GET /api/mobs/node/:address`
-  - **Purpose**: Checks for mobs in a specific node
-  - **Request**: Token in Authorization header
-  - **Response**: Object with enemies array
-  - **Used**: To update UI when loading a node
 
 ## Outbound Messages (Client to Server)
 
@@ -63,6 +37,20 @@ This document provides a comprehensive overview of all client-server interaction
           token: token
       }
   });
+  ```
+
+### Node Data
+- **Event**: `get node data`
+  - **Purpose**: Requests node data for the current location or a specific address
+  - **Data**: Object with optional address parameter
+  - **Triggered**: On page load, after movement, or when requesting a specific location
+  - **Example**:
+  ```javascript
+  // Request current location
+  socket.emit('get node data');
+  
+  // Request specific location
+  socket.emit('get node data', { address: 'city.center' });
   ```
 
 ### Chat Messages
@@ -131,6 +119,27 @@ This document provides a comprehensive overview of all client-server interaction
   - **Purpose**: Notifies of connection errors
   - **Data**: Error object
   - **Action**: Logs error to console
+
+### Node Data
+- **Event**: `node data`
+  - **Purpose**: Receives node information for display
+  - **Data**: Node object with name, description, image, exits, etc.
+  - **Action**: Updates UI with node information
+  - **Example**:
+  ```javascript
+  {
+    address: "city.center",
+    name: "City Center",
+    description: "A bustling plaza surrounded by neon signs and holographic advertisements.",
+    image: "/assets/locations/city_center.jpg",
+    exits: [
+      {direction: "north", targetName: "Shopping District", targetAddress: "city.shops"},
+      {direction: "south", targetName: "Residential Zone", targetAddress: "city.residential"}
+    ],
+    isRestPoint: true,
+    enemies: []
+  }
+  ```
 
 ### Chat Events
 - **Event**: `chat message`
@@ -304,4 +313,4 @@ The client uses localStorage to maintain state across sessions:
 - `token`: JWT authentication token
 - `chatMessages`: Recent chat messages (up to 50)
 - `commandHistory`: Command history for up/down arrow navigation (up to 50 commands)
-- `terminalHistory`: Recent terminal commands and responses (up to 20 entries) 
+- `terminalHistory`: Recent terminal commands and responses (up to 20 entries)

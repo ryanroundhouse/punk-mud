@@ -45,12 +45,6 @@ describe('EventChoiceProcessor', () => {
     mockEventNodeService = {
       cloneNode: jest.fn(node => JSON.parse(JSON.stringify(node))),
       validateNodeStructure: jest.fn(node => node),
-      ensureNodeHasId: jest.fn(node => {
-        if (!node._id) {
-          node._id = 'generated_id';
-        }
-        return node;
-      }),
       ensureConsistentQuestEvents: jest.fn(node => node)
     };
     
@@ -658,7 +652,6 @@ describe('EventChoiceProcessor', () => {
       
       const result = await processor.executeChoice(choice, mockUserData, 'user123', activeEvent);
       
-      expect(mockEventNodeService.ensureNodeHasId).toHaveBeenCalled();
       expect(mockEventNodeService.ensureConsistentQuestEvents).toHaveBeenCalled();
       expect(mockEventStateManager.setActiveEvent).toHaveBeenCalled();
       

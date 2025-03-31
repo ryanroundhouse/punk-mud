@@ -426,6 +426,20 @@ class NodeService {
         
         return result;
     }
+
+    /**
+     * Get all publicly visible nodes (for exits)
+     */
+    async getAllPublicNodes() {
+        try {
+            // Only fetch id, address, name - we don't need the complete node data
+            const nodes = await this.Node.find({}, 'address name');
+            return nodes;
+        } catch (error) {
+            logger.error('Error getting public nodes:', error);
+            return [];
+        }
+    }
 }
 
 // Create a singleton instance with default dependencies

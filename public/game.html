@@ -695,190 +695,117 @@
         const TERMINAL_HISTORY_KEY_PREFIX = 'terminalHistory_';
         const MAX_TERMINAL_HISTORY = 20;
 
-        // Add function to get user's current location
-        async function getCurrentLocation() {
-            try {
-                const response = await fetch(`/api/nodes/current`, {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to get current location');
-                }
-                
-                const node = await response.json();
-                return node;
-            } catch (error) {
-                console.error('Error getting current location:', error);
-                throw error;
+        // Function to request node data via WebSocket
+        function requestNodeData(address = null) {
+            if (socket && socket.connected) {
+                socket.emit('get node data', { address: address });
+            } else {
+                console.error('Socket not connected - cannot request node data');
             }
         }
 
-        // Function to load and display node
-        async function loadNode(address = null) {
-            try {
-                let node;
-                if (!address) {
-                    node = await getCurrentLocation();
-                } else {
-                    const response = await fetch(`/api/nodes/${address}`, {
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
-                        }
+        // Function to display node data received via WebSocket
+        function displayNode(nodeData) {
+            currentNode = nodeData;
+
+            // Update node name
+            document.getElementById('nodeName').textContent = nodeData.name;
+            
+            // Create or update node details section
+            const descriptionContainer = document.getElementById('nodeDescription');
+            descriptionContainer.innerHTML = ''; // Clear existing content
+
+            if (nodeData.isRestPoint) {
+                const details = document.createElement('div');
+                details.className = 'node-details';
+                details.innerHTML = '<span class="rest-point-indicator">*** REST POINT ***</span>';
+                descriptionContainer.appendChild(details);
+            }
+
+            // Add description text
+            const descriptionText = document.createElement('div');
+            descriptionText.textContent = nodeData.description;
+            descriptionContainer.appendChild(descriptionText);
+            
+            // Handle image and update border color based on node status
+            const nodeImage = document.getElementById('nodeImage');
+            if (nodeData.image) {
+                nodeImage.src = nodeData.image;
+                nodeImage.style.display = 'block';
+                
+                // Set border color based on node type (default blue)
+                nodeImage.style.borderColor = 'var(--neon-blue)';
+                nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
+                
+                // Update border color if enemies are present
+                if (nodeData.enemies && nodeData.enemies.length > 0) {
+                    nodeImage.style.borderColor = 'var(--neon-red)';
+                    nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
+                } else if (nodeData.isRestPoint) {
+                    nodeImage.style.borderColor = 'var(--terminal-green)';
+                    nodeImage.style.boxShadow = '0 0 15px var(--terminal-green)';
+                }
+            } else {
+                nodeImage.style.display = 'none';
+            }
+            
+            // Display exits
+            const exitsContainer = document.getElementById('nodeExits');
+            exitsContainer.innerHTML = '<h3>Available Exits:</h3><div class="exits-container"></div>';
+            const exitsWrapper = exitsContainer.querySelector('.exits-container');
+            
+            if (!nodeData.exits || nodeData.exits.length === 0) {
+                const noExitsMessage = document.createElement('div');
+                noExitsMessage.className = 'no-exits-message';
+                noExitsMessage.textContent = 'No available exits from this location.';
+                exitsWrapper.appendChild(noExitsMessage);
+            } else {
+                nodeData.exits.forEach(exit => {
+                    const exitElement = document.createElement('div');
+                    exitElement.className = 'exit-item';
+                    exitElement.setAttribute('tabindex', '0');
+                    exitElement.setAttribute('role', 'button');
+                    exitElement.setAttribute('aria-label', `Go ${exit.direction} to ${exit.targetName}`);
+                    exitElement.textContent = `[${exit.direction}] → [${exit.targetName}]`;
+                    
+                    exitElement.addEventListener('click', () => {
+                        socket.emit('console command', {
+                            command: 'move',
+                            direction: exit.direction
+                        });
                     });
 
-                    if (!response.ok) {
-                        const error = await response.json();
-                        throw new Error(error.error || 'Failed to load node');
-                    }
-
-                    node = await response.json();
-                }
-
-                // Update node display
-                document.getElementById('nodeName').textContent = node.name;
-
-                // Create or update node details section
-                const descriptionContainer = document.getElementById('nodeDescription');
-                descriptionContainer.innerHTML = ''; // Clear existing content
-
-                if (node.isRestPoint) {
-                    const details = document.createElement('div');
-                    details.className = 'node-details';
-                    details.innerHTML = '<span class="rest-point-indicator">*** REST POINT ***</span>';
-                    descriptionContainer.appendChild(details);
-                }
-
-                // Add description text
-                const descriptionText = document.createElement('div');
-                descriptionText.textContent = node.description;
-                descriptionContainer.appendChild(descriptionText);
-                
-                // Handle image and update border color based on node status
-                const nodeImage = document.getElementById('nodeImage');
-                if (node.image) {
-                    nodeImage.src = node.image;
-                    nodeImage.style.display = 'block';
-                    
-                    // Set border color based on node type (default blue)
-                    nodeImage.style.borderColor = 'var(--neon-blue)';
-                    nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
-                    
-                    // Check for actual mob presence by making an ls request
-                    try {
-                        const lsResponse = await fetch(`/api/mobs/node/${node.address}`, {
-                            headers: {
-                                'Authorization': `Bearer ${localStorage.getItem('token')}`
-                            }
-                        });
-                        
-                        if (lsResponse.ok) {
-                            const lsData = await lsResponse.json();
-                            
-                            // Check if there are actual enemies present
-                            if (lsData.enemies && lsData.enemies.length > 0) {
-                                nodeImage.style.borderColor = 'var(--neon-red)';
-                                nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
-                            } else if (node.isRestPoint) {
-                                nodeImage.style.borderColor = 'var(--terminal-green)';
-                                nodeImage.style.boxShadow = '0 0 15px var(--terminal-green)';
-                            }
-                        }
-                    } catch (error) {
-                        console.error('Error checking for mobs:', error);
-                        // Default border color already set
-                    }
-                } else {
-                    nodeImage.style.display = 'none';
-                }
-
-                // Display exits with target node names
-                const exitsContainer = document.getElementById('nodeExits');
-                exitsContainer.innerHTML = '<h3>Available Exits:</h3><div class="exits-container"></div>';
-                const exitsWrapper = exitsContainer.querySelector('.exits-container');
-                
-                // Fetch all nodes to get their names
-                const nodesResponse = await fetch('/api/nodes/public', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-                
-                if (!nodesResponse.ok) {
-                    throw new Error('Failed to fetch node names');
-                }
-                
-                const allNodes = await nodesResponse.json();
-
-                // Check if there are any exits
-                if (!node.exits || node.exits.length === 0) {
-                    const noExitsMessage = document.createElement('div');
-                    noExitsMessage.className = 'no-exits-message';
-                    noExitsMessage.textContent = 'No available exits from this location.';
-                    exitsWrapper.appendChild(noExitsMessage);
-                } else {
-                    node.exits.forEach(exit => {
-                        const targetNode = allNodes.find(n => n.address === exit.target);
-                        const targetName = targetNode ? targetNode.name : 'Unknown';
-                        
-                        const exitElement = document.createElement('div');
-                        exitElement.className = 'exit-item';
-                        exitElement.setAttribute('tabindex', '0');
-                        exitElement.setAttribute('role', 'button');
-                        exitElement.setAttribute('aria-label', `Go ${exit.direction} to ${targetName}`);
-                        exitElement.textContent = `[${exit.direction}] → [${targetName}]`;
-                        
-                        // Update the click handler
-                        exitElement.addEventListener('click', () => {
+                    exitElement.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
                             socket.emit('console command', {
                                 command: 'move',
                                 direction: exit.direction
                             });
-                        });
-
-                        exitElement.addEventListener('keydown', (e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                socket.emit('console command', {
-                                    command: 'move',
-                                    direction: exit.direction
-                                });
-                            }
-                        });
-                        
-                        exitsWrapper.appendChild(exitElement);
+                        }
                     });
-                }
-
-                // After setting node description
-                const descriptionElement = document.getElementById('nodeDescription');
-                descriptionElement.setAttribute('tabindex', '0');
-                descriptionElement.setAttribute('role', 'region');
-                descriptionElement.setAttribute('aria-label', 'Location Description');
-                
-                // Reset description state
-                descriptionElement.classList.remove('expanded');
-
-                // Show toggle only if content overflows
-                setTimeout(() => {
-                    descriptionElement.style.display = 
-                        descriptionElement.scrollHeight > 150 ? 'block' : 'none';
-                }, 0);
-
-                // After all node loading is complete, focus the terminal input
-                document.getElementById('terminalInput').focus();
-            } catch (error) {
-                console.error('Error loading node:', error);
-                document.getElementById('terminalOutput').innerHTML = 
-                    `<div style="color: var(--neon-pink)">ERROR: ${error.message}</div>`;
-                // Even on error, focus the terminal input
-                document.getElementById('terminalInput').focus();
+                    
+                    exitsWrapper.appendChild(exitElement);
+                });
             }
+
+            // Set up description for accessibility
+            const descriptionElement = document.getElementById('nodeDescription');
+            descriptionElement.setAttribute('tabindex', '0');
+            descriptionElement.setAttribute('role', 'region');
+            descriptionElement.setAttribute('aria-label', 'Location Description');
+            
+            // Reset description state
+            descriptionElement.classList.remove('expanded');
+
+            // Focus the terminal input when done
+            document.getElementById('terminalInput').focus();
+            
+            // Ensure input line is visible
+            ensureInputLineVisible();
         }
 
-        // Update window.onload to set username immediately
+        // Update window.onload to use the new WebSocket approach
         window.onload = async () => {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -909,14 +836,13 @@
                     console.error('Error parsing token:', e);
                 }
 
-                // Initialize socket connection first, BEFORE loading node
+                // Initialize socket connection first
                 initializeChat();
                 
-                // Wait a moment for socket to fully connect
+                // Wait for socket to connect
                 if (!socket.connected) {
                     await new Promise(resolve => {
                         socket.once('connect', resolve);
-                        // Add a timeout in case socket doesn't connect
                         setTimeout(resolve, 1000);
                     });
                 }
@@ -926,8 +852,8 @@
                 // Load terminal history after socket is connected
                 loadTerminalHistory();
                 
-                // Then load current location
-                await loadNode();
+                // Request node data via WebSocket
+                requestNodeData();
 
                 // Check if user is in combat
                 const combatResponse = await fetch('/api/combat/status', {
@@ -1189,7 +1115,7 @@
                 if ((data.message && data.message.startsWith('You move ')) || 
                     (data.message && data.message.includes('You successfully flee from combat!')) ||
                     (data.type === 'move' && data.message && data.message.includes('You have been teleported to'))) {
-                    loadNode();
+                    requestNodeData();
                 }
                 
                 // Set color based on message type
@@ -1205,7 +1131,7 @@
                         // Check for death or victory message and refresh node
                         if (data.message.includes('*** YOU HAVE BEEN DEFEATED ***') ||
                             data.message.includes('has been defeated!')) {
-                            setTimeout(() => loadNode(), 100);
+                            setTimeout(() => requestNodeData(), 100);
                         }
                         // Check for death message and style it differently
                         if (data.message.includes('*** YOU HAVE BEEN DEFEATED ***')) {
@@ -1306,7 +1232,7 @@
             // Add this inside the initializeChat function after other socket.on handlers
             socket.on('player death', (data) => {
                 // Refresh the location immediately
-                loadNode();
+                requestNodeData();
                 
                 // Clear any combat-related UI elements or states
                 const terminalOutput = document.getElementById('terminalOutput');
@@ -1324,6 +1250,19 @@
                 
                 // Focus the terminal input
                 document.getElementById('terminalInput').focus();
+            });
+
+            // Add handler for node data
+            socket.on('node data', (nodeData) => {
+                console.log('Received node data:', {
+                    timestamp: new Date().toISOString(),
+                    address: nodeData.address,
+                    name: nodeData.name,
+                    exitCount: nodeData.exits?.length || 0,
+                    enemyCount: nodeData.enemies?.length || 0
+                });
+                
+                displayNode(nodeData);
             });
         }
 

@@ -618,9 +618,6 @@ class EventChoiceProcessor {
       // Ensure consistent questCompletionEvents before storing
       clonedChoice.nextNode = this.eventNodeService.ensureConsistentQuestEvents(clonedChoice.nextNode);
       
-      // Ensure node has an ID
-      clonedChoice.nextNode = this.eventNodeService.ensureNodeHasId(clonedChoice.nextNode);
-
       // Update the active event state
       this.eventStateManager.setActiveEvent(
         userId, 

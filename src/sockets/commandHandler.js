@@ -151,10 +151,15 @@ async function handleCommand(socket, data) {
                     await stateService.addUserToNodeAndUpdateUsernames(socket.user.userId, user.currentNode);
                     await socketService.subscribeToNodeChat(user.currentNode);
 
+                    // Send the move confirmation first
                     socket.emit('console response', {
                         message: nodeConnectionResult.message,
                         type: 'move'
                     });
+                    
+                    // Then send the complete node data
+                    await handleGetNodeData(socket);
+                    
                 } catch (error) {
                     // Check if this is a "No exit" error
                     if (error.message.includes('No exit to the')) {
@@ -666,6 +671,102 @@ async function handleFightCommand(user, target) {
     chatService.publishSystemMessage(user.currentNode, `${user.avatarName} engages in combat with ${mobInstance.name}!`);
 }
 
+/**
+ * Handles WebSocket requests for node data
+ * Combines data from multiple services into a single response
+ */
+async function handleGetNodeData(socket, data = {}) {
+    try {
+        const userId = socket.user.userId;
+        let node;
+        
+        // Get node data - either specified address or user's current location
+        if (data.address) {
+            // Get specific node by address
+            node = await nodeService.getNodeByAddress(data.address);
+            if (!node) {
+                throw new Error('Node not found');
+            }
+        } else {
+            // Get user's current location from the user service
+            const user = await userService.getUser(userId);
+            if (!user || !user.currentNode) {
+                throw new Error('User location not found');
+            }
+            
+            // Get node with any quest-specific overrides
+            node = await nodeService.getNodeWithOverrides(user.currentNode, userId);
+        }
+        
+        // Get the user's level for enemy level comparison
+        const user = await userService.getUser(userId);
+        const userLevel = user.stats.level;
+        
+        // Check for enemies in this node using the mob service
+        const mobInstance = stateService.playerMobs.get(userId);
+        const enemiesData = [];
+        
+        if (mobInstance) {
+            enemiesData.push({
+                name: mobInstance.name,
+                level: mobInstance.level
+            });
+        }
+
+        // Get actors in the location from actor service
+        const actors = await actorService.getActorsInLocation(node.address, userId);
+        
+        // Get users in the node from state service
+        const nodeUsers = stateService.nodeUsernames.get(node.address) || [];
+        
+        // Get all node names for exits from public nodes data
+        const allNodes = await nodeService.getAllPublicNodes();
+        const nodeMap = new Map(allNodes.map(n => [n.address, n.name]));
+        
+        // Enhance exits with target node names
+        const enhancedExits = (node.exits || []).map(exit => ({
+            ...exit,
+            targetName: nodeMap.get(exit.target) || 'Unknown'
+        }));
+        
+        // Combine everything into a single response
+        const nodeData = {
+            // Basic node info
+            address: node.address,
+            name: node.name,
+            description: node.description,
+            image: node.image,
+            isRestPoint: node.isRestPoint,
+            
+            // Enhanced exits with target names
+            exits: enhancedExits,
+            
+            // Users present in node
+            users: nodeUsers,
+            
+            // Actors present
+            actors: actors.map(actor => ({
+                id: actor._id,
+                name: actor.name
+            })),
+            
+            // Enemies present in node
+            enemies: enemiesData,
+            
+            // User level for determining threat levels
+            playerLevel: userLevel
+        };
+        
+        // Emit the combined data
+        socket.emit('node data', nodeData);
+        
+    } catch (error) {
+        logger.error('Error getting node data:', error);
+        socket.emit('error', { message: error.message });
+    }
+}
+
 module.exports = {
-    handleCommand
+    handleCommand,
+    handleGetNodeData
 }; 

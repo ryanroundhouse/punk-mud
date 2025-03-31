@@ -3,7 +3,7 @@ const { JWT_SECRET } = require('../middlewares/auth');
 const logger = require('../config/logger');
 const stateService = require('../services/stateService');
 const socketService = require('../services/socketService');
-const { handleCommand } = require('./commandHandler');
+const { handleCommand, handleGetNodeData } = require('./commandHandler');
 const { handleChat } = require('./chatHandler');
 const User = require('../models/User');
 const messageService = require('../services/messageService');
@@ -64,6 +64,9 @@ function socketHandler(io) {
         // Handle console commands
         socket.on('console command', (data) => handleCommand(socket, data));
 
+        // Register the new node data handler
+        socket.on('get node data', (data) => handleGetNodeData(socket, data));
+
         // Handle disconnection
         socket.on('disconnect', async () => {
             logger.info(`User disconnected: ${socket.user.email}`);
@@ -108,4 +111,4 @@ function socketHandler(io) {
     });
 }
 
-module.exports = socketHandler; 
+module.exports = socketHandler;
