@@ -27,6 +27,15 @@ map.........................Open the world map view
 
 async function handleCommand(socket, data) {
     try {
+        // Add detailed logging for the received command
+        logger.info('Command received:', {
+            userId: socket.user.userId,
+            command: data.command,
+            direction: data.direction,
+            target: data.target,
+            timestamp: new Date().toISOString()
+        });
+
         const user = await userService.getUser(socket.user.userId);
         if (!userService.validateUser(user)) {
             throw new Error('User not found or missing required data');
@@ -117,6 +126,15 @@ async function handleCommand(socket, data) {
         switch (data.command) {
             case 'move': {
                 try {
+                    // Check if user is in a story event
+                    if (stateService.isInStoryEvent(socket.user.userId)) {
+                        socket.emit('console response', {
+                            type: 'error',
+                            message: 'You cannot move while in an event.'
+                        });
+                        return;
+                    }
+
                     const oldNode = user.currentNode;
                     
                     // Get user's quest information
@@ -157,8 +175,13 @@ async function handleCommand(socket, data) {
                         type: 'move'
                     });
                     
-                    // Then send the complete node data
-                    await handleGetNodeData(socket);
+                    // Check if a story event was triggered
+                    const hasStoryEvent = nodeEventResult.storyEvent != null;
+                    
+                    // Then send the complete node data with event info
+                    await handleGetNodeData(socket, {
+                        inEvent: hasStoryEvent
+                    });
                     
                 } catch (error) {
                     // Check if this is a "No exit" error
@@ -223,6 +246,34 @@ async function handleCommand(socket, data) {
 
             case 'map':
                 await handleMapCommand(socket, user);
+                break;
+
+            case 'event refresh':
+                // Check if user is in a story event and send current state
+                if (stateService.isInStoryEvent(socket.user.userId)) {
+                    const activeEvent = stateService.getActiveEvent(socket.user.userId);
+                    if (activeEvent && activeEvent.currentNode) {
+                        // Format the current event state for display
+                        const eventResponse = await eventService.formatEventResponse(
+                            activeEvent.currentNode, 
+                            socket.user.userId
+                        );
+
+                        // Send the event data to the client
+                        socket.emit('console response', {
+                            type: 'event',
+                            message: eventResponse.message,
+                            isEndOfEvent: eventResponse.isEnd
+                        });
+                    }
+                } else {
+                    // If not in event, update the UI to normal mode
+                    socket.emit('console response', {
+                        type: 'info',
+                        message: 'Not currently in an event.',
+                        inEvent: false
+                    });
+                }
                 break;
 
             default:
@@ -319,6 +370,28 @@ async function handleListCommand(socket, user, target) {
     });
 
     if (target) {
+        // Check if target is "node" to display the current location description
+        if (target.toLowerCase() === 'node') {
+            // Get the current node data
+            const node = await nodeService.getNodeWithOverrides(user.currentNode, user._id.toString());
+            
+            if (node) {
+                logger.debug('Returning node description', {
+                    userId: user._id.toString(),
+                    nodeAddress: node.address,
+                    nodeName: node.name
+                });
+                
+                socket.emit('console response', {
+                    type: 'list',
+                    target: 'node',
+                    message: `${node.name}\n${'-'.repeat(node.name.length)}\n\n${node.description}`,
+                    image: node.image
+                });
+                return;
+            }
+        }
+        
         // Check players first
         const targetUser = nodeUsers.find(
             username => username.toLowerCase() === target.toLowerCase()
@@ -729,6 +802,32 @@ async function handleGetNodeData(socket, data = {}) {
             targetName: nodeMap.get(exit.target) || 'Unknown'
         }));
         
+        // Check if user is in an event
+        const inEvent = data.inEvent || stateService.isInStoryEvent(userId);
+        
+        // Add event data if user is in an event
+        let eventMessage = null;
+        let eventChoices = null;
+        if (inEvent) {
+            const activeEvent = stateService.getActiveEvent(userId);
+            if (activeEvent && activeEvent.currentNode) {
+                const eventResponse = await eventService.formatEventResponse(
+                    activeEvent.currentNode,
+                    userId
+                );
+                
+                // Extract only the narrative part before "Responses:"
+                const fullMessage = eventResponse.message;
+                const responsesIndex = fullMessage.indexOf("\n\nResponses:");
+                eventMessage = responsesIndex !== -1 
+                    ? fullMessage.substring(0, responsesIndex) 
+                    : fullMessage;
+                    
+                // Extract just the text field from each choice
+                eventChoices = (activeEvent.currentNode.choices || []).map(choice => choice.text);
+            }
+        }
+        
         // Combine everything into a single response
         const nodeData = {
             // Basic node info
@@ -754,7 +853,14 @@ async function handleGetNodeData(socket, data = {}) {
             enemies: enemiesData,
             
             // User level for determining threat levels
-            playerLevel: userLevel
+            playerLevel: userLevel,
+            
+            // Flag indicating if the user is in an event
+            inEvent: inEvent,
+            
+            // Event data (if in an event)
+            eventMessage: eventMessage,
+            eventChoices: eventChoices
         };
         
         // Emit the combined data

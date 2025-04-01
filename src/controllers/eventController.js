@@ -1,6 +1,9 @@
 const Event = require('../models/Event');
 const logger = require('../config/logger');
 const mongoose = require('mongoose');
+const ObjectId = mongoose.Types.ObjectId;
+const stateService = require('../services/stateService');
+const eventService = require('../services/eventService');
 
 // Function to recursively add MongoDB ObjectIds to all nodes in the event tree
 function assignNodeIds(node) {
@@ -404,9 +407,41 @@ async function deleteEvent(req, res) {
     }
 }
 
+async function getEventStatus(req, res) {
+    try {
+        const userId = req.user.userId;
+        
+        // Check if user is in an event using stateService
+        const isInEvent = stateService.isInStoryEvent(userId);
+        
+        // Get additional details if in an event
+        let eventDetails = null;
+        if (isInEvent) {
+            const activeEvent = stateService.getActiveEvent(userId);
+            if (activeEvent) {
+                eventDetails = {
+                    eventId: activeEvent.eventId,
+                    hasChoices: activeEvent.currentNode && 
+                               activeEvent.currentNode.choices && 
+                               activeEvent.currentNode.choices.length > 0
+                };
+            }
+        }
+        
+        res.json({ 
+            inEvent: isInEvent,
+            eventDetails
+        });
+    } catch (error) {
+        logger.error('Error getting event status:', error);
+        res.status(500).json({ error: 'Error checking event status' });
+    }
+}
+
 module.exports = {
     getEvents,
     getEventById,
     createOrUpdateEvent,
-    deleteEvent
+    deleteEvent,
+    getEventStatus
 }; 

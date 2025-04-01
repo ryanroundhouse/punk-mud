@@ -3,7 +3,10 @@ const router = express.Router();
 const eventController = require('../controllers/eventController');
 const { authenticateToken, verifyBuilderAccess } = require('../middlewares/auth');
 
-// Apply authentication middleware to all routes
+// Public routes that only need authentication
+router.get('/status', authenticateToken, eventController.getEventStatus);
+
+// Apply authentication and builder access middleware to admin routes
 router.use(authenticateToken);
 router.use(verifyBuilderAccess);
 
