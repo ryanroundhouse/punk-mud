@@ -9,10 +9,16 @@ const User = require('../models/User');
 const messageService = require('../services/messageService');
 const userService = require('../services/userService');
 const nodeService = require('../services/nodeService');
+
 function socketHandler(io) {
+    // Start session cleanup
+    socketService.startSessionCleanup();
+
     // Add socket.io authentication
-    io.use((socket, next) => {
+    io.use(async (socket, next) => {
         const token = socket.handshake.auth.token;
+        const previousSocketId = socket.handshake.auth.socketId;
+
         if (!token) {
             return next(new Error('Authentication error'));
         }
@@ -20,6 +26,19 @@ function socketHandler(io) {
         try {
             const verified = jwt.verify(token, JWT_SECRET);
             socket.user = verified;
+
+            // If there's a previous socket ID, try to restore the session
+            if (previousSocketId) {
+                logger.info(`Attempting to restore session for user ${socket.user.email} with previous socket ID: ${previousSocketId}`);
+                const existingSocket = await socketService.findSocketById(previousSocketId);
+                
+                if (existingSocket) {
+                    // Transfer any relevant session data
+                    socket.sessionData = existingSocket.sessionData;
+                    logger.info(`Restored session data for user ${socket.user.email}`);
+                }
+            }
+
             next();
         } catch (error) {
             next(new Error('Invalid token'));
@@ -27,27 +46,36 @@ function socketHandler(io) {
     });
 
     io.on('connection', async (socket) => {
-        logger.info(`User connected: ${socket.user.email}`);
+        logger.info(`User connected: ${socket.user.email} (Socket ID: ${socket.id})`);
         
-        // Store socket connection
+        // Store socket connection with session data
         stateService.addClient(socket.user.userId, socket);
 
         // Get user's current node and add them to the node clients map
         try {
             const user = await User.findById(socket.user.userId);
             if (user && user.currentNode) {
+                // Check if this is a session restoration
+                const isRestoring = socket.handshake.auth.socketId && socket.sessionData;
+                
                 // Use the combined method that also updates usernames
                 await stateService.addUserToNodeAndUpdateUsernames(socket.user.userId, user.currentNode);
                 // Subscribe to node's chat channel
                 await socketService.subscribeToNodeChat(user.currentNode);
                 
-                // Send connection message
-                await socketService.handleConnect(socket.user.userId, user.currentNode, user.avatarName);
+                // Only send connection message if this is not a session restoration
+                if (!isRestoring) {
+                    await socketService.handleConnect(socket.user.userId, user.currentNode, user.avatarName);
+                } else {
+                    logger.info(`Restored session for ${user.avatarName} in node ${user.currentNode}`);
+                }
                 
-                // Check for mob spawn on connection
-                await nodeService.getNodeEvent(socket.user.userId, user.currentNode);
+                // Check for mob spawn on connection (only for new connections)
+                if (!isRestoring) {
+                    await nodeService.getNodeEvent(socket.user.userId, user.currentNode);
+                }
 
-                // Send character HP status after connection
+                // Always send current character status
                 const userDetails = await userService.getUser(socket.user.userId);
                 messageService.sendPlayerStatusMessage(
                     socket.user.userId, 
@@ -81,6 +109,15 @@ function socketHandler(io) {
                 });
                 
                 if (user && user.currentNode) {
+                    // Store session data before disconnecting
+                    socketService.storeSocketSession(socket.id, {
+                        userId: socket.user.userId,
+                        email: socket.user.email,
+                        currentNode: user.currentNode,
+                        avatarName: user.avatarName,
+                        sessionData: socket.sessionData || {}
+                    });
+                    
                     // First remove user from node and update usernames
                     logger.debug('Removing user from node:', {
                         userId: socket.user.userId,

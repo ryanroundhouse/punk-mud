@@ -445,14 +445,40 @@
         // Function to request node data via WebSocket
         function requestNodeData(address = null) {
             if (socket && socket.connected) {
+                console.log('📤 Requesting node data:', {
+                    socketId: socket.id,
+                    address: address || 'current location',
+                    socketState: {
+                        connected: socket.connected,
+                        disconnected: socket.disconnected,
+                        connecting: socket.connecting
+                    }
+                });
                 socket.emit('get node data', { address: address });
             } else {
-                console.error('Socket not connected - cannot request node data');
+                console.error('❌ Cannot request node data - Socket state:', {
+                    exists: !!socket,
+                    connected: socket?.connected,
+                    disconnected: socket?.disconnected,
+                    connecting: socket?.connecting
+                });
             }
         }
 
         // Function to display node data received via WebSocket
         function displayNode(nodeData) {
+            if (!nodeData || !nodeData.name) {
+                console.error('❌ Invalid node data received:', nodeData);
+                addConsoleMessage('Error: Unable to load location data. Retrying...', 'error');
+                // Attempt to request node data again
+                setTimeout(() => {
+                    if (socket && socket.connected) {
+                        requestNodeData();
+                    }
+                }, 1000);
+                return;
+            }
+
             currentNode = nodeData;
             
             // Store actors, enemies, and items explicitly to ensure they're available
@@ -574,56 +600,138 @@
             });
         }
 
-        // Initialize WebSocket connection
+        // Function to initialize WebSocket connection
         function initializeSocket() {
             const token = localStorage.getItem('token');
+            const existingSocketId = localStorage.getItem('socketId');
             
-            console.log('⚡ Initializing socket connection with token:', token ? 'Token exists' : 'No token');
+            console.log('⚡ Initializing socket connection:', {
+                hasToken: !!token,
+                existingSocketId: existingSocketId || 'none',
+                timestamp: new Date().toISOString()
+            });
             
+            // Create new socket instance with reconnection options
             socket = io({
                 auth: {
-                    token: token
-                }
+                    token: token,
+                    socketId: existingSocketId // Pass existing socket ID if available
+                },
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                timeout: 20000
             });
 
-            console.log('🔌 Socket object created, connecting...');
+            console.log('🔌 Socket object created:', {
+                socketId: socket.id,
+                state: {
+                    connected: socket.connected,
+                    disconnected: socket.disconnected,
+                    connecting: socket.connecting
+                },
+                timestamp: new Date().toISOString()
+            });
 
-            // Add debug listener to log ALL socket events
+            // Add debug listener to log ALL socket events with timestamps
             socket.onAny((eventName, ...args) => {
-                console.log(`🔊 SOCKET EVENT: ${eventName}`, args);
-            });
-
-            socket.on('connect_error', (error) => {
-                console.error('⛔ Socket connection error:', error);
-                addConsoleMessage('Connection error. Please try again later.', 'error');
+                console.log('🔊 SOCKET EVENT:', {
+                    event: eventName,
+                    args: args,
+                    socketId: socket.id,
+                    timestamp: new Date().toISOString(),
+                    socketState: {
+                        connected: socket.connected,
+                        disconnected: socket.disconnected,
+                        connecting: socket.connecting
+                    }
+                });
             });
 
             socket.on('connect', () => {
-                console.log('✅ Socket connected with ID:', socket.id);
+                console.log('✅ Socket connected:', {
+                    socketId: socket.id,
+                    previousId: existingSocketId,
+                    timestamp: new Date().toISOString(),
+                    state: {
+                        connected: socket.connected,
+                        disconnected: socket.disconnected,
+                        connecting: socket.connecting
+                    }
+                });
+                
+                // Store the socket ID for reconnection
+                localStorage.setItem('socketId', socket.id);
                 addConsoleMessage('Connected to server.', 'success');
-                console.log('Socket connection state:', socket.connected ? 'Connected' : 'Disconnected');
-                requestNodeData();
+                
+                // Wait for the first users update event before requesting node data
+                // This ensures the server has fully established the session
+                const initialSetup = (eventName, ...args) => {
+                    if (eventName === 'users update') {
+                        console.log('👥 Received initial users update, session ready');
+                        // Remove this one-time listener
+                        socket.offAny(initialSetup);
+                        // Now request node data
+                        requestNodeData();
+                    }
+                };
+                
+                socket.onAny(initialSetup);
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('⛔ Socket connection error:', {
+                    error: error.message,
+                    socketId: socket.id,
+                    timestamp: new Date().toISOString(),
+                    state: {
+                        connected: socket.connected,
+                        disconnected: socket.disconnected,
+                        connecting: socket.connecting
+                    }
+                });
+                addConsoleMessage('Connection error. Please try again later.', 'error');
+                localStorage.removeItem('socketId');
             });
 
             socket.on('disconnect', (reason) => {
-                console.log('❌ Socket disconnected, reason:', reason);
+                console.log('❌ Socket disconnected:', {
+                    reason: reason,
+                    socketId: socket.id,
+                    timestamp: new Date().toISOString(),
+                    state: {
+                        connected: socket.connected,
+                        disconnected: socket.disconnected,
+                        connecting: socket.connecting
+                    }
+                });
                 addConsoleMessage('Disconnected from server.', 'error');
+                
+                if (reason === 'io server disconnect') {
+                    localStorage.removeItem('socketId');
+                    socket.connect();
+                }
             });
 
-            // Add handler for node data
             socket.on('node data', (nodeData) => {
                 console.log('🔷 Received node data:', {
                     timestamp: new Date().toISOString(),
+                    socketId: socket.id,
                     address: nodeData.address,
                     name: nodeData.name,
-                    inEvent: inEvent
+                    inEvent: inEvent,
+                    state: {
+                        connected: socket.connected,
+                        disconnected: socket.disconnected,
+                        connecting: socket.connecting
+                    }
                 });
                 console.log('Full node data:', JSON.stringify(nodeData, null, 2));
                 
                 displayNode(nodeData);
             });
 
-            // Update the console response handler
             socket.on('console response', (data) => {
                 console.log('🔶 Console response received:', {
                     type: data.type,
@@ -1606,9 +1714,13 @@
             // Logout button
             document.getElementById('logoutButton').addEventListener('click', function() {
                 if (socket) {
+                    // Properly close the socket connection
                     socket.disconnect();
+                    socket = null; // Clear the socket instance
                 }
+                // Clean up all socket-related storage
                 localStorage.removeItem('token');
+                localStorage.removeItem('socketId');
                 window.location.href = '/';
             });
             

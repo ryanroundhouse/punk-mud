@@ -18,6 +18,75 @@ class SocketService {
         this.stateService = dependencies.stateService || stateService;
         this.messageService = dependencies.messageService || messageService;
         this.subscribedNodes = new Set();
+        this.socketSessions = new Map(); // Store socket sessions
+    }
+
+    /**
+     * Store socket session data
+     * @param {string} socketId - The socket ID
+     * @param {Object} sessionData - Session data to store
+     */
+    storeSocketSession(socketId, sessionData) {
+        this.socketSessions.set(socketId, {
+            ...sessionData,
+            lastActive: Date.now()
+        });
+        this.logger.debug(`Stored session data for socket ${socketId}`);
+    }
+
+    /**
+     * Find socket by ID
+     * @param {string} socketId - The socket ID to find
+     * @returns {Object|null} The socket session data if found
+     */
+    findSocketById(socketId) {
+        const session = this.socketSessions.get(socketId);
+        if (session) {
+            // Update last active timestamp
+            session.lastActive = Date.now();
+            this.socketSessions.set(socketId, session);
+            this.logger.debug(`Found session for socket ${socketId}`);
+            return session;
+        }
+        return null;
+    }
+
+    /**
+     * Clean up old socket sessions
+     * @param {number} maxAge - Maximum age in milliseconds (default 24 hours)
+     */
+    cleanupOldSessions(maxAge = 24 * 60 * 60 * 1000) {
+        const now = Date.now();
+        for (const [socketId, session] of this.socketSessions.entries()) {
+            if (now - session.lastActive > maxAge) {
+                this.socketSessions.delete(socketId);
+                this.logger.debug(`Cleaned up old session for socket ${socketId}`);
+            }
+        }
+    }
+
+    /**
+     * Update socket session data
+     * @param {string} socketId - The socket ID
+     * @param {Object} updates - The updates to apply to the session
+     */
+    updateSocketSession(socketId, updates) {
+        const session = this.socketSessions.get(socketId);
+        if (session) {
+            this.socketSessions.set(socketId, {
+                ...session,
+                ...updates,
+                lastActive: Date.now()
+            });
+            this.logger.debug(`Updated session data for socket ${socketId}`);
+        }
+    }
+
+    // Start periodic cleanup of old sessions
+    startSessionCleanup(interval = 60 * 60 * 1000) { // Default to every hour
+        setInterval(() => {
+            this.cleanupOldSessions();
+        }, interval);
     }
 
     /**
