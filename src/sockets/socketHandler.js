@@ -81,6 +81,9 @@ function socketHandler(io) {
                     socket.user.userId, 
                     `HP: ${userDetails.stats.currentHitpoints}/${userDetails.stats.hitpoints} | Energy: ${userDetails.stats.currentEnergy}/${userDetails.stats.energy}`
                 );
+
+                // Let the client request node data when ready
+                // handleGetNodeData(socket); // Remove automatic node data request
             }
         } catch (err) {
             logger.error('Error fetching user location:', err);

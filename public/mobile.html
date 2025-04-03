@@ -174,8 +174,11 @@
         .console-container {
             background: rgba(10, 10, 15, 0.95);
             padding: 1rem;
+            flex: 1;
             border-bottom: 1px solid var(--terminal-green);
             position: relative;
+            display: flex;
+            flex-direction: column;
         }
 
         .console-output {
@@ -184,7 +187,7 @@
             line-height: 1.4;
             white-space: pre-wrap;
             overflow-y: visible;
-            max-height: none;
+            flex: 1;
         }
 
         .console-output > div {
@@ -231,6 +234,24 @@
             cursor: not-allowed;
         }
 
+        .combat-controls {
+            display: none;
+            flex-direction: column;
+            padding: 0.5rem;
+            background: rgba(10, 10, 15, 0.8);
+            height: calc(35vh - 1rem);
+            overflow-y: auto; /* Make the combat controls container scrollable */
+        }
+
+        .event-controls {
+            display: none;
+            flex-direction: column;
+            padding: 0.5rem;
+            background: rgba(10, 10, 15, 0.8);
+            height: calc(35vh - 1rem);
+            overflow-y: auto; /* Make the event controls container scrollable */
+        }
+
         .action-controls {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -255,17 +276,6 @@
         .action-button:active {
             background: rgba(255, 46, 136, 0.3);
             box-shadow: 0 0 10px var(--neon-pink);
-        }
-
-        .event-choices-container {
-            display: none;
-            flex-direction: column;
-            gap: 0.5rem;
-            padding: 0.5rem;
-            flex: 1;
-            overflow-y: auto; /* Make event choices scrollable */
-            max-height: 25vh; /* Limit height and enable scrolling if many choices */
-            z-index: 50; /* Ensure high z-index */
         }
 
         .event-choice-button {
@@ -410,19 +420,22 @@
                 <button class="direction-button" id="btnNorth" data-direction="north">N</button>
                 <div></div>
                 <button class="direction-button" id="btnWest" data-direction="west">W</button>
-                <div></div>
+                <button class="direction-button fight-button" id="btnFight" disabled>FIGHT</button>
                 <button class="direction-button" id="btnEast" data-direction="east">E</button>
                 <div></div>
                 <button class="direction-button" id="btnSouth" data-direction="south">S</button>
                 <div></div>
             </div>
+            <div class="combat-controls" style="display: none;">
+                <!-- Combat buttons will be added dynamically -->
+            </div>
+            <div class="event-controls" style="display: none;">
+                <!-- Event choices will be added dynamically -->
+            </div>
             <div class="action-controls">
                 <button class="action-button" id="btnLook">LOOK</button>
                 <button class="action-button" id="btnInteract">INTERACT</button>
                 <button class="action-button" id="btnHelp">HELP</button>
-            </div>
-            <div class="event-choices-container" id="eventChoicesContainer">
-                <!-- Event choice buttons will be added here dynamically -->
             </div>
         </div>
     </div>
@@ -442,27 +455,31 @@
         const TERMINAL_HISTORY_KEY_PREFIX = 'terminalHistory_';
         const MAX_TERMINAL_HISTORY = 20;
 
-        // Function to request node data via WebSocket
-        function requestNodeData(address = null) {
-            if (socket && socket.connected) {
-                console.log('📤 Requesting node data:', {
-                    socketId: socket.id,
-                    address: address || 'current location',
-                    socketState: {
-                        connected: socket.connected,
-                        disconnected: socket.disconnected,
-                        connecting: socket.connecting
-                    }
-                });
-                socket.emit('get node data', { address: address });
-            } else {
-                console.error('❌ Cannot request node data - Socket state:', {
+        // Helper function for socket emissions
+        function emitSocketCommand(eventName, data) {
+            if (!socket || !socket.connected) {
+                console.error('❌ Cannot emit command - Socket state:', {
                     exists: !!socket,
                     connected: socket?.connected,
                     disconnected: socket?.disconnected,
                     connecting: socket?.connecting
                 });
+                return;
             }
+
+            console.log('📤 Emitting socket command:', {
+                event: eventName,
+                data: data,
+                socketId: socket.id,
+                timestamp: new Date().toISOString()
+            });
+
+            socket.emit(eventName, data);
+        }
+
+        // Function to request node data via WebSocket
+        function requestNodeData(address = null) {
+            emitSocketCommand('get node data', { address: address || null });
         }
 
         // Function to display node data received via WebSocket
@@ -470,7 +487,6 @@
             if (!nodeData || !nodeData.name) {
                 console.error('❌ Invalid node data received:', nodeData);
                 addConsoleMessage('Error: Unable to load location data. Retrying...', 'error');
-                // Attempt to request node data again
                 setTimeout(() => {
                     if (socket && socket.connected) {
                         requestNodeData();
@@ -486,48 +502,21 @@
             currentNode.enemies = nodeData.enemies || [];
             currentNode.items = nodeData.items || [];
 
-            // Clear console when displaying a new node
-            clearConsole();
-
-            // Check if the node data indicates we're in an event
-            if (nodeData.inEvent === true) {
-                console.log('🚨 Event detected from node data!');
-                inEvent = true;
-                
-                // Display eventMessage in console if it exists
+            // Determine which control panel to show based on node state
+            if (nodeData.inEvent) {
+                showControlPanel('event');
                 if (nodeData.eventMessage) {
                     addConsoleMessage(nodeData.eventMessage, 'event');
                 }
-                
-                // Force update UI to event mode immediately
-                const directionControls = document.querySelector('.direction-controls');
-                const actionControls = document.querySelector('.action-controls');
-                const eventChoicesContainer = document.getElementById('eventChoicesContainer');
-                
-                directionControls.style.display = 'none';
-                actionControls.style.display = 'none';
-                
-                // Show event choices container
-                eventChoicesContainer.style.display = 'flex';
-                
-                // If we have event choices, display them
                 if (nodeData.eventChoices && nodeData.eventChoices.length > 0) {
                     showEventChoices(nodeData.eventChoices);
                 }
-                // If there are no choice buttons yet, show a placeholder
-                else if (eventChoicesContainer.children.length === 0) {
-                    eventChoicesContainer.innerHTML = ''; // Clear any previous content
-                    const placeholderText = document.createElement('div');
-                    placeholderText.textContent = "Waiting for event choices...";
-                    placeholderText.style.color = 'var(--terminal-green)';
-                    placeholderText.style.textAlign = 'center';
-                    placeholderText.style.padding = '1rem';
-                    eventChoicesContainer.appendChild(placeholderText);
-                }
+            } else if (nodeData.inCombat) {
+                showControlPanel('combat');
             } else {
-                // If not in event, make sure we show normal controls
-                inEvent = false;
-                showNormalControls();
+                showControlPanel('direction');
+                // Update available exits
+                updateDirectionButtons(nodeData.exits || []);
             }
 
             // Update node name
@@ -579,6 +568,22 @@
             if (!inEvent) {
                 // Update available exits (enable/disable buttons)
                 updateDirectionButtons(nodeData.exits || []);
+                
+                // Update fight button based on enemies presence
+                const fightButton = document.getElementById('btnFight');
+                if (fightButton) {
+                    if (nodeData.enemies && nodeData.enemies.length > 0) {
+                        fightButton.disabled = false;
+                        fightButton.style.background = 'rgba(255, 0, 0, 0.2)';
+                        fightButton.style.color = 'var(--neon-red)';
+                        fightButton.style.border = '1px solid var(--neon-red)';
+                    } else {
+                        fightButton.disabled = true;
+                        fightButton.style.background = 'rgba(0, 0, 0, 0.2)';
+                        fightButton.style.color = '#888';
+                        fightButton.style.border = '1px solid #444';
+                    }
+                }
             }
         }
 
@@ -615,38 +620,13 @@
             socket = io({
                 auth: {
                     token: token,
-                    socketId: existingSocketId // Pass existing socket ID if available
+                    socketId: existingSocketId
                 },
                 reconnection: true,
                 reconnectionAttempts: 5,
                 reconnectionDelay: 1000,
                 reconnectionDelayMax: 5000,
                 timeout: 20000
-            });
-
-            console.log('🔌 Socket object created:', {
-                socketId: socket.id,
-                state: {
-                    connected: socket.connected,
-                    disconnected: socket.disconnected,
-                    connecting: socket.connecting
-                },
-                timestamp: new Date().toISOString()
-            });
-
-            // Add debug listener to log ALL socket events with timestamps
-            socket.onAny((eventName, ...args) => {
-                console.log('🔊 SOCKET EVENT:', {
-                    event: eventName,
-                    args: args,
-                    socketId: socket.id,
-                    timestamp: new Date().toISOString(),
-                    socketState: {
-                        connected: socket.connected,
-                        disconnected: socket.disconnected,
-                        connecting: socket.connecting
-                    }
-                });
             });
 
             socket.on('connect', () => {
@@ -736,21 +716,98 @@
                 console.log('🔶 Console response received:', {
                     type: data.type,
                     inEvent: inEvent,
-                    messageSnippet: data.message ? data.message.substring(0, 50) + '...' : null
+                    message: data.message
                 });
-                console.log('Full console response:', JSON.stringify(data, null, 2));
+                
+                // Flag to track if we've already displayed this message
+                let messageDisplayed = false;
+                
+                // Handle combat state changes
+                if (data.type === 'moves') {
+                    showControlPanel('combat');
+                    updateCombatControls(data.moves);
+                } else if (data.type === 'combat') {
+                    // Check if this is a death message
+                    if (data.message && data.message.includes('*** YOU HAVE BEEN DEFEATED ***')) {
+                        // Show the death message
+                        addConsoleMessage(data.message, 'combat');
+                        messageDisplayed = true;
+                        showControlPanel('direction');
+                        // Small delay before requesting new location
+                        setTimeout(() => {
+                            requestNodeData();
+                        }, 250);
+                        return; // Exit early to prevent double-processing
+                    }
+                    // Check if this is a victory message
+                    if (data.message && data.message.includes('Victory! You have defeated')) {
+                        // Show the victory message
+                        addConsoleMessage(data.message, 'combat');
+                        messageDisplayed = true;
+                        showControlPanel('direction');
+                        // Small delay before requesting new location
+                        setTimeout(() => {
+                            requestNodeData();
+                        }, 250);
+                        return; // Exit early to prevent double-processing
+                    }
+                    // Check if this is a flee success message
+                    if (data.message && data.message.includes('You successfully flee from combat!')) {
+                        // Show the combat message first
+                        addConsoleMessage(data.message, 'combat');
+                        messageDisplayed = true;
+                        showControlPanel('direction');
+                        // Small delay before requesting new location
+                        setTimeout(() => {
+                            requestNodeData();
+                        }, 250);
+                        return; // Exit early to prevent double-processing
+                    }
+                    
+                    // Regular combat message
+                    showControlPanel('combat');
+                    if (data.message) {
+                        addConsoleMessage(data.message, 'combat');
+                        messageDisplayed = true;
+                    }
+                } else if (data.type === 'combat_end') {
+                    // Show the combat end message first
+                    if (data.message) {
+                        addConsoleMessage(data.message, 'combat');
+                        messageDisplayed = true;
+                    }
+                    showControlPanel('direction');
+                    // Small delay before requesting new location
+                    setTimeout(() => {
+                        requestNodeData();
+                    }, 250);
+                    return; // Exit early to prevent double-processing
+                }
+                
+                // Handle event state changes
+                if (data.type === 'event') {
+                    showControlPanel('event');
+                    if (data.message) {
+                        clearConsole();
+                        addConsoleMessage(data.message, 'event');
+                    }
+                    if (data.choices) {
+                        showEventChoices(data.choices);
+                    }
+                } else if (data.isEndOfEvent) {
+                    showControlPanel('direction');
+                    requestNodeData(); // Refresh the current location
+                }
                 
                 // Handle playerStatus messages by updating the health bar
                 if (data.type === 'playerStatus') {
                     updateHealthBar(data.message);
-                    return;
+                    messageDisplayed = true; // Mark as displayed to prevent default handling
+                    return; // Exit early
                 }
                 
                 // Store the console response
                 storeTerminalHistory('', data);
-                
-                // Flag to track if we've already displayed this message
-                let messageDisplayed = false;
                 
                 // Special handling for list commands from our examine interface
                 if (data.type === 'list' && data.message) {
@@ -763,50 +820,11 @@
                     // If there's an image, update the node image temporarily
                     if (data.image) {
                         const nodeImage = document.getElementById('nodeImage');
-                        const originalSrc = nodeImage.src;
                         nodeImage.src = data.image;
                         
                         // Add a subtle visual indicator that we're looking at something specific
                         nodeImage.style.border = '2px solid var(--neon-pink)';
                         nodeImage.style.boxShadow = '0 0 15px var(--neon-pink)';
-                        
-                        // Create a "back to node view" button in console
-                        const resetViewBtn = document.createElement('button');
-                        resetViewBtn.textContent = '« Return to location view';
-                        resetViewBtn.style.background = 'rgba(255, 46, 136, 0.1)';
-                        resetViewBtn.style.color = 'var(--neon-pink)';
-                        resetViewBtn.style.border = '1px solid var(--neon-pink)';
-                        resetViewBtn.style.borderRadius = '5px';
-                        resetViewBtn.style.padding = '0.5rem';
-                        resetViewBtn.style.margin = '0.5rem 0';
-                        resetViewBtn.style.fontFamily = 'Courier New, monospace';
-                        resetViewBtn.style.fontSize = '0.8rem';
-                        resetViewBtn.style.cursor = 'pointer';
-                        resetViewBtn.style.width = '100%';
-                        resetViewBtn.style.textAlign = 'center';
-                        
-                        resetViewBtn.addEventListener('click', function() {
-                            // Restore the original node image
-                            nodeImage.src = originalSrc;
-                            
-                            // Restore original border styling
-                            if (currentNode.enemies && currentNode.enemies.length > 0) {
-                                nodeImage.style.borderColor = 'var(--neon-red)';
-                                nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
-                            } else if (currentNode.isRestPoint) {
-                                nodeImage.style.borderColor = 'var(--terminal-green)';
-                                nodeImage.style.boxShadow = '0 0 15px var(--terminal-green)';
-                            } else {
-                                nodeImage.style.borderColor = 'var(--neon-blue)';
-                                nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
-                            }
-                            
-                            // Remove the button
-                            this.remove();
-                        });
-                        
-                        const consoleOutput = document.getElementById('consoleOutput');
-                        consoleOutput.appendChild(resetViewBtn);
                     } else {
                         console.log('No image in list response');
                     }
@@ -832,12 +850,11 @@
                     // Force UI update for event mode
                     const directionControls = document.querySelector('.direction-controls');
                     const actionControls = document.querySelector('.action-controls');
-                    directionControls.style.display = 'none';
-                    actionControls.style.display = 'none';
+                    const eventChoicesContainer = document.querySelector('.event-controls');
                     
-                    // Show event choices container
-                    const eventChoicesContainer = document.getElementById('eventChoicesContainer');
-                    eventChoicesContainer.style.display = 'flex';
+                    if (directionControls) directionControls.style.display = 'none';
+                    if (actionControls) actionControls.style.display = 'none';
+                    if (eventChoicesContainer) eventChoicesContainer.style.display = 'flex';
                     
                     // Check for choices in the message
                     if (data.message && data.message.includes('Responses:')) {
@@ -881,32 +898,43 @@
                     if (data.isEndOfEvent) {
                         console.log('Event ended via console response');
                         inEvent = false;
-                        showNormalControls();
+                        showControlPanel('direction');
                     }
                 } else if (data.type === 'error' && inEvent) {
                     // If we get an error response while in an event, keep the event UI active
                     // This handles cases where a user entered an invalid choice
                     const directionControls = document.querySelector('.direction-controls');
                     const actionControls = document.querySelector('.action-controls');
-                    directionControls.style.display = 'none';
-                    actionControls.style.display = 'none';
+                    const eventChoicesContainer = document.querySelector('.event-controls');
                     
-                    const eventChoicesContainer = document.getElementById('eventChoicesContainer');
-                    eventChoicesContainer.style.display = 'flex';
+                    if (directionControls) directionControls.style.display = 'none';
+                    if (actionControls) actionControls.style.display = 'none';
+                    if (eventChoicesContainer) eventChoicesContainer.style.display = 'flex';
                 }
                 
-                // Check if this is a movement response or successful flee
-                if ((data.message && data.message.startsWith('You move ')) || 
-                    (data.message && data.message.includes('You successfully flee from combat!')) ||
-                    (data.type === 'move' && data.message && data.message.includes('You have been teleported to'))) {
+                // Check if this is a movement response
+                if (data.type === 'move' || 
+                    (data.message && typeof data.message === 'string' && data.message.startsWith('You move ')) || 
+                    (data.message && typeof data.message === 'string' && data.message.includes('You have been teleported to'))) {
                     console.log('Movement detected, requesting new node data');
-                    clearConsole(); // Clear console on movement
-                    messageDisplayed = true; // Don't display movement message, node data will update
-                    requestNodeData();
+                    if (data.message) {
+                        addConsoleMessage(data.message, data.type);
+                        messageDisplayed = true;
+                    }
+                    // Small delay before requesting new location
+                    setTimeout(() => {
+                        requestNodeData();
+                    }, 250);
+                    return; // Exit early to prevent double-processing
                 }
                 
                 // Add message to console with appropriate styling, but only if we haven't already displayed it
                 if (!messageDisplayed && data.message) {
+                    // Check if message is an object
+                    if (typeof data.message === 'object') {
+                        console.warn('Received object message:', data.message);
+                        return; // Skip displaying object messages
+                    }
                     addConsoleMessage(data.message, data.type);
                 }
 
@@ -922,7 +950,6 @@
                         // If we haven't displayed the actor image and description yet, do it now
                         if (!messageDisplayed && data.image) {
                             const nodeImage = document.getElementById('nodeImage');
-                            const originalSrc = nodeImage.src;
                             nodeImage.src = data.image;
                             
                             // Add a subtle visual indicator that we're looking at something specific
@@ -933,44 +960,6 @@
                             if (data.description) {
                                 addConsoleMessage(data.description, 'list');
                             }
-                            
-                            // Create a "back to node view" button in console
-                            const resetViewBtn = document.createElement('button');
-                            resetViewBtn.textContent = '« Return to location view';
-                            resetViewBtn.style.background = 'rgba(255, 46, 136, 0.1)';
-                            resetViewBtn.style.color = 'var(--neon-pink)';
-                            resetViewBtn.style.border = '1px solid var(--neon-pink)';
-                            resetViewBtn.style.borderRadius = '5px';
-                            resetViewBtn.style.padding = '0.5rem';
-                            resetViewBtn.style.margin = '0.5rem 0';
-                            resetViewBtn.style.fontFamily = 'Courier New, monospace';
-                            resetViewBtn.style.fontSize = '0.8rem';
-                            resetViewBtn.style.cursor = 'pointer';
-                            resetViewBtn.style.width = '100%';
-                            resetViewBtn.style.textAlign = 'center';
-                            
-                            resetViewBtn.addEventListener('click', function() {
-                                // Restore the original node image
-                                nodeImage.src = originalSrc;
-                                
-                                // Restore original border styling
-                                if (currentNode.enemies && currentNode.enemies.length > 0) {
-                                    nodeImage.style.borderColor = 'var(--neon-red)';
-                                    nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
-                                } else if (currentNode.isRestPoint) {
-                                    nodeImage.style.borderColor = 'var(--terminal-green)';
-                                    nodeImage.style.boxShadow = '0 0 15px var(--terminal-green)';
-                                } else {
-                                    nodeImage.style.borderColor = 'var(--neon-blue)';
-                                    nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
-                                }
-                                
-                                // Remove the button
-                                this.remove();
-                            });
-                            
-                            const consoleOutput = document.getElementById('consoleOutput');
-                            consoleOutput.appendChild(resetViewBtn);
                         }
                     } else {
                         // Only redirect to character.html for player characters
@@ -980,51 +969,18 @@
             });
 
             socket.on('event start', (data) => {
-                console.log('🟢 EVENT START received:', data);
-                inEvent = true;
-                
-                // Clean up any interaction UI elements
-                const interactControls = document.querySelector('.interact-controls');
-                if (interactControls) {
-                    interactControls.remove();
-                }
-                
-                // Immediately hide normal controls when event starts
-                const directionControls = document.querySelector('.direction-controls');
-                const actionControls = document.querySelector('.action-controls');
-                directionControls.style.display = 'none';
-                actionControls.style.display = 'none';
-                
-                console.log('Event started, hiding normal controls');
-                
-                // Clear console and display event message
+                showControlPanel('event');
                 clearConsole();
                 addConsoleMessage(data.message, 'event');
-                
-                // Check if the event start message already contains choices
-                const choiceRegex = /(\d+)\.\s+([^\n]+)/g;
-                const choices = [];
-                let match;
-                
-                while ((match = choiceRegex.exec(data.message)) !== null) {
-                    choices.push({
-                        number: match[1],
-                        text: match[2]
-                    });
-                }
-                
-                if (choices.length > 0) {
-                    console.log('Detected choices in event start message:', choices);
-                    showEventChoices(choices);
+                if (data.choices) {
+                    showEventChoices(data.choices);
                 }
             });
 
             socket.on('event end', (data) => {
-                console.log('🔴 EVENT END received:', data);
                 addConsoleMessage(data.message, 'event');
-                inEvent = false;
-                showNormalControls();
-                console.log('Event ended, showing normal controls');
+                showControlPanel('direction');
+                requestNodeData();
             });
 
             socket.on('event choice', (data) => {
@@ -1269,23 +1225,9 @@
                 return;
             }
             
-            // Set inEvent flag since we're displaying choices
-            inEvent = true;
+            const eventControls = document.querySelector('.event-controls');
+            eventControls.innerHTML = ''; // Clear existing choices
             
-            const directionControls = document.querySelector('.direction-controls');
-            const actionControls = document.querySelector('.action-controls');
-            const eventChoicesContainer = document.getElementById('eventChoicesContainer');
-            
-            console.log('Container element exists:', !!eventChoicesContainer);
-            
-            // Hide regular controls
-            directionControls.style.display = 'none';
-            actionControls.style.display = 'none';
-            
-            // Clear previous choices
-            eventChoicesContainer.innerHTML = '';
-            
-            // Create and add choice buttons using direct HTML approach
             choices.forEach((choice, index) => {
                 let choiceNumber = '';
                 let choiceText = '';
@@ -1308,23 +1250,15 @@
                 }
                 
                 if (choiceNumber) {
-                    const buttonHtml = `
-                        <button 
-                            class="event-choice-button" 
-                            data-choice="${choiceNumber}" 
-                            onclick="handleEventChoice(${choiceNumber})"
-                        >
-                            ${choiceNumber}. ${choiceText}
-                        </button>
-                    `;
-                    eventChoicesContainer.innerHTML += buttonHtml;
+                    const button = document.createElement('button');
+                    button.className = 'event-choice-button';
+                    button.setAttribute('data-choice', choiceNumber);
+                    button.textContent = `${choiceNumber}. ${choiceText}`;
+                    button.onclick = () => handleEventChoice(choiceNumber);
+                    
+                    eventControls.appendChild(button);
                 }
             });
-            
-            // Show the choices container
-            eventChoicesContainer.style.display = 'flex';
-            console.log('Event choices container display set to:', eventChoicesContainer.style.display);
-            console.log('Added buttons:', eventChoicesContainer.children.length);
         }
         
         // Separate handler function in global scope for the onclick attribute
@@ -1344,15 +1278,7 @@
                 btn.style.opacity = '0.5';
             });
             
-            // Send choice to server
-            if (socket && socket.connected) {
-                console.log('Sending choice to server:', choiceNumber);
-                socket.emit('console command', { command: choiceNumber.toString() });
-                console.log('Choice sent to server');
-            } else {
-                console.error('Socket not connected - cannot send choice');
-                addConsoleMessage('Error: Not connected to server', 'error');
-            }
+            emitSocketCommand('console command', { command: choiceNumber.toString() });
         }
         
         // Function to show examination interface
@@ -1435,7 +1361,7 @@
                 button.addEventListener('click', function() {
                     if (option.command === 'back') {
                         // Return to normal controls
-                        showNormalControls();
+                        showControlPanel('direction');
                     } else {
                         // Execute the list command
                         executeExamineCommand(option.command);
@@ -1486,80 +1412,10 @@
                 updateDirectionButtons(currentNode.exits || []);
             }
             
-            if (socket && socket.connected) {
-                // Send with proper structure: command in 'command' field, target in 'target' field
-                socket.emit('console command', { 
-                    command: cmd,
-                    target: target
-                });
-                
-                console.log('Sending examine command:', { command: cmd, target: target });
-            } else {
-                addConsoleMessage('Error: Not connected to server', 'error');
-            }
-        }
-        
-        // Modify the showNormalControls function to clean up examine interface
-        function showNormalControls() {
-            console.log('📋 showNormalControls called, inEvent =', inEvent);
-            
-            if (inEvent) {
-                console.log('Not showing normal controls because still in event');
-                
-                // Ensure event UI is visible
-                const directionControls = document.querySelector('.direction-controls');
-                const actionControls = document.querySelector('.action-controls');
-                const eventChoicesContainer = document.getElementById('eventChoicesContainer');
-                
-                // Hide navigation controls
-                directionControls.style.display = 'none';
-                actionControls.style.display = 'none';
-                
-                // Show event choices
-                eventChoicesContainer.style.display = 'flex';
-                
-                return; // Don't proceed with showing normal controls
-            }
-            
-            console.log('Showing normal controls');
-            const directionControls = document.querySelector('.direction-controls');
-            const actionControls = document.querySelector('.action-controls');
-            const eventChoicesContainer = document.getElementById('eventChoicesContainer');
-            
-            // Remove examine controls if they exist
-            const examineControls = document.querySelector('.examine-controls');
-            if (examineControls) {
-                examineControls.remove();
-            }
-            
-            // Remove interact controls if they exist
-            const interactControls = document.querySelector('.interact-controls');
-            if (interactControls) {
-                interactControls.remove();
-            }
-            
-            // Clear any event choices
-            eventChoicesContainer.innerHTML = '';
-            eventChoicesContainer.style.display = 'none';
-            
-            // Show regular controls
-            directionControls.style.display = 'grid';
-            actionControls.style.display = 'grid';
-            
-            // Update available exits if we have current node data
-            if (currentNode) {
-                updateDirectionButtons(currentNode.exits || []);
-            }
-            
-            // DOM state check
-            setTimeout(() => {
-                console.log('Current display states after 100ms:', {
-                    eventChoicesDisplay: eventChoicesContainer.style.display,
-                    directionControlsDisplay: directionControls.style.display,
-                    actionControlsDisplay: actionControls.style.display,
-                    inEvent: inEvent
-                });
-            }, 100);
+            emitSocketCommand('console command', { 
+                command: cmd,
+                target: target
+            });
         }
 
         // Function to show interaction interface
@@ -1626,7 +1482,7 @@
                 button.addEventListener('click', function() {
                     if (option.command === 'back') {
                         // Return to normal controls
-                        showNormalControls();
+                        showControlPanel('direction');
                     } else {
                         // Execute the chat command
                         executeChatCommand(option.command);
@@ -1660,23 +1516,15 @@
             addConsoleMessage(`Talking to ${target}...`, 'default');
             
             // Always clean up the interaction interface after sending a chat command
-            // This ensures if an event starts, we don't have overlapping UIs
             const interactControls = document.querySelector('.interact-controls');
             if (interactControls) {
                 interactControls.remove();
             }
             
-            if (socket && socket.connected) {
-                // Send with proper structure: command in 'command' field, target in 'target' field
-                socket.emit('console command', { 
-                    command: cmd,
-                    target: target
-                });
-                
-                console.log('Sending chat command:', { command: cmd, target: target });
-            } else {
-                addConsoleMessage('Error: Not connected to server', 'error');
-            }
+            emitSocketCommand('console command', { 
+                command: cmd,
+                target: target
+            });
         }
 
         // Set up event listeners for buttons
@@ -1687,12 +1535,28 @@
                     const direction = this.getAttribute('data-direction');
                     if (direction && !this.disabled) {
                         clearConsole();
-                        socket.emit('console command', { 
+                        emitSocketCommand('console command', { 
                             command: 'move',
                             direction: direction
                         });
                     }
                 });
+            });
+            
+            // Fight button
+            document.getElementById('btnFight').addEventListener('click', function() {
+                if (!this.disabled) {
+                    // Get the first enemy from currentNode
+                    if (currentNode && currentNode.enemies && currentNode.enemies.length > 0) {
+                        const enemyName = currentNode.enemies[0].name;
+                        emitSocketCommand('console command', { 
+                            command: 'fight',
+                            target: enemyName 
+                        });
+                    } else {
+                        emitSocketCommand('console command', { command: 'fight' });
+                    }
+                }
             });
             
             // Action buttons
@@ -1708,7 +1572,7 @@
             
             document.getElementById('btnHelp').addEventListener('click', function() {
                 clearConsole();
-                socket.emit('console command', { command: 'help' });
+                emitSocketCommand('console command', { command: 'help' });
             });
             
             // Logout button
@@ -1759,7 +1623,7 @@
                         // Immediately update UI for event
                         const directionControls = document.querySelector('.direction-controls');
                         const actionControls = document.querySelector('.action-controls');
-                        const eventChoicesContainer = document.getElementById('eventChoicesContainer');
+                        const eventChoicesContainer = document.getElementById('event-controls');
                         
                         directionControls.style.display = 'none';
                         actionControls.style.display = 'none';
@@ -1776,7 +1640,7 @@
                             
                             // Request event update from server
                             setTimeout(() => {
-                                socket.emit('console command', { command: 'event refresh' });
+                                emitSocketCommand('console command', { command: 'event refresh' });
                             }, 500);
                         }
                     }
@@ -1829,7 +1693,7 @@
                 
                 // Only show normal controls if not in event
                 if (!inEvent) {
-                    showNormalControls();
+                    showControlPanel('direction');
                 }
                 
                 // Check if user is in combat
@@ -1849,11 +1713,6 @@
                                            `Use combat moves to fight!`;
                         
                         addConsoleMessage(statusMessage, 'combat');
-                        
-                        // Then get combat help text
-                        setTimeout(() => {
-                            socket.emit('console command', { command: 'help' });
-                        }, 500);
                     }
                 }
 
@@ -1862,6 +1721,80 @@
                 window.location.href = '/';
             }
         };
+
+        // Function to show only the specified control panel
+        function showControlPanel(controlType) {
+            const directionControls = document.querySelector('.direction-controls');
+            const combatControls = document.querySelector('.combat-controls');
+            const eventControls = document.querySelector('.event-controls');
+            const actionControls = document.querySelector('.action-controls');
+            
+            // Clean up any additional control panels
+            const examineControls = document.querySelector('.examine-controls');
+            if (examineControls) examineControls.remove();
+            
+            const interactControls = document.querySelector('.interact-controls');
+            if (interactControls) interactControls.remove();
+
+            // Hide all controls first
+            directionControls.style.display = 'none';
+            combatControls.style.display = 'none';
+            eventControls.style.display = 'none';
+
+            // Show the specified control and action buttons (if appropriate)
+            switch(controlType) {
+                case 'direction':
+                    directionControls.style.display = 'grid';
+                    actionControls.style.display = 'grid';
+                    break;
+                case 'combat':
+                    combatControls.style.display = 'flex';
+                    actionControls.style.display = 'none';
+                    break;
+                case 'event':
+                    eventControls.style.display = 'flex';
+                    actionControls.style.display = 'none';
+                    break;
+            }
+        }
+
+        // Function to update combat controls with available moves
+        function updateCombatControls(moves) {
+            const combatControls = document.querySelector('.combat-controls');
+            combatControls.innerHTML = ''; // Clear existing moves
+
+            if (!moves || moves.length === 0) {
+                return;
+            }
+
+            moves.forEach(move => {
+                const button = document.createElement('button');
+                button.className = 'combat-move-button';
+                button.textContent = move.name.toUpperCase();
+                button.style.background = 'rgba(255, 0, 0, 0.2)';
+                button.style.color = 'var(--neon-red)';
+                button.style.border = '1px solid var(--neon-red)';
+                button.style.borderRadius = '5px';
+                button.style.padding = '0.7rem';
+                button.style.margin = '0.3rem 0';
+                button.style.fontFamily = 'Courier New, monospace';
+                button.style.fontSize = '0.9rem';
+                button.style.cursor = 'pointer';
+                
+                button.addEventListener('click', () => {
+                    clearConsole(); // Clear console when a combat move is selected
+                    emitSocketCommand('console command', { 
+                        command: move.name.toLowerCase()
+                    });
+                });
+                
+                if (move.helpDescription) {
+                    button.title = move.helpDescription;
+                }
+                
+                combatControls.appendChild(button);
+            });
+        }
     </script>
 </body>
 </html> 

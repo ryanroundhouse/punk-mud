@@ -45,7 +45,7 @@ async function handleCommand(socket, data) {
         const combatState = stateService.userCombatStates.get(socket.user.userId);
         
         // If in combat, handle combat moves first
-        if (combatState && data.command !== 'help' && data.command !== 'flee') {
+        if (combatState && data.command !== 'help' && data.command !== 'flee' && data.command !== 'get_moves') {
             await combatService.handleCombatCommand(user, data.command);
             return;
         }
@@ -246,6 +246,20 @@ async function handleCommand(socket, data) {
 
             case 'map':
                 await handleMapCommand(socket, user);
+                break;
+
+            case 'get_moves':
+                const moves = await userService.getUserMoves(socket.user.userId);
+                // Add 'flee' as a special move everyone has
+                const allMoves = [...moves, {
+                    name: 'flee',
+                    type: 'special',
+                    helpDescription: 'Attempt to escape combat'
+                }];
+                socket.emit('console response', {
+                    type: 'moves',
+                    moves: allMoves
+                });
                 break;
 
             case 'event refresh':
@@ -722,12 +736,6 @@ async function handleFightCommand(user, target) {
     await User.findByIdAndUpdate(user._id, {
         'stats.currentEnergy': user.stats.currentEnergy
     });
-    
-    // Send status update after energy deduction
-    messageService.sendPlayerStatusMessage(
-        user._id.toString(), 
-        `HP: ${user.stats.currentHitpoints}/${user.stats.hitpoints} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
-    );
 
     // Update combat state to include health values
     stateService.userCombatStates.set(user._id.toString(), {
@@ -735,13 +743,42 @@ async function handleFightCommand(user, target) {
         mobName: mobInstance.name
     });
 
-    messageService.sendCombatMessage(
-        user._id.toString(),
-        `You engage in combat with ${mobInstance.name}!`,
-        'Type ? to see available combat commands.'
-    );
+    // Get the socket first to ensure it exists
+    const socket = stateService.getClient(user._id.toString());
+    if (!socket) {
+        logger.error('No socket found for user in handleFightCommand', {
+            userId: user._id.toString()
+        });
+        return;
+    }
 
+    // Send all messages using the verified socket
+    socket.emit('console response', {
+        type: 'combat',
+        message: `You engage in combat with ${mobInstance.name}!`
+    });
+    
+    // Send status update after energy deduction
+    socket.emit('console response', {
+        type: 'playerStatus',
+        message: `HP: ${user.stats.currentHitpoints}/${user.stats.hitpoints} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
+    });
+
+    // Publish system message to the node
     chatService.publishSystemMessage(user.currentNode, `${user.avatarName} engages in combat with ${mobInstance.name}!`);
+
+    // Get and send the moves list immediately after entering combat
+    const moves = await userService.getUserMoves(user._id.toString());
+    // Add 'flee' as a special move everyone has
+    const allMoves = [...moves, {
+        name: 'flee',
+        type: 'special',
+        helpDescription: 'Attempt to escape combat'
+    }];
+    socket.emit('console response', {
+        type: 'moves',
+        moves: allMoves
+    });
 }
 
 /**
@@ -860,8 +897,26 @@ async function handleGetNodeData(socket, data = {}) {
             
             // Event data (if in an event)
             eventMessage: eventMessage,
-            eventChoices: eventChoices
+            eventChoices: eventChoices,
+
+            // Combat state
+            inCombat: stateService.isUserInCombat(userId)
         };
+        
+        // If user is in combat, request their moves list
+        if (stateService.isUserInCombat(userId)) {
+            const moves = await userService.getUserMoves(userId);
+            // Add 'flee' as a special move everyone has
+            const allMoves = [...moves, {
+                name: 'flee',
+                type: 'special',
+                helpDescription: 'Attempt to escape combat'
+            }];
+            socket.emit('console response', {
+                type: 'moves',
+                moves: allMoves
+            });
+        }
         
         // Emit the combined data
         socket.emit('node data', nodeData);
