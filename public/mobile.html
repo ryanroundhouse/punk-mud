@@ -252,30 +252,67 @@
             overflow-y: auto; /* Make the event controls container scrollable */
         }
 
+        .examine-controls {
+            display: none;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(10, 10, 15, 0.8);
+            height: calc(35vh - 1rem);
+            overflow-y: auto;
+        }
+
+        .interact-controls {
+            display: none;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(10, 10, 15, 0.8);
+            height: calc(35vh - 1rem);
+            overflow-y: auto;
+        }
+
+        .examine-button {
+            background: rgba(0, 255, 249, 0.1);
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 0.7rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-align: center;
+            margin: 0.2rem 0;
+        }
+
+        .examine-button:active {
+            background: rgba(0, 255, 249, 0.3);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .interact-button {
+            background: rgba(255, 46, 136, 0.1);
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            border-radius: 5px;
+            padding: 0.7rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-align: center;
+            margin: 0.2rem 0;
+        }
+
+        .interact-button:active {
+            background: rgba(255, 46, 136, 0.3);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
         .action-controls {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 0.5rem;
             flex: 1;
-        }
-
-        .action-button {
-            background: rgba(255, 46, 136, 0.1);
-            color: var(--neon-pink);
-            border: 1px solid var(--neon-pink);
-            border-radius: 5px;
-            padding: 0.5rem;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .action-button:active {
-            background: rgba(255, 46, 136, 0.3);
-            box-shadow: 0 0 10px var(--neon-pink);
         }
 
         .event-choice-button {
@@ -381,6 +418,25 @@
             50% { opacity: 1; }
             100% { opacity: 0.7; }
         }
+
+        .action-button {
+            background: rgba(255, 46, 136, 0.1);
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            border-radius: 5px;
+            padding: 0.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .action-button:active {
+            background: rgba(255, 46, 136, 0.3);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
     </style>
 </head>
 <body>
@@ -431,6 +487,12 @@
             </div>
             <div class="event-controls" style="display: none;">
                 <!-- Event choices will be added dynamically -->
+            </div>
+            <div class="examine-controls" style="display: none;">
+                <!-- Examine options will be added dynamically -->
+            </div>
+            <div class="interact-controls" style="display: none;">
+                <!-- Interact options will be added dynamically -->
             </div>
             <div class="action-controls">
                 <button class="action-button" id="btnLook">LOOK</button>
@@ -1283,19 +1345,9 @@
         
         // Function to show examination interface
         function showExamineInterface() {
-            // Hide normal controls
-            const directionControls = document.querySelector('.direction-controls');
-            const actionControls = document.querySelector('.action-controls');
-            
-            directionControls.style.display = 'none';
-            actionControls.style.display = 'none';
-            
-            // Show examine buttons in the direction controls area
-            const examineContainer = document.createElement('div');
-            examineContainer.className = 'examine-controls';
-            examineContainer.style.display = 'flex';
-            examineContainer.style.flexDirection = 'column';
-            examineContainer.style.gap = '0.5rem';
+            // Get the examine controls container
+            const examineControls = document.querySelector('.examine-controls');
+            examineControls.innerHTML = ''; // Clear existing options
             
             // Create buttons for different examination options
             let examineOptions = [];
@@ -1368,12 +1420,11 @@
                     }
                 });
                 
-                examineContainer.appendChild(button);
+                examineControls.appendChild(button);
             });
             
-            // Add the examine controls to the page
-            const controlsContainer = document.querySelector('.controls-container');
-            controlsContainer.insertBefore(examineContainer, controlsContainer.firstChild);
+            // Show examine controls
+            showControlPanel('examine');
             
             // If no options found (other than the node and back button)
             if (examineOptions.length <= 2) {
@@ -1395,22 +1446,8 @@
             
             addConsoleMessage(`Examining ${target}...`, 'default');
             
-            // Remove examine controls and return to normal movement controls
-            const examineControls = document.querySelector('.examine-controls');
-            if (examineControls) {
-                examineControls.remove();
-            }
-            
-            // Show normal controls again
-            const directionControls = document.querySelector('.direction-controls');
-            const actionControls = document.querySelector('.action-controls');
-            directionControls.style.display = 'grid';
-            actionControls.style.display = 'grid';
-            
-            // Update available exits if we have current node data
-            if (currentNode) {
-                updateDirectionButtons(currentNode.exits || []);
-            }
+            // Switch back to direction controls
+            showControlPanel('direction');
             
             emitSocketCommand('console command', { 
                 command: cmd,
@@ -1420,19 +1457,9 @@
 
         // Function to show interaction interface
         function showInteractInterface() {
-            // Hide normal controls
-            const directionControls = document.querySelector('.direction-controls');
-            const actionControls = document.querySelector('.action-controls');
-            
-            directionControls.style.display = 'none';
-            actionControls.style.display = 'none';
-            
-            // Show interact buttons in the direction controls area
-            const interactContainer = document.createElement('div');
-            interactContainer.className = 'interact-controls';
-            interactContainer.style.display = 'flex';
-            interactContainer.style.flexDirection = 'column';
-            interactContainer.style.gap = '0.5rem';
+            // Get the interact controls container
+            const interactControls = document.querySelector('.interact-controls');
+            interactControls.innerHTML = ''; // Clear existing options
             
             // Create buttons for different interaction options
             let interactOptions = [];
@@ -1489,12 +1516,11 @@
                     }
                 });
                 
-                interactContainer.appendChild(button);
+                interactControls.appendChild(button);
             });
             
-            // Add the interact controls to the page
-            const controlsContainer = document.querySelector('.controls-container');
-            controlsContainer.insertBefore(interactContainer, controlsContainer.firstChild);
+            // Show interact controls
+            showControlPanel('interact');
             
             // If no options found (other than the back button)
             if (interactOptions.length <= 1) {
@@ -1515,11 +1541,8 @@
             
             addConsoleMessage(`Talking to ${target}...`, 'default');
             
-            // Always clean up the interaction interface after sending a chat command
-            const interactControls = document.querySelector('.interact-controls');
-            if (interactControls) {
-                interactControls.remove();
-            }
+            // Switch back to direction controls
+            showControlPanel('direction');
             
             emitSocketCommand('console command', { 
                 command: cmd,
@@ -1727,19 +1750,16 @@
             const directionControls = document.querySelector('.direction-controls');
             const combatControls = document.querySelector('.combat-controls');
             const eventControls = document.querySelector('.event-controls');
-            const actionControls = document.querySelector('.action-controls');
-            
-            // Clean up any additional control panels
             const examineControls = document.querySelector('.examine-controls');
-            if (examineControls) examineControls.remove();
-            
             const interactControls = document.querySelector('.interact-controls');
-            if (interactControls) interactControls.remove();
+            const actionControls = document.querySelector('.action-controls');
 
             // Hide all controls first
             directionControls.style.display = 'none';
             combatControls.style.display = 'none';
             eventControls.style.display = 'none';
+            examineControls.style.display = 'none';
+            interactControls.style.display = 'none';
 
             // Show the specified control and action buttons (if appropriate)
             switch(controlType) {
@@ -1753,6 +1773,14 @@
                     break;
                 case 'event':
                     eventControls.style.display = 'flex';
+                    actionControls.style.display = 'none';
+                    break;
+                case 'examine':
+                    examineControls.style.display = 'flex';
+                    actionControls.style.display = 'none';
+                    break;
+                case 'interact':
+                    interactControls.style.display = 'flex';
                     actionControls.style.display = 'none';
                     break;
             }
