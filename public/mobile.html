@@ -937,6 +937,25 @@
                     return; // Exit early
                 }
                 
+                // Handle chat responses and update the actor image
+                if (data.type === 'chat') {
+                    console.log('Chat response received:', data);
+                    
+                    // Add the chat message to the console
+                    if (data.message) {
+                        addConsoleMessage(data.message, 'chat');
+                        messageDisplayed = true;
+                    }
+                    
+                    // Update the node image to show the actor's image
+                    if (data.image) {
+                        const nodeImage = document.getElementById('nodeImage');
+                        nodeImage.src = data.image;
+                        nodeImage.style.borderColor = 'var(--neon-pink)';
+                        nodeImage.style.boxShadow = '0 0 15px var(--neon-pink)';
+                    }
+                }
+                
                 // Store the console response
                 storeTerminalHistory('', data);
                 
@@ -947,6 +966,39 @@
                     // Always show the message in console
                     addConsoleMessage(data.message, data.type);
                     messageDisplayed = true;
+                    
+                    // Handle updating the image based on what was examined
+                    if (data.image) {
+                        const nodeImage = document.getElementById('nodeImage');
+                        
+                        // If we're examining an actor
+                        if (data.isActor) {
+                            // Update to actor image with pink border
+                            nodeImage.src = data.image;
+                            nodeImage.style.borderColor = 'var(--neon-pink)';
+                            nodeImage.style.boxShadow = '0 0 15px var(--neon-pink)';
+                        } 
+                        // If we're examining the node/location
+                        else if (data.target === 'node') {
+                            // Update to node image
+                            nodeImage.src = data.image;
+                            
+                            // Restore the appropriate border based on node status
+                            nodeImage.style.borderColor = 'var(--neon-blue)';
+                            nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
+                            
+                            // Check if node has enemies or is a rest point
+                            if (currentNode) {
+                                if (currentNode.enemies && currentNode.enemies.length > 0) {
+                                    nodeImage.style.borderColor = 'var(--neon-red)';
+                                    nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
+                                } else if (currentNode.isRestPoint) {
+                                    nodeImage.style.borderColor = 'var(--terminal-green)';
+                                    nodeImage.style.boxShadow = '0 0 15px var(--terminal-green)';
+                                }
+                            }
+                        }
+                    }
                     
                     // If this would redirect to another page, prevent that for our mobile interface
                     if (data.redirect) {
@@ -1066,19 +1118,17 @@
                         // rather than using a modal to keep the experience simpler
                         console.log('Actor data detected:', data);
                         
-                        // If we haven't displayed the actor image and description yet, do it now
-                        if (!messageDisplayed && data.image) {
+                        // Update the nodeImage to show the actor's image
+                        if (data.image) {
                             const nodeImage = document.getElementById('nodeImage');
                             nodeImage.src = data.image;
-                            
-                            // Add a subtle visual indicator that we're looking at something specific
-                            nodeImage.style.border = '2px solid var(--neon-pink)';
+                            nodeImage.style.borderColor = 'var(--neon-pink)';
                             nodeImage.style.boxShadow = '0 0 15px var(--neon-pink)';
-                            
-                            // Show description if available
-                            if (data.description) {
-                                addConsoleMessage(data.description, 'list');
-                            }
+                        }
+                        
+                        // If we haven't displayed the actor description yet, do it now
+                        if (!messageDisplayed && data.description) {
+                            addConsoleMessage(data.description, 'list');
                         }
                     } else {
                         // Only redirect to character.html for player characters
@@ -1179,6 +1229,9 @@
                     messageLine.style.borderBottom = '1px solid var(--neon-red)';
                     messageLine.style.margin = '0.5rem 0';
                     messageLine.style.padding = '0.5rem 0';
+                    break;
+                case 'chat':
+                    messageLine.style.color = 'var(--neon-pink)';
                     break;
                 default:
                     messageLine.style.color = 'var(--terminal-green)';

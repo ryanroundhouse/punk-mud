@@ -592,7 +592,8 @@ async function handleChatCommand(socket, user, target) {
         if (!chatResult || !chatResult.message) {
             socket.emit('console response', {
                 type: 'chat',
-                message: `${actor.name} has nothing to say.`
+                message: `${actor.name} has nothing to say.`,
+                image: actor.image
             });
             return;
         }
@@ -602,7 +603,8 @@ async function handleChatCommand(socket, user, target) {
 
         socket.emit('console response', {
             type: 'chat',
-            message: `${actor.name} says: "${chatResult.message}"`
+            message: `${actor.name} says: "${chatResult.message}"`,
+            image: chatResult.image || actor.image
         });
         return;
     }
@@ -617,7 +619,8 @@ async function handleChatCommand(socket, user, target) {
         if (!sortedMessages.length) {
             socket.emit('console response', {
                 type: 'chat',
-                message: `${mobInstance.name} has nothing to say.`
+                message: `${mobInstance.name} has nothing to say.`,
+                image: mobInstance.image
             });
             return;
         }
@@ -628,7 +631,8 @@ async function handleChatCommand(socket, user, target) {
 
         socket.emit('console response', {
             type: 'chat',
-            message: `${mobInstance.name} says: "${message.message}"`
+            message: `${mobInstance.name} says: "${message.message}"`,
+            image: mobInstance.image
         });
         return;
     }

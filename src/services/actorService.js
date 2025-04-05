@@ -128,14 +128,16 @@ class ActorService {
 
             const result = {
                 message: message?.message,
-                nextIndex
+                nextIndex,
+                image: actor.image
             };
             
             this.logger.debug('Returning chat message result:', {
                 messageContent: result.message,
                 nextIndex: result.nextIndex,
                 isMessageDefined: result.message !== undefined,
-                messageType: typeof result.message
+                messageType: typeof result.message,
+                hasImage: !!result.image
             });
             
             return result;
