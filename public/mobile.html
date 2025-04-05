@@ -1837,7 +1837,16 @@
             // Show the specified control and action buttons (if appropriate)
             switch(controlType) {
                 case 'direction':
-                    if (directionControls) directionControls.style.display = 'grid';
+                    if (directionControls) {
+                        directionControls.style.display = 'grid';
+                        // Update available exits whenever showing direction controls
+                        if (currentNode && currentNode.exits) {
+                            updateDirectionButtons(currentNode.exits);
+                        } else {
+                            // If no exits data, disable all directions
+                            updateDirectionButtons([]);
+                        }
+                    }
                     if (actionControls) actionControls.style.display = 'grid';
                     break;
                 case 'combat':
