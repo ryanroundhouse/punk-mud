@@ -1152,9 +1152,9 @@
                 consoleOutput.removeChild(consoleOutput.firstChild);
             }
             
-            // Auto-scroll to bottom of the scrollable-content container
+            // If the console was just cleared (has only one message), scroll to top
             const scrollableContent = document.querySelector('.scrollable-content');
-            scrollableContent.scrollTop = scrollableContent.scrollHeight;
+            scrollableContent.scrollTop = 0;
         }
 
         // Function to clear the console output
