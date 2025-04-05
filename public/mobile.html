@@ -104,33 +104,90 @@
             z-index: 1;
         }
 
-        .logout-button {
-            background: transparent;
-            color: var(--neon-pink);
-            border: 1px solid var(--neon-pink);
-            padding: 0.3rem 0.6rem;
-            border-radius: 5px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.8rem;
-            cursor: pointer;
-            letter-spacing: 1px;
-            transition: all 0.3s ease;
+        .menu-container {
+            position: relative;
             margin-left: 0.5rem;
         }
 
-        .logout-button:hover, .logout-button:active {
-            background: var(--neon-pink);
-            color: var(--dark-bg);
+        .hamburger-button {
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.2rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            cursor: pointer;
+            width: 1.8rem;
+            height: 1.8rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 0.2rem;
+        }
+
+        .hamburger-button span {
+            display: block;
+            width: 1rem;
+            height: 2px;
+            background-color: var(--neon-pink);
+            transition: all 0.3s ease;
+        }
+
+        .hamburger-button:hover span {
+            box-shadow: 0 0 5px var(--neon-pink);
+        }
+
+        .menu-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: rgba(10, 10, 15, 0.95);
+            border: 1px solid var(--neon-pink);
+            border-radius: 5px;
+            padding: 0.5rem;
+            display: none;
+            z-index: 1000;
+            min-width: 150px;
+            box-shadow: 0 0 15px rgba(255, 46, 136, 0.3);
+            margin-top: 0.5rem;
+        }
+
+        .menu-dropdown.show {
+            display: block;
+        }
+
+        .menu-item {
+            background: transparent;
+            color: var(--neon-pink);
+            border: none;
+            padding: 0.5rem 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            transition: all 0.3s ease;
+            border-radius: 3px;
+        }
+
+        .menu-item:hover {
+            background: rgba(255, 46, 136, 0.2);
             box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .menu-item:not(:last-child) {
+            border-bottom: 1px solid rgba(255, 46, 136, 0.3);
         }
 
         .mobile-container {
             display: flex;
             flex-direction: column;
-            height: 100vh;
+            height: calc(100vh - 45px);
             width: 100%;
             position: relative;
-            padding-top: 35px; /* Space for status bar */
+            margin-top: 45px;
         }
 
         .scrollable-content {
@@ -368,70 +425,6 @@
             box-shadow: 0 0 10px var(--terminal-green);
         }
 
-        .image-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.9);
-            z-index: 1000;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .modal-image {
-            max-width: 95%;
-            max-height: 95vh;
-            object-fit: contain;
-            border: 2px solid var(--neon-blue);
-            box-shadow: 0 0 30px var(--neon-blue);
-        }
-
-        .actor-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 70vh;
-            background-color: rgba(10, 10, 15, 0.95);
-            z-index: 1000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            border-bottom: 2px solid var(--neon-blue);
-            box-shadow: 0 0 30px var(--neon-blue);
-        }
-
-        .actor-modal-content {
-            display: flex;
-            flex-direction: column;
-            padding: 1rem;
-            max-width: 95%;
-            height: 95%;
-        }
-
-        .actor-modal-image {
-            max-height: 30vh;
-            max-width: 100%;
-            object-fit: contain;
-            border: 2px solid var(--neon-blue);
-            border-radius: 5px;
-            box-shadow: 0 0 15px var(--neon-blue);
-            margin-bottom: 1rem;
-        }
-
-        .actor-modal-text {
-            flex: 1;
-            overflow-y: auto;
-            color: var(--terminal-green);
-            font-family: 'Courier New', monospace;
-            white-space: pre-wrap;
-        }
-
         .rest-point-indicator {
             color: var(--terminal-green);
             text-shadow: 0 0 5px var(--terminal-green);
@@ -481,7 +474,16 @@
                 <div class="health-fill"></div>
             </div>
         </div>
-        <button class="logout-button" id="logoutButton">Exit</button>
+        <div class="menu-container">
+            <button class="hamburger-button" id="menuButton">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <div class="menu-dropdown" id="menuDropdown">
+                <button class="menu-item" id="logoutButton">Exit Game</button>
+            </div>
+        </div>
     </div>
     
     <div class="mobile-container">
@@ -531,10 +533,6 @@
                 <button class="action-button" id="btnOther">OTHER</button>
             </div>
         </div>
-    </div>
-
-    <div id="imageModal" class="image-modal" style="display: none;">
-        <img id="modalImage" class="modal-image" alt="Enlarged Image">
     </div>
 
     <!-- Add socket.io client library before the script tag -->
@@ -909,18 +907,6 @@
                     // Always show the message in console
                     addConsoleMessage(data.message, data.type);
                     messageDisplayed = true;
-                    
-                    // If there's an image, update the node image temporarily
-                    if (data.image) {
-                        const nodeImage = document.getElementById('nodeImage');
-                        nodeImage.src = data.image;
-                        
-                        // Add a subtle visual indicator that we're looking at something specific
-                        nodeImage.style.border = '2px solid var(--neon-pink)';
-                        nodeImage.style.boxShadow = '0 0 15px var(--neon-pink)';
-                    } else {
-                        console.log('No image in list response');
-                    }
                     
                     // If this would redirect to another page, prevent that for our mobile interface
                     if (data.redirect) {
@@ -1596,7 +1582,7 @@
                     }
                 });
             });
-            
+
             // Fight button
             document.getElementById('btnFight').addEventListener('click', function() {
                 if (!this.disabled) {
@@ -1628,31 +1614,37 @@
                 clearConsole();
                 showOtherInterface();
             });
+
+            // Hamburger menu
+            const menuButton = document.getElementById('menuButton');
+            const menuDropdown = document.getElementById('menuDropdown');
+            
+            menuButton.addEventListener('click', function(e) {
+                e.stopPropagation();
+                menuDropdown.classList.toggle('show');
+            });
+            
+            // Close menu when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!menuButton.contains(e.target) && !menuDropdown.contains(e.target)) {
+                    menuDropdown.classList.remove('show');
+                }
+            });
             
             // Logout button
             document.getElementById('logoutButton').addEventListener('click', function() {
                 if (socket) {
-                    // Properly close the socket connection
                     socket.disconnect();
-                    socket = null; // Clear the socket instance
+                    socket = null;
                 }
-                // Clean up all socket-related storage
                 localStorage.removeItem('token');
                 localStorage.removeItem('socketId');
                 window.location.href = '/';
             });
             
-            // Node image click to enlarge
+            // Set up node image for actor info
             document.getElementById('nodeImage').addEventListener('click', function() {
-                const modalImage = document.getElementById('modalImage');
-                const imageModal = document.getElementById('imageModal');
-                modalImage.src = this.src;
-                imageModal.style.display = 'flex';
-            });
-            
-            // Close modal on click
-            document.getElementById('imageModal').addEventListener('click', function() {
-                this.style.display = 'none';
+                // Remove click handler since we don't want any action on image click
             });
         }
 
