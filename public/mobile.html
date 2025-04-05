@@ -272,6 +272,34 @@
             overflow-y: auto;
         }
 
+        .other-controls {
+            display: none;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(10, 10, 15, 0.8);
+            height: calc(35vh - 1rem);
+            overflow-y: auto;
+        }
+
+        .other-button {
+            background: rgba(0, 255, 249, 0.1);
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 0.7rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-align: center;
+            margin: 0.2rem 0;
+        }
+
+        .other-button:active {
+            background: rgba(0, 255, 249, 0.3);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
         .examine-button {
             background: rgba(0, 255, 249, 0.1);
             color: var(--neon-blue);
@@ -494,10 +522,13 @@
             <div class="interact-controls" style="display: none;">
                 <!-- Interact options will be added dynamically -->
             </div>
+            <div class="other-controls" style="display: none;">
+                <!-- Other options will be added dynamically -->
+            </div>
             <div class="action-controls">
                 <button class="action-button" id="btnLook">LOOK</button>
                 <button class="action-button" id="btnInteract">INTERACT</button>
-                <button class="action-button" id="btnHelp">HELP</button>
+                <button class="action-button" id="btnOther">OTHER</button>
             </div>
         </div>
     </div>
@@ -1593,9 +1624,9 @@
                 showInteractInterface();
             });
             
-            document.getElementById('btnHelp').addEventListener('click', function() {
+            document.getElementById('btnOther').addEventListener('click', function() {
                 clearConsole();
-                emitSocketCommand('console command', { command: 'help' });
+                showOtherInterface();
             });
             
             // Logout button
@@ -1752,36 +1783,90 @@
             const eventControls = document.querySelector('.event-controls');
             const examineControls = document.querySelector('.examine-controls');
             const interactControls = document.querySelector('.interact-controls');
+            const otherControls = document.querySelector('.other-controls');
             const actionControls = document.querySelector('.action-controls');
 
+            // Create any missing control panels
+            if (!directionControls) {
+                console.warn('Direction controls not found in DOM');
+                return;
+            }
+            if (!combatControls) {
+                const container = document.querySelector('.controls-container');
+                const newCombatControls = document.createElement('div');
+                newCombatControls.className = 'combat-controls';
+                newCombatControls.style.display = 'none';
+                container.insertBefore(newCombatControls, actionControls);
+            }
+            if (!eventControls) {
+                const container = document.querySelector('.controls-container');
+                const newEventControls = document.createElement('div');
+                newEventControls.className = 'event-controls';
+                newEventControls.style.display = 'none';
+                container.insertBefore(newEventControls, actionControls);
+            }
+            if (!examineControls) {
+                const container = document.querySelector('.controls-container');
+                const newExamineControls = document.createElement('div');
+                newExamineControls.className = 'examine-controls';
+                newExamineControls.style.display = 'none';
+                container.insertBefore(newExamineControls, actionControls);
+            }
+            if (!interactControls) {
+                const container = document.querySelector('.controls-container');
+                const newInteractControls = document.createElement('div');
+                newInteractControls.className = 'interact-controls';
+                newInteractControls.style.display = 'none';
+                container.insertBefore(newInteractControls, actionControls);
+            }
+            if (!otherControls) {
+                const container = document.querySelector('.controls-container');
+                const newOtherControls = document.createElement('div');
+                newOtherControls.className = 'other-controls';
+                newOtherControls.style.display = 'none';
+                container.insertBefore(newOtherControls, actionControls);
+            }
+
+            // Get fresh references after potential creation
+            const allControls = [
+                document.querySelector('.direction-controls'),
+                document.querySelector('.combat-controls'),
+                document.querySelector('.event-controls'),
+                document.querySelector('.examine-controls'),
+                document.querySelector('.interact-controls'),
+                document.querySelector('.other-controls')
+            ];
+
             // Hide all controls first
-            directionControls.style.display = 'none';
-            combatControls.style.display = 'none';
-            eventControls.style.display = 'none';
-            examineControls.style.display = 'none';
-            interactControls.style.display = 'none';
+            allControls.forEach(control => {
+                if (control) control.style.display = 'none';
+            });
 
             // Show the specified control and action buttons (if appropriate)
             switch(controlType) {
                 case 'direction':
-                    directionControls.style.display = 'grid';
-                    actionControls.style.display = 'grid';
+                    if (directionControls) directionControls.style.display = 'grid';
+                    if (actionControls) actionControls.style.display = 'grid';
                     break;
                 case 'combat':
-                    combatControls.style.display = 'flex';
-                    actionControls.style.display = 'none';
+                    if (combatControls) combatControls.style.display = 'flex';
+                    if (actionControls) actionControls.style.display = 'none';
                     break;
                 case 'event':
-                    eventControls.style.display = 'flex';
-                    actionControls.style.display = 'none';
+                    if (eventControls) eventControls.style.display = 'flex';
+                    if (actionControls) actionControls.style.display = 'none';
                     break;
                 case 'examine':
-                    examineControls.style.display = 'flex';
-                    actionControls.style.display = 'none';
+                    if (examineControls) examineControls.style.display = 'flex';
+                    if (actionControls) actionControls.style.display = 'none';
                     break;
                 case 'interact':
-                    interactControls.style.display = 'flex';
-                    actionControls.style.display = 'none';
+                    if (interactControls) interactControls.style.display = 'flex';
+                    if (actionControls) actionControls.style.display = 'none';
+                    break;
+                case 'other':
+                    if (otherControls) otherControls.style.display = 'flex';
+                    if (actionControls) actionControls.style.display = 'none';
                     break;
             }
         }
@@ -1822,6 +1907,77 @@
                 
                 combatControls.appendChild(button);
             });
+        }
+
+        // Function to show other interface
+        function showOtherInterface() {
+            // Get the other controls container
+            const otherControls = document.querySelector('.other-controls');
+            otherControls.innerHTML = ''; // Clear existing options
+            
+            // Create buttons for different other options
+            let otherOptions = [];
+            
+            // Add quests button
+            otherOptions.push({
+                name: 'QUESTS',
+                command: 'quests'
+            });
+
+            // Add rest button if at a rest point
+            if (currentNode && currentNode.isRestPoint) {
+                otherOptions.push({
+                    name: 'REST',
+                    command: 'rest'
+                });
+            }
+            
+            // Add back button
+            otherOptions.push({
+                name: '« BACK',
+                command: 'back'
+            });
+            
+            // Create buttons for each option
+            otherOptions.forEach(option => {
+                const button = document.createElement('button');
+                button.className = 'other-button';
+                button.textContent = option.name;
+                
+                // Set onclick event
+                button.addEventListener('click', function() {
+                    if (option.command === 'back') {
+                        // Return to appropriate controls based on state
+                        if (currentNode && currentNode.inCombat) {
+                            showControlPanel('combat');
+                        } else if (inEvent) {
+                            showControlPanel('event');
+                        } else {
+                            showControlPanel('direction');
+                        }
+                    } else {
+                        // Execute the command
+                        clearConsole();
+                        emitSocketCommand('console command', { command: option.command });
+                        
+                        // Return to appropriate controls after command
+                        if (currentNode && currentNode.inCombat) {
+                            showControlPanel('combat');
+                        } else if (inEvent) {
+                            showControlPanel('event');
+                        } else {
+                            showControlPanel('direction');
+                        }
+                    }
+                });
+                
+                otherControls.appendChild(button);
+            });
+            
+            // Show other controls
+            showControlPanel('other');
+            
+            addConsoleMessage("Select an option:", "default");
         }
     </script>
 </body>
