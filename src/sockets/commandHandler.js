@@ -525,7 +525,8 @@ async function handleChatCommand(socket, user, target) {
                 socket.emit('console response', {
                     type: 'event',
                     message: `${actor.name} says: "${result.message}"`,
-                    isEndOfEvent: result.isEnd
+                    isEndOfEvent: result.isEnd,
+                    image: actor.image
                 });
 
                 // If this is the end of the event, clear the state
@@ -579,7 +580,8 @@ async function handleChatCommand(socket, user, target) {
             socket.emit('console response', {
                 type: 'event',
                 message: result.message,
-                isEndOfEvent: result.isEnd
+                isEndOfEvent: result.isEnd,
+                image: actor.image
             });
             return;
         }
@@ -816,6 +818,55 @@ async function handleGetNodeData(socket, data = {}) {
         // Get the user's level for enemy level comparison
         const user = await userService.getUser(userId);
         const userLevel = user.stats.level;
+        
+        // Get user's quest information to filter exits
+        const userQuestInfo = await questService.getUserQuestInfo(userId);
+        
+        // Filter exits based on quest requirements
+        if (node.exits && node.exits.length > 0) {
+            node.exits = node.exits.filter(exit => {
+                // If exit has no quest requirements, keep it
+                if (!exit.requiredQuestId && !exit.requiredQuestEventId) {
+                    return true;
+                }
+                
+                // Check quest requirement
+                if (exit.requiredQuestId) {
+                    const hasRequiredQuest = userQuestInfo.activeQuestIds && 
+                        userQuestInfo.activeQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+                    
+                    const hasCompletedQuest = userQuestInfo.completedQuestIds && 
+                        userQuestInfo.completedQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+                    
+                    if (!hasRequiredQuest && !hasCompletedQuest) {
+                        logger.debug('Filtering exit from node data due to missing required quest', {
+                            userId,
+                            direction: exit.direction,
+                            requiredQuestId: exit.requiredQuestId
+                        });
+                        return false;
+                    }
+                }
+                
+                // Check quest event requirement
+                if (exit.requiredQuestEventId) {
+                    const hasRequiredQuestEvent = userQuestInfo.completedQuestEventIds && 
+                        userQuestInfo.completedQuestEventIds.some(id => id.toString() === exit.requiredQuestEventId.toString());
+                    
+                    if (!hasRequiredQuestEvent) {
+                        logger.debug('Filtering exit from node data due to missing required quest event', {
+                            userId,
+                            direction: exit.direction,
+                            requiredQuestEventId: exit.requiredQuestEventId
+                        });
+                        return false;
+                    }
+                }
+                
+                // If all requirements are met, keep the exit
+                return true;
+            });
+        }
         
         // Check for enemies in this node using the mob service
         const mobInstance = stateService.playerMobs.get(userId);

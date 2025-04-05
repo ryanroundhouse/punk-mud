@@ -1026,6 +1026,14 @@
                         interactControls.remove();
                     }
                     
+                    // Update the node image to show the actor's image if provided
+                    if (data.image) {
+                        const nodeImage = document.getElementById('nodeImage');
+                        nodeImage.src = data.image;
+                        nodeImage.style.borderColor = 'var(--neon-pink)';
+                        nodeImage.style.boxShadow = '0 0 15px var(--neon-pink)';
+                    }
+                    
                     // Force UI update for event mode
                     const directionControls = document.querySelector('.direction-controls');
                     const actionControls = document.querySelector('.action-controls');
