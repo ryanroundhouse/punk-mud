@@ -458,6 +458,44 @@
             background: rgba(255, 46, 136, 0.3);
             box-shadow: 0 0 10px var(--neon-pink);
         }
+
+        /* More content indicator */
+        .more-content-indicator {
+            position: fixed;
+            bottom: calc(35vh + 10px); /* Position just above the controls container */
+            right: 15px;
+            width: 20px;
+            height: 20px;
+            background: #000;
+            border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 6px rgba(0, 255, 249, 0.7);
+            border-radius: 2px; /* Very slight rounding */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            animation: pulse 1.5s infinite, bounce 1s infinite alternate;
+            z-index: 100; /* Ensure it's above everything */
+            display: none; /* Will be shown via JavaScript when needed */
+            cursor: pointer;
+            pointer-events: auto; /* Make clickable */
+            -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+            font-size: 10px;
+            line-height: 1;
+            color: var(--neon-blue);
+            text-shadow: 0 0 4px var(--neon-blue);
+            font-family: monospace;
+        }
+
+        /* Pixelated arrow character */
+        .more-content-indicator::after {
+            content: "▼";
+            display: block;
+        }
+        
+        @keyframes bounce {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(2px); }
+        }
     </style>
 </head>
 <body>
@@ -494,9 +532,7 @@
             </div>
             
             <div class="console-container">
-                <div class="console-output" id="consoleOutput">
-                    <!-- Terminal output will be displayed here -->
-                </div>
+                <div class="console-output" id="consoleOutput"></div>
             </div>
         </div>
         
@@ -651,9 +687,9 @@
                 }
             }
             
-            // Auto-scroll console to bottom
-            const consoleOutput = document.getElementById('consoleOutput');
-            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+            // Don't auto-scroll console to bottom - let the user control scrolling
+            // const consoleOutput = document.getElementById('consoleOutput');
+            // consoleOutput.scrollTop = consoleOutput.scrollHeight;
             
             // Only update available exits if not in an event
             if (!inEvent) {
@@ -675,6 +711,11 @@
                         fightButton.style.border = '1px solid #444';
                     }
                 }
+            }
+            
+            // Update scroll indicator if it exists
+            if (window.updateScrollIndicator) {
+                setTimeout(window.updateScrollIndicator, 100);
             }
         }
 
@@ -734,7 +775,6 @@
                 
                 // Store the socket ID for reconnection
                 localStorage.setItem('socketId', socket.id);
-                addConsoleMessage('Connected to server.', 'success');
                 
                 // Wait for the first users update event before requesting node data
                 // This ensures the server has fully established the session
@@ -1152,9 +1192,11 @@
                 consoleOutput.removeChild(consoleOutput.firstChild);
             }
             
-            // If the console was just cleared (has only one message), scroll to top
-            const scrollableContent = document.querySelector('.scrollable-content');
-            scrollableContent.scrollTop = 0;
+            // No auto-scrolling when clearing - let user control scroll position
+            // Update the scroll indicator to reflect the new content state
+            if (window.updateScrollIndicator) {
+                window.updateScrollIndicator();
+            }
         }
 
         // Function to clear the console output
@@ -1162,9 +1204,11 @@
             const consoleOutput = document.getElementById('consoleOutput');
             consoleOutput.innerHTML = '';
             
-            // Scroll scrollable-content to top after clearing
-            const scrollableContent = document.querySelector('.scrollable-content');
-            scrollableContent.scrollTop = 0;
+            // No auto-scrolling when clearing - let user control scroll position
+            // Update the scroll indicator to reflect the new content state
+            if (window.updateScrollIndicator) {
+                window.updateScrollIndicator();
+            }
         }
 
         // Function to update health and energy bars
@@ -1338,6 +1382,11 @@
                     eventControls.appendChild(button);
                 }
             });
+            
+            // Update the scroll indicator instead of scrolling automatically
+            if (window.updateScrollIndicator) {
+                window.updateScrollIndicator();
+            }
         }
         
         // Separate handler function in global scope for the onclick attribute
@@ -1646,6 +1695,9 @@
             document.getElementById('nodeImage').addEventListener('click', function() {
                 // Remove click handler since we don't want any action on image click
             });
+            
+            // Create global reference for updating scroll indicators
+            window.updateScrollIndicator = null;
         }
 
         // Function to check if user is in an event when the page loads
@@ -1696,6 +1748,79 @@
             }
         }
 
+        // Add after the page loads or in the initialization code
+        function setupScrollIndicators() {
+            // Get the scrollable content container
+            const scrollableContent = document.querySelector('.scrollable-content');
+            
+            // Create and add the down arrow indicator to the body instead of the console container
+            const moreContentIndicator = document.createElement('div');
+            moreContentIndicator.className = 'more-content-indicator';
+            document.body.appendChild(moreContentIndicator);
+            
+            // Add click/tap handler to scroll down when indicator is tapped
+            moreContentIndicator.addEventListener('click', function() {
+                // Scroll down by the height of the visible content area (one page)
+                const scrollAmount = Math.min(
+                    scrollableContent.clientHeight * 0.8,  // 80% of visible height
+                    scrollableContent.scrollHeight - scrollableContent.scrollTop - scrollableContent.clientHeight // remaining content
+                );
+                
+                console.log('Scrolling down by:', scrollAmount);
+                
+                // Smooth scroll down
+                scrollableContent.scrollBy({
+                    top: scrollAmount,
+                    behavior: 'smooth'
+                });
+            });
+            
+            // Function to check scroll position and update indicator
+            function updateScrollIndicator() {
+                // Get scrollable content dimensions
+                const scrollHeight = scrollableContent.scrollHeight;
+                const clientHeight = scrollableContent.clientHeight;
+                const scrollTop = scrollableContent.scrollTop;
+                
+                // Calculate if more content is available below
+                const maxScroll = scrollHeight - clientHeight;
+                const hasMoreContent = maxScroll > 10; // Allow small buffer for rounding errors
+                
+                // Calculate how far from bottom we are
+                const distanceFromBottom = maxScroll - scrollTop;
+                
+                // Show indicator if we're not near the bottom AND there's content to scroll
+                // Use a larger threshold (100px) to make sure indicator doesn't flicker
+                // and to ensure it shows when there's meaningful content below
+                if (hasMoreContent && distanceFromBottom > 100) {
+                    moreContentIndicator.style.display = 'flex';
+                } else {
+                    moreContentIndicator.style.display = 'none';
+                }
+            }
+            
+            // Add scroll event listener with throttle for better performance
+            let isScrolling = false;
+            scrollableContent.addEventListener('scroll', function() {
+                if (!isScrolling) {
+                    isScrolling = true;
+                    window.requestAnimationFrame(() => {
+                        updateScrollIndicator();
+                        isScrolling = false;
+                    });
+                }
+            });
+            
+            // Initial check with a delay to make sure content is fully loaded
+            setTimeout(updateScrollIndicator, 500);
+            
+            // Store function globally so it can be called from other functions
+            window.updateScrollIndicator = updateScrollIndicator;
+            
+            // Return the update function so we can call it when content changes
+            return updateScrollIndicator;
+        }
+
         // Set up the app when page loads
         window.onload = async () => {
             const token = localStorage.getItem('token');
@@ -1736,6 +1861,24 @@
                 
                 // Check if user is in an event
                 await checkInitialEventStatus();
+                
+                // Set up scroll indicators
+                const updateScrollIndicator = setupScrollIndicators();
+                
+                // Override addConsoleMessage to update scroll indicator after adding messages
+                const originalAddConsoleMessage = addConsoleMessage;
+                addConsoleMessage = function(message, type = 'default') {
+                    // Call the original function to add the message
+                    originalAddConsoleMessage(message, type);
+                    
+                    // Always update the scroll indicator without auto-scrolling
+                    if (window.updateScrollIndicator) {
+                        // Update immediately and then again after a delay to account for DOM updates
+                        window.updateScrollIndicator();
+                        setTimeout(() => window.updateScrollIndicator(), 100);
+                        setTimeout(() => window.updateScrollIndicator(), 500);
+                    }
+                };
                 
                 // Only show normal controls if not in event
                 if (!inEvent) {

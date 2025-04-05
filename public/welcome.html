@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PUNK MUD - Terminal</title>
     <link rel="icon" type="image/x-icon" href="/assets/art/favicon.ico">
     <style>
@@ -30,48 +30,52 @@
                 linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
             background-size: 20px 20px;
             background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            position: relative;
         }
 
         .container {
             background: rgba(10, 10, 15, 0.95);
-            padding: 2rem;
+            padding: 1.5rem;
             border-radius: 10px;
             box-shadow: 0 0 20px var(--neon-pink),
                        0 0 40px rgba(255, 46, 136, 0.3);
             text-align: center;
-            max-width: 800px;
             width: 90%;
-            height: 80vh;
+            max-width: 600px;
+            height: 85vh;
             display: flex;
             flex-direction: column;
+            margin: 1rem;
         }
 
         .logo {
-            width: 100px;
-            height: 100px;
-            margin-bottom: 1rem;
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1rem;
             filter: drop-shadow(0 0 10px var(--neon-blue));
         }
 
         .welcome-text {
-            font-size: 1.5rem;
-            margin-bottom: 2rem;
+            font-size: 1.2rem;
+            margin-bottom: 1.5rem;
             text-shadow: 0 0 10px var(--terminal-green);
             animation: flicker 2s infinite;
         }
 
         .terminal {
             background: rgba(0, 0, 0, 0.7);
-            padding: 1.5rem;
+            padding: 1rem;
             border-radius: 5px;
             border: 1px solid var(--terminal-green);
             text-align: left;
             flex-grow: 1;
             overflow-y: auto;
             position: relative;
-            max-height: calc(100% - 150px);
             scrollbar-width: thin;
             scrollbar-color: var(--terminal-green) var(--dark-bg);
+            -webkit-overflow-scrolling: touch;
+            font-size: 0.9rem;
+            line-height: 1.4;
         }
 
         .terminal::before {
@@ -89,11 +93,12 @@
 
         .cursor {
             display: inline-block;
-            width: 10px;
+            width: 8px;
             height: 1.2em;
             background: var(--terminal-green);
             animation: blink 1s infinite;
             margin-left: 2px;
+            vertical-align: middle;
         }
 
         @keyframes blink {
@@ -113,6 +118,7 @@
         #terminalOutput {
             margin-bottom: 1rem;
             line-height: 1.5;
+            word-wrap: break-word;
         }
 
         .typing {
@@ -126,43 +132,31 @@
 
         .logout-button {
             position: absolute;
-            top: 20px;
-            right: 20px;
+            top: 1rem;
+            right: 1rem;
             background: transparent;
             color: var(--neon-pink);
             border: 1px solid var(--neon-pink);
-            padding: 0.5rem 1rem;
+            padding: 0.8rem 1rem;
             border-radius: 5px;
             font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
+            font-size: 1rem;
             cursor: pointer;
             text-transform: uppercase;
             letter-spacing: 1px;
             transition: all 0.3s ease;
             text-decoration: none;
             display: inline-block;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        .logout-button:hover {
+        .logout-button:hover,
+        .logout-button:active {
             background: var(--neon-pink);
             color: var(--dark-bg);
             box-shadow: 0 0 10px var(--neon-pink);
             transform: translateY(-2px);
-        }
-
-        .logout-button::before {
-            content: "[ ";
-            color: var(--neon-pink);
-        }
-
-        .logout-button::after {
-            content: " ]";
-            color: var(--neon-pink);
-        }
-
-        .logout-button:hover::before,
-        .logout-button:hover::after {
-            color: var(--dark-bg);
         }
 
         .terminal::-webkit-scrollbar {
@@ -176,6 +170,88 @@
         .terminal::-webkit-scrollbar-thumb {
             background-color: var(--terminal-green);
             border-radius: 4px;
+        }
+
+        .dive-button {
+            background: rgba(0, 255, 249, 0.1);
+            color: var(--neon-blue);
+            border: 2px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 1rem 2rem;
+            font-family: 'Courier New', monospace;
+            font-size: 1.2rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 1rem auto;
+            display: block;
+            width: 80%;
+            max-width: 300px;
+            transition: all 0.3s ease;
+            text-shadow: 0 0 5px var(--neon-blue);
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .dive-button:hover,
+        .dive-button:active {
+            background: var(--neon-blue);
+            color: var(--dark-bg);
+            box-shadow: 0 0 20px var(--neon-blue);
+            transform: translateY(-2px);
+        }
+
+        input[type="text"] {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--terminal-green);
+            color: var(--terminal-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            padding: 0.5rem;
+            width: 100%;
+            margin-top: 0.5rem;
+            outline: none;
+            caret-color: var(--terminal-green);
+        }
+
+        input[type="text"]:focus {
+            border-bottom: 2px solid var(--terminal-green);
+            box-shadow: 0 2px 4px rgba(0, 255, 0, 0.2);
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 1rem;
+                height: 90vh;
+                margin: 0.5rem;
+            }
+
+            .logo {
+                width: 60px;
+                height: 60px;
+            }
+
+            .welcome-text {
+                font-size: 1rem;
+                margin-bottom: 1rem;
+            }
+
+            .terminal {
+                padding: 0.8rem;
+                font-size: 0.85rem;
+            }
+
+            .logout-button {
+                padding: 0.6rem 0.8rem;
+                font-size: 0.9rem;
+            }
+
+            .dive-button {
+                padding: 0.8rem 1.5rem;
+                font-size: 1.1rem;
+                width: 90%;
+            }
         }
     </style>
 </head>
@@ -211,23 +287,17 @@
 
         const newUserMessages = [
             "Initializing neural interface...",
-            "Connecting to cybernet backbone...",
             "Accessing PUNK MUD mainframe...",
             "Connection established.",
-            "Welcome to the dark underbelly of the net.",
-            "Your reality begins here...",
             "SYSTEM: Enter your avatar name to continue..."
         ];
 
         const returningUserMessages = [
             "Initializing neural interface...",
-            "Biometric scan complete...",
             "Identity confirmed...",
             "Accessing stored neural patterns...",
             "SYSTEM: Welcome back to the grid, {avatarName}",
             "Restoring previous session...",
-            "SYSTEM: Neural sync complete.",
-            "SYSTEM: Type 'dive' to enter PUNK MUD..."
         ];
 
         const terminalOutput = document.getElementById('terminalOutput');
@@ -393,23 +463,22 @@
         }
 
         function createDivePrompt() {
-            const inputLine = document.createElement('div');
-            inputLine.style.display = 'flex';
-            inputLine.style.alignItems = 'center';
-            inputLine.style.gap = '10px';
-            inputLine.innerHTML = `
-                <span style="color: var(--terminal-green)">></span>
-                <input type="text" id="diveInput" 
-                       style="background: transparent;
-                              border: none;
-                              color: var(--terminal-green);
-                              font-family: 'Courier New', monospace;
-                              font-size: 1rem;
-                              flex-grow: 1;
-                              outline: none;" 
-                       placeholder="Type 'dive' to enter">
-            `;
-            return inputLine;
+            const diveButton = document.createElement('button');
+            diveButton.className = 'dive-button';
+            diveButton.textContent = 'DIVE IN';
+            
+            diveButton.addEventListener('click', async () => {
+                diveButton.remove();
+                await terminal.writeMessage('> DIVE', { immediate: true });
+                await terminal.writeLines([
+                    "SYSTEM: Initiating neural dive sequence...",
+                    "SYSTEM: Dive successful. Welcome to PUNK MUD."
+                ]);
+                // Redirect to mobile.html
+                window.location.href = '/mobile.html';
+            });
+
+            return diveButton;
         }
 
         function getAuthHeader() {
@@ -459,9 +528,7 @@
                 if (response.ok) {
                     await terminal.writeLines([
                         `Avatar registration successful. Welcome, ${avatarName}!`,
-                        "SYSTEM: Initializing game environment...",
-                        "SYSTEM: Neural sync complete.",
-                        "SYSTEM: Type 'dive' to enter PUNK MUD..."
+                        "SYSTEM: Initializing game environment..."
                     ]);
                     setupDivePrompt();
                 } else {
@@ -500,33 +567,10 @@
             }
         }
 
-        // Add this new function before window.onload
+        // Update the setupDivePrompt function
         function setupDivePrompt() {
             const divePrompt = createDivePrompt();
             terminalOutput.appendChild(divePrompt);
-            const diveInput = document.getElementById('diveInput');
-            diveInput.focus();
-
-            diveInput.addEventListener('keypress', async (e) => {
-                if (e.key === 'Enter') {
-                    const input = diveInput.value.trim().toLowerCase();
-                    divePrompt.remove();
-                    await terminal.writeMessage(`> ${input}`, { immediate: true });
-                    
-                    if (input === 'dive') {
-                        await terminal.writeLines([
-                            "SYSTEM: Initiating neural dive sequence...",
-                            "SYSTEM: Synchronizing neural patterns...", 
-                            "SYSTEM: Dive successful. Welcome to PUNK MUD."
-                        ]);
-                        // Redirect to game.html instead of showing cursor
-                        window.location.href = '/game.html';
-                    } else {
-                        await terminal.writeMessage("ERROR: Invalid command. Neural dive aborted.");
-                        setupDivePrompt(); // Recursively setup a new prompt
-                    }
-                }
-            });
         }
 
         // Update the initialization code
@@ -581,7 +625,6 @@
                 terminal.clearCursors();
 
                 await terminal.writeLines([
-                    "SYSTEM: Initiating neural disconnect...",
                     "SYSTEM: Clearing neural buffers...", 
                     "SYSTEM: Disconnecting from mainframe..."
                 ]);

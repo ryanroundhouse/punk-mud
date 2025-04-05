@@ -151,9 +151,23 @@
                     });
                     
                     if (response.ok) {
-                        // Token is valid, redirect to game
-                        window.location.href = '/game.html';
-                        return;
+                        // Check if user has a character
+                        const characterResponse = await fetch('/api/character/data', {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        if (characterResponse.ok) {
+                            const characterData = await characterResponse.json();
+                            if (characterData.avatarName) {
+                                window.location.href = '/mobile.html';
+                            } else {
+                                window.location.href = '/welcome.html';
+                            }
+                            return;
+                        }
                     }
                 } catch (error) {
                     console.error('Token verification failed:', error);
@@ -244,10 +258,33 @@
                     // Store the token
                     localStorage.setItem('token', data.token);
                     
-                    // Redirect to game page without parameters
-                    setTimeout(() => {
-                        window.location.href = '/welcome.html';
-                    }, 1000);
+                    // Check if user has a character
+                    try {
+                        const characterResponse = await fetch('/api/character/data', {
+                            headers: {
+                                'Authorization': `Bearer ${data.token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        if (characterResponse.ok) {
+                            const characterData = await characterResponse.json();
+                            // Redirect based on character existence
+                            setTimeout(() => {
+                                if (characterData.avatarName) {
+                                    window.location.href = '/mobile.html';
+                                } else {
+                                    window.location.href = '/welcome.html';
+                                }
+                            }, 1000);
+                        }
+                    } catch (error) {
+                        console.error('Error checking character:', error);
+                        // Default to welcome page if check fails
+                        setTimeout(() => {
+                            window.location.href = '/welcome.html';
+                        }, 1000);
+                    }
                 } else {
                     throw new Error(data.error);
                 }
