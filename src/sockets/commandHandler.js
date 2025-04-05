@@ -759,7 +759,8 @@ async function handleFightCommand(user, target) {
     // Send all messages using the verified socket
     socket.emit('console response', {
         type: 'combat',
-        message: `You engage in combat with ${mobInstance.name}!`
+        message: `You engage in combat with ${mobInstance.name}!`,
+        image: mobInstance.image
     });
     
     // Send status update after energy deduction

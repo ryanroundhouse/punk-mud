@@ -450,7 +450,9 @@ class CombatService {
                         `*** YOU HAVE BEEN DEFEATED ***\n` +
                         `Everything goes dark...\n\n` +
                         `You wake up in Neon Plaza with a splitting headache, unsure how you got here. ` +
-                        `Your wounds have been treated, but the memory of your defeat lingers.`
+                        `Your wounds have been treated, but the memory of your defeat lingers.`,
+                        null,
+                        mobInstance.image
                     );
                 }
                 return; // Exit immediately after death
@@ -562,7 +564,7 @@ class CombatService {
             victoryMessage += `\n\nVictory! You have defeated ${mobInstance.name}!`;
             
             // Send the victory message first
-            this.messageService.sendCombatMessage(user._id.toString(), victoryMessage);
+            this.messageService.sendCombatMessage(user._id.toString(), victoryMessage, null, mobInstance.image);
             
             // Process quest updates without including them in the victory message
             const questUpdates = await this.questService.handleMobKill(user, mobInstance._id || mobInstance.mobId);
@@ -642,7 +644,9 @@ class CombatService {
                 `*** YOU HAVE BEEN DEFEATED ***\n` +
                 `Everything goes dark...\n\n` +
                 `You wake up in Neon Plaza with a splitting headache, unsure how you got here. ` +
-                `Your wounds have been treated, but the memory of your defeat lingers.`
+                `Your wounds have been treated, but the memory of your defeat lingers.`,
+                null,
+                mobInstance.image
             );
             return; // Exit before sending regular combat message
         }
@@ -667,7 +671,7 @@ class CombatService {
                 combatMessage += `${mobInstance.name} uses ${mobResult.move.name}! ${mobResult.message}`;
             }
     
-            this.messageService.sendCombatMessage(user._id.toString(), combatMessage);
+            this.messageService.sendCombatMessage(user._id.toString(), combatMessage, null, mobInstance.image);
         }
     }
     
@@ -745,7 +749,9 @@ class CombatService {
                 this.messageService.sendCombatMessage(
                     user._id.toString(),
                     `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n\n` +
-                    `You successfully flee from combat!${statusMessage}`
+                    `You successfully flee from combat!${statusMessage}`,
+                    null,
+                    mobInstance.image
                 );
     
                 this.messageService.sendConsoleResponse(
@@ -761,7 +767,9 @@ class CombatService {
                 this.messageService.sendCombatMessage(
                     user._id.toString(),
                     `${mobInstance.name} uses ${mobMove.name}! ${mobResult.message}\n\n` +
-                    `You fail to escape!${statusMessage}`
+                    `You fail to escape!${statusMessage}`,
+                    null,
+                    mobInstance.image
                 );
             }
         } catch (error) {
@@ -796,7 +804,8 @@ class CombatService {
         this.messageService.sendCombatMessage(
             user._id.toString(),
             `You engage in combat with ${mobInstance.name}!`,
-            'Type ? to see available combat commands.'
+            'Type ? to see available combat commands.',
+            mobInstance.image
         );
     
         this.messageService.sendConsoleResponse(

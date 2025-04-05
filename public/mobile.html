@@ -901,6 +901,14 @@
                         addConsoleMessage(data.message, 'combat');
                         messageDisplayed = true;
                     }
+                    
+                    // Update the node image to show the enemy's image
+                    if (data.image) {
+                        const nodeImage = document.getElementById('nodeImage');
+                        nodeImage.src = data.image;
+                        nodeImage.style.borderColor = 'var(--neon-red)';
+                        nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
+                    }
                 } else if (data.type === 'combat_end') {
                     // Show the combat end message first
                     if (data.message) {

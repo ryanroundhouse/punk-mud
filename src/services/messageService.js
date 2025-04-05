@@ -27,9 +27,9 @@ class MessageService {
         }
     }
 
-    sendCombatMessage(userId, message, hint = null) {
-        // If hint is provided, we need to send a custom object
-        if (hint) {
+    sendCombatMessage(userId, message, hint = null, image = null) {
+        // If hint or image is provided, we need to send a custom object
+        if (hint || image) {
             const socket = this.stateService.getClient(userId);
             if (!socket || !socket.connected) {
                 this.logger.error('No valid socket found for message:', { userId, type: 'combat', message });
@@ -39,7 +39,8 @@ class MessageService {
             socket.emit('console response', {
                 type: 'combat',
                 message,
-                hint
+                hint,
+                image
             });
             return true;
         }
