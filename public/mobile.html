@@ -188,6 +188,7 @@
             width: 100%;
             position: relative;
             margin-top: 45px;
+            overflow: hidden; /* Prevent scrolling of the container itself */
         }
 
         .scrollable-content {
@@ -195,7 +196,8 @@
             flex-direction: column;
             flex: 1;
             overflow-y: auto;
-            height: calc(65vh - 35px); /* Adjust height to leave space for controls */
+            height: calc(60vh - 45px); /* Reduce height to leave more space for controls */
+            min-height: 0; /* Allow container to shrink */
         }
 
         .node-info {
@@ -256,8 +258,11 @@
             flex-direction: column;
             padding: 0.5rem;
             background: rgba(10, 10, 15, 0.8);
-            height: calc(35vh - 1rem);
-            overflow-y: auto; /* Make the controls container scrollable */
+            height: 40vh; /* Fixed height for controls */
+            min-height: 250px; /* Ensure minimum height for controls */
+            overflow-y: auto;
+            position: relative; /* Ensure it stays at the bottom */
+            bottom: 0;
         }
 
         .direction-controls {
@@ -265,8 +270,8 @@
             grid-template-columns: repeat(3, 1fr);
             grid-template-rows: repeat(3, 1fr);
             gap: 0.5rem;
-            margin-bottom: 0.5rem;
             flex: 3;
+            min-height: 150px; /* Ensure minimum height for direction pad */
         }
 
         .direction-button {
@@ -397,7 +402,9 @@
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 0.5rem;
-            flex: 1;
+            margin-top: auto; /* Push to bottom of container */
+            padding-top: 0.5rem;
+            min-height: 45px; /* Ensure minimum height for action buttons */
         }
 
         .event-choice-button {
