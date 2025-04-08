@@ -1547,11 +1547,30 @@
                 // Set onclick event
                 button.addEventListener('click', function() {
                     if (option.command === 'back') {
-                        // Return to normal controls
-                        showControlPanel('direction');
+                        // Return to appropriate controls based on state
+                        if (currentNode && currentNode.inCombat) {
+                            showControlPanel('combat');
+                        } else if (inEvent) {
+                            showControlPanel('event');
+                        } else {
+                            showControlPanel('direction');
+                        }
+                    } else if (option.action) {
+                        // Execute custom action if provided
+                        option.action();
                     } else {
-                        // Execute the list command
-                        executeExamineCommand(option.command);
+                        // Execute the command
+                        clearConsole();
+                        emitSocketCommand('console command', { command: option.command });
+                        
+                        // Return to appropriate controls after command
+                        if (currentNode && currentNode.inCombat) {
+                            showControlPanel('combat');
+                        } else if (inEvent) {
+                            showControlPanel('event');
+                        } else {
+                            showControlPanel('direction');
+                        }
                     }
                 });
                 
@@ -2137,6 +2156,16 @@
                 command: 'quests'
             });
 
+            // Add character button to view your character
+            otherOptions.push({
+                name: 'CHARACTER',
+                command: 'character',
+                action: () => {
+                    // Navigate to character page for current user
+                    window.location.href = '/character.html';
+                }
+            });
+
             // Add rest button if at a rest point
             if (currentNode && currentNode.isRestPoint) {
                 otherOptions.push({
@@ -2168,6 +2197,9 @@
                         } else {
                             showControlPanel('direction');
                         }
+                    } else if (option.action) {
+                        // Execute custom action if provided
+                        option.action();
                     } else {
                         // Execute the command
                         clearConsole();

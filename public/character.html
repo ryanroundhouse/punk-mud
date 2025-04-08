@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PUNK MUD - Character Builder</title>
     <link rel="icon" type="image/x-icon" href="/assets/art/favicon.ico">
     <style>
@@ -21,6 +21,7 @@
             font-family: 'Courier New', monospace;
             color: var(--terminal-green);
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             background-image: 
@@ -30,17 +31,27 @@
                 linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
             background-size: 20px 20px;
             background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            overflow-x: hidden;
+            touch-action: manipulation;
+            flex-direction: column;
         }
 
         .game-container {
             display: flex;
+            flex-direction: column;
             width: 95%;
             height: 90vh;
             gap: 1rem;
         }
 
+        @media (min-width: 768px) {
+            .game-container {
+                flex-direction: row;
+            }
+        }
+
         .main-panel {
-            flex: 2;
+            flex: 1;
             background: rgba(10, 10, 15, 0.95);
             padding: 1rem;
             border-radius: 10px;
@@ -49,25 +60,13 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-        }
-
-        .chat-panel {
-            flex: 1;
-            background: rgba(10, 10, 15, 0.95);
-            padding: 1rem;
-            border-radius: 10px;
-            box-shadow: 0 0 20px var(--neon-blue),
-                       0 0 40px rgba(0, 255, 249, 0.3);
-            display: flex;
-            flex-direction: column;
-            max-width: 400px;
+            min-height: 45vh;
         }
 
         .character-form {
             flex: 1;
-            display: grid;
-            grid-template-columns: 1fr 300px;
-            grid-template-rows: auto 1fr auto;
+            display: flex;
+            flex-direction: column;
             gap: 1rem;
             padding: 0;
             background: transparent;
@@ -75,11 +74,17 @@
             max-height: 100%;
             overflow-y: auto;
             overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        @media (min-width: 768px) {
+            .character-form {
+                grid-template-columns: 1fr 300px;
+                grid-template-rows: auto 1fr auto;
+            }
         }
 
         .left-column {
-            grid-column: 1;
-            grid-row: 1;
             display: flex;
             flex-direction: column;
             gap: 1rem;
@@ -91,6 +96,7 @@
             display: flex;
             align-items: center;
             border-radius: 5px;
+            padding-bottom: 0rem;
         }
 
         .character-info {
@@ -107,28 +113,44 @@
         }
 
         .form-group {
-            grid-column: 1 / -1;
-            grid-row: 2;
             width: 100%;
             display: flex;
             flex-direction: column;
-            min-height: 0;
+        }
+
+        @media (min-width: 768px) {
+            .form-group {
+                grid-column: 1 / -1;
+                grid-row: 2;
+            }
         }
 
         .image-upload-section {
-            grid-column: 2;
-            grid-row: 1;
             width: 100%;
             display: flex;
             flex-direction: column;
+            align-items: center;
+        }
+
+        @media (min-width: 768px) {
+            .image-upload-section {
+                grid-column: 2;
+                grid-row: 1;
+            }
         }
 
         .button-container {
-            grid-column: 2;
-            grid-row: 3;
             display: flex;
-            justify-content: flex-end;
-            align-items: flex-end;
+            justify-content: center;
+            align-items: center;
+            margin-top: 1rem;
+        }
+
+        @media (min-width: 768px) {
+            .button-container {
+                justify-content: flex-end;
+                align-items: flex-end;
+            }
         }
 
         label {
@@ -152,16 +174,16 @@
 
         textarea {
             flex: 1;
-            min-height: 100px;
-            max-height: 300px;
+            min-height: 300px;
+            max-height: 400px;
             resize: vertical;
             width: 100%;
             box-sizing: border-box;
         }
 
         .image-preview-container {
-            width: 300px;
-            height: 300px;
+            width: 250px;
+            height: 250px;
             border: 2px solid var(--neon-blue);
             border-radius: 5px;
             display: flex;
@@ -171,11 +193,19 @@
             margin-bottom: 1rem;
         }
 
+        @media (min-width: 768px) {
+            .image-preview-container {
+                width: 300px;
+                height: 300px;
+            }
+        }
+
         .image-upload-controls {
             width: 100%;
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
+            align-items: center;
         }
 
         .custom-file-upload {
@@ -193,9 +223,11 @@
             text-align: center;
             position: relative;
             overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        .custom-file-upload:hover {
+        .custom-file-upload:hover, 
+        .custom-file-upload:active {
             background: var(--neon-blue);
             color: var(--dark-bg);
             box-shadow: 0 0 10px var(--neon-blue);
@@ -214,7 +246,8 @@
             transition: all 0.3s ease;
         }
 
-        .custom-file-upload:hover::before {
+        .custom-file-upload:hover::before,
+        .custom-file-upload:active::before {
             opacity: 1;
             animation: borderGlow 1.5s ease-out infinite;
         }
@@ -224,7 +257,13 @@
             font-size: 0.8rem;
             margin-top: 0.5rem;
             text-align: center;
-            min-height: 1.2em;
+            min-height: 0;
+            display: none;
+        }
+
+        .file-name:not(:empty) {
+            display: block;
+            margin-top: 0.5rem;
         }
 
         input[type="file"] {
@@ -266,6 +305,14 @@
             background: rgba(0, 0, 0, 0.3);
             scrollbar-width: thin;
             scrollbar-color: var(--neon-blue) var(--dark-bg);
+            -webkit-overflow-scrolling: touch;
+            max-height: 30vh;
+        }
+
+        @media (min-width: 768px) {
+            .chat-container {
+                max-height: none;
+            }
         }
 
         .chat-container::-webkit-scrollbar {
@@ -316,6 +363,7 @@
             border-radius: 5px;
             color: var(--terminal-green);
             font-family: 'Courier New', monospace;
+            -webkit-appearance: none;
         }
 
         .action-button {
@@ -330,9 +378,11 @@
             text-transform: uppercase;
             letter-spacing: 1px;
             transition: all 0.3s ease;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        .action-button:hover {
+        .action-button:hover,
+        .action-button:active {
             background: var(--neon-pink);
             color: var(--dark-bg);
             box-shadow: 0 0 10px var(--neon-pink);
@@ -371,10 +421,16 @@
             opacity: 0.8;
         }
 
+        .return-button-container {
+            width: 95%;
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 1rem;
+            margin-top: 0.5rem;
+        }
+
         .return-button {
-            position: absolute;
-            top: 25px;
-            right: 25px;
+            display: flex;
             background: transparent;
             color: var(--neon-pink);
             border: 1px solid var(--neon-pink);
@@ -387,9 +443,11 @@
             letter-spacing: 1px;
             transition: all 0.3s ease;
             z-index: 10;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        .return-button:hover {
+        .return-button:hover,
+        .return-button:active {
             background: var(--neon-pink);
             color: var(--dark-bg);
             box-shadow: 0 0 10px var(--neon-pink);
@@ -400,9 +458,12 @@
             transition: all 0.3s ease;
             text-decoration: none;
             color: var(--neon-blue);
+            display: block;
+            padding: 0.5rem 0;
         }
 
-        .user-link:hover {
+        .user-link:hover,
+        .user-link:active {
             text-shadow: 0 0 5px var(--neon-blue);
             color: var(--neon-pink);
         }
@@ -421,6 +482,16 @@
             padding: 1rem;
             border-radius: 5px;
             border: 1px solid var(--neon-blue);
+            grid-column: 1;
+            grid-row: 4;
+        }
+
+        @media (min-width: 768px) {
+            .stats-section {
+                grid-column: 1;
+                grid-row: 1;
+                margin-top: 4rem;
+            }
         }
 
         .stats-section h2 {
@@ -506,6 +577,7 @@
             cursor: pointer;
             padding: 0.5rem 1rem;
             transition: all 0.3s ease;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .tab-button.active {
@@ -513,7 +585,8 @@
             border-bottom: 2px solid var(--neon-pink);
         }
 
-        .tab-button:hover {
+        .tab-button:hover,
+        .tab-button:active {
             color: var(--neon-pink);
         }
 
@@ -562,7 +635,9 @@
     </style>
 </head>
 <body>
-    <button class="return-button" onclick="window.location.href='/game.html'">Return to Game</button>
+    <div class="return-button-container">
+        <button class="return-button" onclick="window.location.href='/mobile.html'">Return to Game</button>
+    </div>
     <div class="game-container">
         <div class="main-panel">
             <div class="character-form">
@@ -571,6 +646,21 @@
                         <div class="character-info">
                             <span class="character-name" id="avatarName"></span>
                             <span class="character-class" id="characterClass"></span>
+                        </div>
+                    </div>
+
+                    <div class="image-upload-section">
+                        <div class="image-preview-container">
+                            <img id="imagePreview" class="image-preview">
+                            <span class="no-image-text" id="noImageText">No image uploaded</span>
+                        </div>
+                        <div class="image-upload-controls">
+                            <label for="imageUpload" class="custom-file-upload">
+                                Select Image
+                            </label>
+                            <input type="file" id="imageUpload" accept="image/*">
+                            <div class="file-name" id="fileName"></div>
+                            <input type="hidden" id="imagePath">
                         </div>
                     </div>
 
@@ -590,14 +680,14 @@
                                 <div class="exp-progress">
                                     <div class="exp-progress-bar" id="expProgressBar"></div>
                                     <div class="stat-item">
-                                        <label>Experience:</label>
+                                        <label>Exp:</label>
                                         <span id="statExperience">0/0</span>
                                     </div>
                                 </div>
                                 <div class="hp-progress">
                                     <div class="hp-progress-bar" id="hpProgressBar"></div>
                                     <div class="stat-item">
-                                        <label>Hit Points:</label>
+                                        <label>HP:</label>
                                         <span><span id="statCurrentHitPoints">100</span>/<span id="statHitPoints">100</span></span>
                                     </div>
                                 </div>
@@ -644,139 +734,51 @@
                     <textarea id="description" required></textarea>
                 </div>
 
-                <div class="image-upload-section">
-                    <div class="image-preview-container">
-                        <img id="imagePreview" class="image-preview">
-                        <span class="no-image-text" id="noImageText">No image uploaded</span>
-                    </div>
-                    <div class="image-upload-controls">
-                        <label for="imageUpload" class="custom-file-upload">
-                            Select Image
-                        </label>
-                        <input type="file" id="imageUpload" accept="image/*">
-                        <div class="file-name" id="fileName"></div>
-                        <input type="hidden" id="imagePath">
-                    </div>
-                </div>
-
                 <div class="button-container">
                     <button class="action-button" id="saveCharacterBtn">Save Character</button>
                 </div>
             </div>
         </div>
-        
-        <div class="chat-panel">
-            <div class="chat-header">CHAT LOG</div>
-            <div class="users-list">
-                <div class="users-list-title">Users Present:</div>
-                <div id="usersList"></div>
-            </div>
-            <div class="chat-container" id="chatMessages">
-                <!-- Chat messages will appear here -->
-            </div>
-            <div class="chat-input-container">
-                <input type="text" 
-                       id="chatInput" 
-                       class="chat-input" 
-                       placeholder="Type your message...">
-                <button class="action-button" id="sendMessageBtn">Send</button>
-            </div>
-        </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
     <script>
-        let socket;
-        const chatMessages = document.getElementById('chatMessages');
-        const chatInput = document.getElementById('chatInput');
-        const sendMessageBtn = document.getElementById('sendMessageBtn');
-        const usersList = document.getElementById('usersList');
+        let currentUsername = '';
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-        // Add this near the top of the script section
-        const CHAT_STORAGE_KEY = 'chatMessages';
-        const MAX_STORED_MESSAGES = 50;
-
-        function storeChatMessage(messageData) {
-            // Skip system messages about connections and disconnections
-            if (messageData.username === 'SYSTEM' && 
-                messageData.message.match(/^.+ has (connected|disconnected)\.$/)) {
-                return;
+        // Prevent text selection on double-tap for iOS devices
+        document.addEventListener('touchstart', function(event) {
+            if (event.touches.length > 1) {
+                event.preventDefault();
             }
-            
-            let messages = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]');
-            messages.push(messageData);
-            // Keep only the last MAX_STORED_MESSAGES messages
-            if (messages.length > MAX_STORED_MESSAGES) {
-                messages = messages.slice(messages.length - MAX_STORED_MESSAGES);
-            }
-            localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
-        }
+        }, { passive: false });
 
-        function loadStoredChatMessages() {
-            const messages = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]');
-            messages.forEach(msg => {
-                // Skip system messages about connections and disconnections
-                if (msg.username === 'SYSTEM' && 
-                    msg.message.match(/^.+ has (connected|disconnected)\.$/)) {
-                    return;
-                }
-                
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'chat-message';
-                
-                const isSystemMessage = msg.username === 'SYSTEM';
-                const isOwnMessage = msg.username === currentUsername;
-                
-                if (isSystemMessage) {
-                    messageDiv.classList.add('system-message');
-                    messageDiv.innerHTML = `
-                        <span class="chat-text">${msg.message}</span>
-                        <span class="chat-timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</span>
-                    `;
-                } else {
-                    let usernameColor = 'var(--neon-pink)'; // Default color
-                    if (isOwnMessage) {
-                        usernameColor = 'var(--neon-blue)';
-                    }
-                    
-                    const usernameSpan = `<span class="chat-username" style="color: ${usernameColor}; cursor: pointer" onclick="viewCharacter('${msg.username}')">${msg.username}:</span>`;
-                    
-                    messageDiv.innerHTML = `
-                        ${usernameSpan}
-                        <span class="chat-message-text">${msg.message}</span>
-                        <span class="chat-timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</span>
-                    `;
-                }
-                
-                messageDiv.addEventListener('click', (e) => {
-                    // Only toggle timestamp if not clicking username
-                    if (!e.target.classList.contains('chat-username')) {
-                        messageDiv.classList.toggle('show-timestamp');
-                    }
-                });
-                
-                chatMessages.appendChild(messageDiv);
-            });
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        // Add this function to clean up existing connection/disconnection messages
-        function cleanUpStoredChatMessages() {
-            const messages = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]');
-            const filteredMessages = messages.filter(msg => 
-                !(msg.username === 'SYSTEM' && 
-                  msg.message.match(/^.+ has (connected|disconnected)\.$/))
-            );
-            
-            if (filteredMessages.length !== messages.length) {
-                localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(filteredMessages));
+        // Prevent zoom on double tap
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function(event) {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
             }
-        }
+            lastTouchEnd = now;
+        }, { passive: false });
+
+        // Handle orientation changes
+        window.addEventListener('orientationchange', function() {
+            // Small delay to let the browser adjust
+            setTimeout(function() {
+                // Adjust layout for new orientation if needed
+                const vh = window.innerHeight * 0.01;
+                document.documentElement.style.setProperty('--vh', `${vh}px`);
+            }, 200);
+        });
 
         // Update the window.onload function
         window.onload = async () => {
-            // Clean up existing connection/disconnection messages
-            cleanUpStoredChatMessages();
+            // Set initial viewport height variable for mobile
+            if (isMobile) {
+                const vh = window.innerHeight * 0.01;
+                document.documentElement.style.setProperty('--vh', `${vh}px`);
+            }
             
             const token = localStorage.getItem('token');
             if (!token) {
@@ -807,7 +809,7 @@
                 }
 
                 const data = await response.json();
-                currentUsername = data.user.avatarName;  // Make sure to set currentUsername
+                currentUsername = data.user.avatarName;
                 document.getElementById('avatarName').textContent = viewUsername || currentUsername;
 
                 // If viewing another user's character, disable editing
@@ -820,9 +822,6 @@
 
                 // Load character data for the viewed user
                 await loadCharacterData(viewUsername);
-
-                // Initialize socket connection
-                initializeSocket(localStorage.getItem('token'));
             } catch (error) {
                 console.error('Authentication error:', error);
                 window.location.href = '/';
@@ -951,8 +950,12 @@
             }
         });
 
-        // Save character
+        // Save character with feedback for mobile
         document.getElementById('saveCharacterBtn').addEventListener('click', async () => {
+            const saveButton = document.getElementById('saveCharacterBtn');
+            saveButton.textContent = 'Saving...';
+            saveButton.disabled = true;
+            
             const characterData = {
                 description: document.getElementById('description').value,
                 image: document.getElementById('imagePath').value
@@ -969,122 +972,23 @@
                 });
 
                 if (response.ok) {
-                    alert('Character saved successfully!');
+                    saveButton.textContent = 'Saved!';
+                    setTimeout(() => {
+                        saveButton.textContent = 'Save Character';
+                        saveButton.disabled = false;
+                    }, 1500);
                 } else {
                     throw new Error('Failed to save character');
                 }
             } catch (error) {
                 console.error('Error saving character:', error);
-                alert('Error saving character');
+                saveButton.textContent = 'Error!';
+                setTimeout(() => {
+                    saveButton.textContent = 'Save Character';
+                    saveButton.disabled = false;
+                }, 1500);
             }
         });
-
-        function initializeSocket(token) {
-            socket = io({
-                auth: {
-                    token: token
-                }
-            });
-
-            socket.on('chat message', (msg) => {
-                // Skip system messages about connections and disconnections
-                if (msg.username === 'SYSTEM' && 
-                    msg.message.match(/^.+ has (connected|disconnected)\.$/)) {
-                    return;
-                }
-                
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'chat-message';
-                
-                const isSystemMessage = msg.username === 'SYSTEM';
-                const isOwnMessage = msg.username === currentUsername;
-                
-                if (isSystemMessage) {
-                    messageDiv.classList.add('system-message');
-                    messageDiv.innerHTML = `
-                        <span class="chat-text">${msg.message}</span>
-                        <span class="chat-timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</span>
-                    `;
-                } else {
-                    let usernameColor = 'var(--neon-pink)'; // Default color
-                    if (isOwnMessage) {
-                        usernameColor = 'var(--neon-blue)';
-                    }
-                    
-                    const usernameSpan = `<span class="chat-username" style="color: ${usernameColor}; cursor: pointer" onclick="viewCharacter('${msg.username}')">${msg.username}:</span>`;
-                    
-                    messageDiv.innerHTML = `
-                        ${usernameSpan}
-                        <span class="chat-message-text">${msg.message}</span>
-                        <span class="chat-timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</span>
-                    `;
-                }
-                
-                messageDiv.addEventListener('click', (e) => {
-                    // Only toggle timestamp if not clicking username
-                    if (!e.target.classList.contains('chat-username')) {
-                        messageDiv.classList.toggle('show-timestamp');
-                    }
-                });
-                
-                chatMessages.appendChild(messageDiv);
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-
-                // Store the message
-                storeChatMessage(msg);
-            });
-
-            socket.on('users update', (users) => {
-                const presentUsersDiv = document.getElementById('usersList');
-                presentUsersDiv.innerHTML = '';
-                
-                users.forEach(username => {
-                    const userDiv = document.createElement('div');
-                    const userLink = document.createElement('a');
-                    userLink.className = 'user-link';
-                    userLink.textContent = username;
-                    userLink.href = '/character.html?view=' + encodeURIComponent(username);
-                    userDiv.appendChild(userLink);
-                    presentUsersDiv.appendChild(userDiv);
-                });
-            });
-
-            // Add this to the window.onload function after socket initialization
-            loadStoredChatMessages();
-        }
-
-        // Send chat message
-        function sendMessage() {
-            const message = chatInput.value.trim();
-            if (message && socket) {
-                socket.emit('chat message', message);
-                chatInput.value = '';
-            }
-        }
-
-        sendMessageBtn.addEventListener('click', sendMessage);
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-
-        // Update the return button handler
-        document.querySelector('.return-button').onclick = (e) => {
-            e.preventDefault();
-            // Always return to game.html
-            window.location.href = '/game.html';
-        };
-
-        // Add this function near the top of the script section
-        function viewCharacter(username) {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                window.location.href = '/';
-                return;
-            }
-            window.location.href = `/character.html?view=${encodeURIComponent(username)}`;
-        }
 
         document.querySelectorAll('.tab-button').forEach(button => {
             button.addEventListener('click', () => {
