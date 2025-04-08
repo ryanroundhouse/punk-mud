@@ -44,6 +44,7 @@
             justify-content: space-between;
             align-items: center;
             z-index: 100;
+            height: 3vh;
         }
 
         .health-container {
@@ -184,17 +185,18 @@
         .mobile-container {
             display: flex;
             flex-direction: column;
-            height: calc(100vh - 45px);
+            height: 95vh;
             width: 100%;
             position: relative;
-            margin-top: 45px;
+            margin-top: 5vh;
         }
 
         .scrollable-content {
-            flex: 1;
+            display: flex;
+            flex-direction: column;
+            flex: none;
+            height: 60%;
             overflow-y: auto;
-            min-height: 0;
-            max-height: 55vh;
         }
 
         .node-info {
@@ -255,10 +257,8 @@
             flex-direction: column;
             padding: 0.5rem;
             background: rgba(10, 10, 15, 0.8);
-            height: auto;
-            min-height: min-content;
-            max-height: 45vh;
-            overflow-y: auto;
+            height: 40%;
+            position: relative;
         }
 
         .direction-controls {
@@ -266,13 +266,11 @@
             grid-template-columns: repeat(3, 1fr);
             grid-template-rows: repeat(3, 1fr);
             gap: 0.5rem;
-            aspect-ratio: 1;
+            height: 80%;
             margin-bottom: 0.5rem;
         }
 
         .direction-button {
-            aspect-ratio: 1;
-            min-height: 40px;
             background: rgba(0, 255, 249, 0.1);
             color: var(--neon-blue);
             border: 1px solid var(--neon-blue);
@@ -297,28 +295,22 @@
         .combat-controls {
             display: none;
             flex-direction: column;
-            padding: 0.5rem;
-            background: rgba(10, 10, 15, 0.8);
-            height: calc(35vh - 1rem);
-            overflow-y: auto; /* Make the combat controls container scrollable */
+            height: 80%;
+            overflow-y: auto;
         }
 
         .event-controls {
             display: none;
             flex-direction: column;
-            padding: 0.5rem;
-            background: rgba(10, 10, 15, 0.8);
-            height: calc(35vh - 1rem);
-            overflow-y: auto; /* Make the event controls container scrollable */
+            height: 80%;
+            overflow-y: auto;
         }
 
         .examine-controls {
             display: none;
             flex-direction: column;
             gap: 0.5rem;
-            padding: 0.5rem;
-            background: rgba(10, 10, 15, 0.8);
-            height: calc(35vh - 1rem);
+            height: 80%;
             overflow-y: auto;
         }
 
@@ -326,9 +318,7 @@
             display: none;
             flex-direction: column;
             gap: 0.5rem;
-            padding: 0.5rem;
-            background: rgba(10, 10, 15, 0.8);
-            height: calc(35vh - 1rem);
+            height: 80%;
             overflow-y: auto;
         }
 
@@ -336,9 +326,7 @@
             display: none;
             flex-direction: column;
             gap: 0.5rem;
-            padding: 0.5rem;
-            background: rgba(10, 10, 15, 0.8);
-            height: calc(35vh - 1rem);
+            height: 80%;
             overflow-y: auto;
         }
 
@@ -400,11 +388,11 @@
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 0.5rem;
-            padding: 0.5rem 0;
-            position: sticky;
-            bottom: 0;
-            background: rgba(10, 10, 15, 0.95);
-            z-index: 10;
+            height: calc(20% - 10px);
+            position: absolute;
+            bottom: 0.5rem;
+            left: 0.5rem;
+            right: 0.5rem;
         }
 
         .event-choice-button {
@@ -459,7 +447,6 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 40px;
         }
 
         .action-button:active {
