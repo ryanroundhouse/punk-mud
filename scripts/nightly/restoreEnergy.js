@@ -27,11 +27,10 @@ const logger = winston.createLogger({
     ]
 });
 
-// Connect to MongoDB
-mongoose.connect('mongodb://mongodb:27017/myapp', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-}).then(() => {
+// Connect to MongoDB matching the approach in database.js
+const connectionString = process.env.MONGODB_URI || 'mongodb://punk-mud-mongodb-1:27017/myapp';
+
+mongoose.connect(connectionString).then(() => {
     logger.info('Connected to MongoDB');
     restoreEnergy();
 }).catch(err => {
