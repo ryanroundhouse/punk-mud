@@ -45,7 +45,12 @@ class EmailService {
 
     async sendAuthCode(email, code) {
         this.validateConfig();
-        
+
+        if (process.env.NODE_ENV === 'development') {
+            this.logger.info('Skipping email sending in development mode:', { email });
+            return;
+        }
+
         const mg = this.createMailgunClient();
         const mailOptions = this.createMailOptions(email, code);
 
