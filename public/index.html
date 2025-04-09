@@ -105,9 +105,10 @@
         
         <form id="loginForm" class="login-form">
             <div id="emailStep">
-                <input type="text" 
+                <input type="email" 
                        id="emailInput"
                        name="email"
+                       inputmode="email"
                        placeholder="Enter your email" 
                        required>
                 <button type="button" id="jackInButton">JACK IN</button>
@@ -120,6 +121,7 @@
                        placeholder="Enter 5-digit code" 
                        pattern="[0-9]{5}"
                        maxlength="5"
+                       inputmode="numeric"
                        title="Please enter the 5-digit code">
                 <button type="button" id="authenticateButton">AUTHENTICATE</button>
             </div>
