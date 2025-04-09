@@ -1530,7 +1530,8 @@
             // Always add the node/location itself
             examineOptions.push({
                 name: currentNode.name,
-                command: 'list node'
+                command: 'list',
+                target: 'node'
             });
             
             // Add NPCs if available
@@ -1538,7 +1539,8 @@
                 currentNode.actors.forEach(actor => {
                     examineOptions.push({
                         name: actor.name,
-                        command: `list ${actor.name.toLowerCase()}`
+                        command: 'list',
+                        target: actor.name.toLowerCase()
                     });
                 });
             }
@@ -1548,7 +1550,8 @@
                 currentNode.enemies.forEach(enemy => {
                     examineOptions.push({
                         name: enemy.name,
-                        command: `list ${enemy.name.toLowerCase()}`
+                        command: 'list',
+                        target: enemy.name.toLowerCase()
                     });
                 });
             }
@@ -1558,7 +1561,8 @@
                 currentNode.items.forEach(item => {
                     examineOptions.push({
                         name: item.name,
-                        command: `list ${item.name.toLowerCase()}`
+                        command: 'list',
+                        target: item.name.toLowerCase()
                     });
                 });
             }
@@ -1601,7 +1605,27 @@
                     } else {
                         // Execute the command
                         clearConsole();
-                        emitSocketCommand('console command', { command: option.command });
+                        // Check if the option has a command and target separately
+                        if (option.command && option.target) {
+                            emitSocketCommand('console command', { 
+                                command: option.command,
+                                target: option.target 
+                            });
+                        } else if (option.command) {
+                            // Parse the command if it's in the format "cmd target"
+                            const parts = option.command.split(' ');
+                            if (parts.length > 1) {
+                                const cmd = parts[0];
+                                const target = parts.slice(1).join(' ');
+                                emitSocketCommand('console command', { 
+                                    command: cmd,
+                                    target: target 
+                                });
+                            } else {
+                                // Just a simple command without a target
+                                emitSocketCommand('console command', { command: option.command });
+                            }
+                        }
                         
                         // Return to appropriate controls after command
                         if (currentNode && currentNode.inCombat) {
@@ -1663,7 +1687,8 @@
                 currentNode.actors.forEach(actor => {
                     interactOptions.push({
                         name: actor.name,
-                        command: `chat ${actor.name.toLowerCase()}`
+                        command: 'chat',
+                        target: actor.name.toLowerCase()
                     });
                 });
             }
@@ -1673,7 +1698,8 @@
                 currentNode.enemies.forEach(enemy => {
                     interactOptions.push({
                         name: enemy.name,
-                        command: `chat ${enemy.name.toLowerCase()}`
+                        command: 'chat',
+                        target: enemy.name.toLowerCase()
                     });
                 });
             }
@@ -1706,7 +1732,7 @@
                         showControlPanel('direction');
                     } else {
                         // Execute the chat command
-                        executeChatCommand(option.command);
+                        executeChatCommand(option.command, option.target);
                     }
                 });
                 
@@ -1725,22 +1751,36 @@
         }
         
         // Function to execute a chat command
-        function executeChatCommand(command) {
+        function executeChatCommand(command, target) {
             clearConsole();
             
-            // Parse the command to separate 'chat' and target
+            // If target is provided directly, use it
+            if (target) {
+                addConsoleMessage(`Talking to ${target}...`, 'default');
+                
+                // Switch back to direction controls
+                showControlPanel('direction');
+                
+                emitSocketCommand('console command', { 
+                    command: command,
+                    target: target
+                });
+                return;
+            }
+            
+            // For backward compatibility: Parse the command if it's in string format
             const parts = command.split(' ');
             const cmd = parts[0]; // 'chat'
-            const target = parts.slice(1).join(' '); // Everything after 'chat'
+            const parsedTarget = parts.slice(1).join(' '); // Everything after 'chat'
             
-            addConsoleMessage(`Talking to ${target}...`, 'default');
+            addConsoleMessage(`Talking to ${parsedTarget}...`, 'default');
             
             // Switch back to direction controls
             showControlPanel('direction');
             
             emitSocketCommand('console command', { 
                 command: cmd,
-                target: target
+                target: parsedTarget
             });
         }
 
