@@ -2157,6 +2157,15 @@
                             // If no exits data, disable all directions
                             updateDirectionButtons([]);
                         }
+                        
+                        // Update fight button based on enemies presence when showing direction controls
+                        const fightButton = document.getElementById('btnFight');
+                        if (fightButton && currentNode && currentNode.enemies && currentNode.enemies.length > 0) {
+                            fightButton.disabled = false;
+                            fightButton.style.background = 'rgba(255, 0, 0, 0.2)';
+                            fightButton.style.color = 'var(--neon-red)';
+                            fightButton.style.border = '1px solid var(--neon-red)';
+                        }
                     }
                     if (actionControls) actionControls.style.display = 'grid';
                     break;
