@@ -964,19 +964,18 @@
                 }
                 
                 // Handle event state changes
-                if (data.type === 'event') {
-                    showControlPanel('event');
-                    if (data.message) {
-                        clearConsole();
-                        addConsoleMessage(data.message, 'event');
-                    }
-                    if (data.choices) {
-                        showEventChoices(data.choices);
-                    }
-                } else if (data.isEndOfEvent) {
-                    showControlPanel('direction');
-                    requestNodeData(); // Refresh the current location
-                }
+                // if (data.type === 'event') {
+                //     showControlPanel('event');
+                //     if (data.message) {
+                //         addConsoleMessage(data.message, 'event');
+                //     }
+                //     if (data.choices) {
+                //         showEventChoices(data.choices);
+                //     }
+                // } else if (data.isEndOfEvent) {
+                //     showControlPanel('direction');
+                //     requestNodeData(); // Refresh the current location
+                // }
                 
                 // Handle playerStatus messages by updating the health bar
                 if (data.type === 'playerStatus') {
@@ -1116,7 +1115,6 @@
                         }
                     } else {
                         // If there are no choices section but it's an event, just display the message
-                        clearConsole();
                         addConsoleMessage(data.message, 'event');
                         messageDisplayed = true; // Mark that we've displayed this message
                     }
@@ -1504,9 +1502,6 @@
             
             // Clear console output
             clearConsole();
-            
-            // Add visual feedback
-            addConsoleMessage(`Selected option ${choiceNumber}...`, 'event');
             
             // Disable all buttons
             const buttons = document.querySelectorAll('.event-choice-button');
