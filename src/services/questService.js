@@ -4,11 +4,32 @@ class QuestService {
         this.Quest = deps.Quest || require('../models/Quest');
         this.User = deps.User || require('../models/User');
         this.Class = deps.Class || require('../models/Class');
+        this.Actor = deps.Actor || require('../models/Actor');
         
         // Services
         this.logger = deps.logger || require('../config/logger');
         this.messageService = deps.messageService || require('./messageService');
         this.userService = deps.userService || require('./userService');
+        
+        // Lazy loaded services to avoid circular dependencies
+        this._nodeService = null;
+        this._stateService = null;
+    }
+    
+    // Lazy loader for nodeService to avoid circular dependencies
+    get nodeService() {
+        if (!this._nodeService) {
+            this._nodeService = require('./nodeService');
+        }
+        return this._nodeService;
+    }
+    
+    // Lazy loader for stateService to avoid circular dependencies
+    get stateService() {
+        if (!this._stateService) {
+            this._stateService = require('./stateService');
+        }
+        return this._stateService;
     }
 
     async getActiveQuests(userId) {
@@ -594,6 +615,9 @@ class QuestService {
                                             questId: quest._id.toString(),
                                             questTitle: quest.title
                                         });
+                                        
+                                        // Refresh node data for the player to update actor overrides
+                                        await this.refreshPlayerNode(user._id.toString());
                                     } catch (updateError) {
                                         this.logger.error('Error updating user for quest completion:', {
                                             error: updateError.message,
@@ -662,6 +686,9 @@ class QuestService {
                                             questId: quest._id.toString(),
                                             questTitle: quest.title
                                         });
+                                        
+                                        // Refresh node data for the player to update actor overrides
+                                        await this.refreshPlayerNode(user._id.toString());
                                         
                                         // Add the quest update
                                         questUpdates.push({
@@ -741,6 +768,9 @@ class QuestService {
                                     questId: questToStart._id.toString(),
                                     questTitle: questToStart.title
                                 });
+                                
+                                // Refresh node data for the player to update actor overrides
+                                await this.refreshPlayerNode(user._id.toString());
                             } catch (updateError) {
                                 this.logger.error('Error auto-starting quest with findOneAndUpdate:', {
                                     error: updateError.message,
@@ -819,6 +849,9 @@ class QuestService {
                             questId: quest._id.toString(),
                             questTitle: quest.title
                         });
+                        
+                        // Refresh node data for the player to update actor overrides
+                        await this.refreshPlayerNode(user._id.toString());
                     } catch (updateError) {
                         this.logger.error('Error auto-starting quest with findOneAndUpdate:', {
                             error: updateError.message,
@@ -1006,6 +1039,9 @@ class QuestService {
                             questTitle: quest.title,
                             isComplete
                         });
+                        
+                        // Refresh node data for the player to update actor overrides
+                        await this.refreshPlayerNode(user._id.toString());
                     } catch (updateError) {
                         this.logger.error('Error updating user for quest progress/completion:', {
                             error: updateError.message,
@@ -1339,6 +1375,64 @@ class QuestService {
         } catch (error) {
             this.logger.error('Error getting user quest info:', error, { userId });
             return { activeQuestIds: [], completedQuestIds: [], completedQuestEventIds: [] };
+        }
+    }
+    
+    /**
+     * Refresh the node data for a player after a quest event is completed
+     * This ensures that actor overrides are correctly applied or removed
+     * 
+     * @param {string} userId - The ID of the user
+     */
+    async refreshPlayerNode(userId) {
+        try {
+            // Get the user's socket
+            const socket = this.stateService.getClient(userId);
+            if (!socket) {
+                this.logger.debug('No socket found for user, cannot refresh node data', { userId });
+                return;
+            }
+            
+            // Get the user to find their current node
+            const user = await this.User.findById(userId);
+            if (!user || !user.currentNode) {
+                this.logger.debug('No user or current node found, cannot refresh node data', { userId });
+                return;
+            }
+            
+            this.logger.debug('Refreshing node data for player after quest event', {
+                userId,
+                currentNode: user.currentNode
+            });
+            
+            // Get the node with user-specific quest overrides
+            const nodeData = await this.nodeService.getNodeWithOverrides(user.currentNode, userId);
+            if (!nodeData) {
+                this.logger.warn('Could not get node data for refresh', { 
+                    userId, 
+                    nodeAddress: user.currentNode 
+                });
+                return;
+            }
+            
+            // Add flag to tell client not to update the node image
+            // This ensures image doesn't change when refreshing node data due to quest changes
+            nodeData.suppressImageDisplay = true;
+            
+            // Send the updated node data to the player
+            socket.emit('node data', nodeData);
+            
+            this.logger.debug('Sent refreshed node data to player', { 
+                userId,
+                nodeAddress: user.currentNode,
+                suppressImageDisplay: true
+            });
+        } catch (error) {
+            this.logger.error('Error refreshing player node data', {
+                error: error.message,
+                stack: error.stack,
+                userId
+            });
         }
     }
 }

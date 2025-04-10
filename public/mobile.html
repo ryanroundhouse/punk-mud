@@ -670,60 +670,68 @@
             currentNode.items = nodeData.items || [];
 
             // Determine which control panel to show based on node state
-            if (nodeData.inEvent) {
-                showControlPanel('event');
-                if (nodeData.eventMessage) {
-                    addConsoleMessage(nodeData.eventMessage, 'event');
+            // Only change the control panel if we're not suppressing display updates
+            if (!nodeData.suppressImageDisplay) {
+                if (nodeData.inEvent) {
+                    showControlPanel('event');
+                    if (nodeData.eventMessage) {
+                        addConsoleMessage(nodeData.eventMessage, 'event');
+                    }
+                    if (nodeData.eventChoices && nodeData.eventChoices.length > 0) {
+                        showEventChoices(nodeData.eventChoices);
+                    }
+                } else if (nodeData.inCombat) {
+                    showControlPanel('combat');
+                } else {
+                    showControlPanel('direction');
+                    // Update available exits
+                    updateDirectionButtons(nodeData.exits || []);
                 }
-                if (nodeData.eventChoices && nodeData.eventChoices.length > 0) {
-                    showEventChoices(nodeData.eventChoices);
-                }
-            } else if (nodeData.inCombat) {
-                showControlPanel('combat');
-            } else {
-                showControlPanel('direction');
-                // Update available exits
-                updateDirectionButtons(nodeData.exits || []);
             }
 
             // Update node name
             document.getElementById('nodeName').textContent = nodeData.name;
             
             // Handle image and update border color based on node status
-            const nodeImage = document.getElementById('nodeImage');
-            if (nodeData.image) {
-                nodeImage.src = nodeData.image;
-                nodeImage.style.display = 'block';
-                
-                // Set border color based on node type (default blue)
-                nodeImage.style.borderColor = 'var(--neon-blue)';
-                nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
-                
-                // Update border color if enemies are present
-                if (nodeData.enemies && nodeData.enemies.length > 0) {
-                    nodeImage.style.borderColor = 'var(--neon-red)';
-                    nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
-                } else if (nodeData.isRestPoint) {
-                    nodeImage.style.borderColor = 'var(--terminal-green)';
-                    nodeImage.style.boxShadow = '0 0 15px var(--terminal-green)';
+            // Skip image updates if suppressImageDisplay flag is true (quest updates)
+            if (!nodeData.suppressImageDisplay) {
+                const nodeImage = document.getElementById('nodeImage');
+                if (nodeData.image) {
+                    nodeImage.src = nodeData.image;
+                    nodeImage.style.display = 'block';
+                    
+                    // Set border color based on node type (default blue)
+                    nodeImage.style.borderColor = 'var(--neon-blue)';
+                    nodeImage.style.boxShadow = '0 0 15px var(--neon-blue)';
+                    
+                    // Update border color if enemies are present
+                    if (nodeData.enemies && nodeData.enemies.length > 0) {
+                        nodeImage.style.borderColor = 'var(--neon-red)';
+                        nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
+                    } else if (nodeData.isRestPoint) {
+                        nodeImage.style.borderColor = 'var(--terminal-green)';
+                        nodeImage.style.boxShadow = '0 0 15px var(--terminal-green)';
+                    }
+                } else {
+                    nodeImage.src = '/assets/art/default-location.jpg'; // Use a default image
                 }
-            } else {
-                nodeImage.src = '/assets/art/default-location.jpg'; // Use a default image
             }
             
-            // Add rest point indicator if applicable
-            if (nodeData.isRestPoint) {
-                const restIndicator = document.createElement('div');
-                restIndicator.className = 'rest-point-indicator';
-                restIndicator.textContent = '*** REST POINT ***';
-                if (!document.querySelector('.rest-point-indicator')) {
-                    const consoleOutput = document.getElementById('consoleOutput');
-                    consoleOutput.appendChild(restIndicator);
-                }
-            } else {
-                const indicator = document.querySelector('.rest-point-indicator');
-                if (indicator) {
-                    indicator.remove();
+            // Add rest point indicator if applicable - skip if suppressImageDisplay is true
+            if (!nodeData.suppressImageDisplay) {
+                if (nodeData.isRestPoint) {
+                    const restIndicator = document.createElement('div');
+                    restIndicator.className = 'rest-point-indicator';
+                    restIndicator.textContent = '*** REST POINT ***';
+                    if (!document.querySelector('.rest-point-indicator')) {
+                        const consoleOutput = document.getElementById('consoleOutput');
+                        consoleOutput.appendChild(restIndicator);
+                    }
+                } else {
+                    const indicator = document.querySelector('.rest-point-indicator');
+                    if (indicator) {
+                        indicator.remove();
+                    }
                 }
             }
             
@@ -731,12 +739,14 @@
             // const consoleOutput = document.getElementById('consoleOutput');
             // consoleOutput.scrollTop = consoleOutput.scrollHeight;
             
-            // Only update available exits if not in an event
-            if (!inEvent) {
-                // Update available exits (enable/disable buttons)
-                updateDirectionButtons(nodeData.exits || []);
-                
-                // Update fight button based on enemies presence
+            // Update scroll indicator if it exists
+            if (window.updateScrollIndicator) {
+                setTimeout(window.updateScrollIndicator, 100);
+            }
+            
+            // Only update available exits if not in an event and not suppressing display
+            if (!inEvent && !nodeData.suppressImageDisplay) {
+                // Update fight button based on enemies presence - skip if suppressImageDisplay is true
                 const fightButton = document.getElementById('btnFight');
                 if (fightButton) {
                     if (nodeData.enemies && nodeData.enemies.length > 0) {
@@ -751,11 +761,6 @@
                         fightButton.style.border = '1px solid #444';
                     }
                 }
-            }
-            
-            // Update scroll indicator if it exists
-            if (window.updateScrollIndicator) {
-                setTimeout(window.updateScrollIndicator, 100);
             }
         }
 
