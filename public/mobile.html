@@ -465,24 +465,22 @@
         /* More content indicator */
         .more-content-indicator {
             position: fixed;
-            bottom: calc(35vh + 10px); /* Position just above the controls container */
-            right: 15px;
-            width: 20px;
-            height: 20px;
+            width: 26px;
+            height: 26px;
             background: #000;
             border: 2px solid var(--neon-blue);
             box-shadow: 0 0 6px rgba(0, 255, 249, 0.7);
-            border-radius: 2px; /* Very slight rounding */
+            border-radius: 3px; /* Slightly increased rounding */
             display: flex;
             justify-content: center;
             align-items: center;
-            animation: pulse 1.5s infinite, bounce 1s infinite alternate;
+            animation: pulse 1.5s infinite, bounce 1.5s infinite alternate;
             z-index: 100; /* Ensure it's above everything */
             display: none; /* Will be shown via JavaScript when needed */
             cursor: pointer;
             pointer-events: auto; /* Make clickable */
             -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
-            font-size: 10px;
+            font-size: 14px; /* Slightly larger font */
             line-height: 1;
             color: var(--neon-blue);
             text-shadow: 0 0 4px var(--neon-blue);
@@ -497,7 +495,7 @@
         
         @keyframes bounce {
             0% { transform: translateY(0); }
-            100% { transform: translateY(2px); }
+            100% { transform: translateY(4px); } /* Increased bounce movement */
         }
 
         @supports (height: 1dvh) {
@@ -1920,11 +1918,40 @@
         function setupScrollIndicators() {
             // Get the scrollable content container
             const scrollableContent = document.querySelector('.scrollable-content');
+            const mobileContainer = document.querySelector('.mobile-container');
             
             // Create and add the down arrow indicator to the body instead of the console container
             const moreContentIndicator = document.createElement('div');
             moreContentIndicator.className = 'more-content-indicator';
             document.body.appendChild(moreContentIndicator);
+            
+            // Position the indicator correctly
+            function positionIndicator() {
+                // Get the position of the mobile container's right edge
+                const containerRect = mobileContainer.getBoundingClientRect();
+                const scrollableRect = scrollableContent.getBoundingClientRect();
+                const consoleContainer = document.querySelector('.console-container');
+                const consoleRect = consoleContainer.getBoundingClientRect();
+                
+                // Position indicator 15px from right edge of the mobile container
+                moreContentIndicator.style.right = `${window.innerWidth - containerRect.right + 15}px`;
+                
+                // Position indicator 25px above the bottom edge of the visible scrollable content
+                // This ensures it's visible above the controls without overlapping important content
+                const verticalOffset = 15; // reduced from 25px to 15px to make it lower
+                moreContentIndicator.style.bottom = `${window.innerHeight - scrollableRect.bottom + verticalOffset}px`;
+                
+                // If the console content is small and there's not much space,
+                // make sure it doesn't overlap with the console output text
+                if (consoleRect.height < 150) {
+                    // If console is small, move the indicator up a bit more
+                    moreContentIndicator.style.bottom = `${window.innerHeight - scrollableRect.bottom + 30}px`; // reduced from 45px to 30px
+                }
+            }
+            
+            // Call initially and on window resize
+            positionIndicator();
+            window.addEventListener('resize', positionIndicator);
             
             // Add click/tap handler to scroll down when indicator is tapped
             moreContentIndicator.addEventListener('click', function() {
@@ -1956,6 +1983,9 @@
                 
                 // Calculate how far from bottom we are
                 const distanceFromBottom = maxScroll - scrollTop;
+                
+                // Update position before showing/hiding
+                positionIndicator();
                 
                 // Show indicator if we're not near the bottom AND there's content to scroll
                 // Use a larger threshold (100px) to make sure indicator doesn't flicker
