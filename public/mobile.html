@@ -980,24 +980,7 @@
                     return; // Exit early to prevent double-processing
                 }
                 
-                // Handle event state changes
-                if (data.type === 'event') {
-                    // Special case: if we received an event with null message,
-                    // it's likely an event end, so check if we should be in combat
-                    if (data.message === null && currentNode && currentNode.inCombat) {
-                        inEvent = false;
-                        showControlPanel('combat');
-                        messageDisplayed = true;
-                    } else {
-                        showControlPanel('event');
-                        if (data.message) {
-                            addConsoleMessage(data.message, 'event');
-                        }
-                        if (data.choices) {
-                            showEventChoices(data.choices);
-                        }
-                    }
-                } else if (data.isEndOfEvent) {
+                if (data.isEndOfEvent) {
                     inEvent = false;
                     
                     // Check if we should be showing combat controls instead of direction controls
