@@ -618,14 +618,9 @@ class CombatService {
             }
             
             // Announce victory to the room
-            this.messageService.sendConsoleResponse(
+            this.publishSystemMessage(
                 user.currentNode,
-                {
-                    type: 'chat',
-                    username: 'SYSTEM',
-                    message: `${user.avatarName} has defeated ${mobInstance.name}!`,
-                    timestamp: new Date()
-                }
+                `${user.avatarName} has defeated ${mobInstance.name}!`
             );
             return;
         } else if (user.stats.currentHitpoints <= 0) {
@@ -754,14 +749,9 @@ class CombatService {
                     mobInstance.image
                 );
     
-                this.messageService.sendConsoleResponse(
+                this.publishSystemMessage(
                     oldNode,
-                    {
-                        type: 'chat',
-                        username: 'SYSTEM',
-                        message: `${user.avatarName} flees from combat with ${mobInstance.name}!`,
-                        timestamp: new Date()
-                    }
+                    `${user.avatarName} flees from combat with ${mobInstance.name}!`
                 );
             } else {
                 this.messageService.sendCombatMessage(
@@ -807,15 +797,10 @@ class CombatService {
             'Type ? to see available combat commands.',
             mobInstance.image
         );
-    
-        this.messageService.sendConsoleResponse(
+
+        this.publishSystemMessage(
             user.currentNode,
-            {
-                type: 'chat',
-                username: 'SYSTEM',
-                message: `${user.avatarName} engages in combat with ${mobInstance.name}!`,
-                timestamp: new Date()
-            }
+            `${user.avatarName} engages in combat with ${mobInstance.name}!`
         );
     }
     

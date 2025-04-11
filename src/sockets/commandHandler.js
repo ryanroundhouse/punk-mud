@@ -65,11 +65,37 @@ async function handleCommand(socket, data) {
                         message: result.message
                     });
                 } else {
+                    // Send the event response first
                     socket.emit('console response', {
                         type: 'event',
                         message: result.message,
                         isEndOfEvent: result.isEnd
                     });
+                    
+                    // If this event choice initiated combat, make sure the client knows to show combat UI
+                    if (result.combatInitiated) {
+                        // Small delay to ensure the event end message is processed first
+                        setTimeout(() => {
+                            // Check if combat state exists and send moves
+                            const combatState = stateService.userCombatStates.get(socket.user.userId);
+                            if (combatState) {
+                                // Get the moves and send them immediately
+                                userService.getUserMoves(socket.user.userId).then(moves => {
+                                    // Add 'flee' as a special move everyone has
+                                    const allMoves = [...moves, {
+                                        name: 'flee',
+                                        type: 'special',
+                                        helpDescription: 'Attempt to escape combat'
+                                    }];
+                                    
+                                    socket.emit('console response', {
+                                        type: 'moves',
+                                        moves: allMoves
+                                    });
+                                });
+                            }
+                        }, 100);
+                    }
                     
                     // Check if there's a teleport action to handle
                     if (result.teleportAction) {

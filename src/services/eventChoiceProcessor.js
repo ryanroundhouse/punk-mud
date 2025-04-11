@@ -15,6 +15,7 @@ class EventChoiceProcessor {
     this.User = dependencies.User || require('../models/User');
     this.eventNodeService = dependencies.eventNodeService || eventNodeService;
     this.messageService = dependencies.messageService || require('./messageService');
+    this.publishSystemMessage = dependencies.publishSystemMessage || require('./chatService').publishSystemMessage;
     
     // Lazy-loaded services to avoid circular dependencies
     this._mobService = null;
@@ -244,18 +245,14 @@ class EventChoiceProcessor {
       this.messageService.sendCombatMessage(
         userId,
         `${choice.text}\n\nA hostile creature attacks you!`,
-        'Type ? to see available combat commands.'
+        'Type ? to see available combat commands.',
+        mobInstance.image
       );
 
       // Announce combat to the room
-      this.messageService.sendConsoleResponse(
+      this.publishSystemMessage(
         user.currentNode,
-        {
-          type: 'chat',
-          username: 'SYSTEM',
-          message: `${user.avatarName} engages in combat with ${mobInstance.name}!`,
-          timestamp: new Date()
-        }
+        `${user.avatarName} engages in combat with ${mobInstance.name}!`
       );
 
       try {

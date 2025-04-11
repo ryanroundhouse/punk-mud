@@ -938,7 +938,11 @@
                         return; // Exit early to prevent double-processing
                     }
                     
-                    // Regular combat message
+                    // Regular combat message - set a flag that we're in combat
+                    if (currentNode) {
+                        currentNode.inCombat = true;
+                    }
+                    
                     showControlPanel('combat');
                     if (data.message) {
                         addConsoleMessage(data.message, 'combat');
@@ -952,12 +956,22 @@
                         nodeImage.style.borderColor = 'var(--neon-red)';
                         nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
                     }
+                    
+                    // After receiving a combat message, we need to get moves immediately
+                    // Rather than waiting for the player to request them
+                    emitSocketCommand('console command', { command: 'get_moves' });
                 } else if (data.type === 'combat_end') {
                     // Show the combat end message first
                     if (data.message) {
                         addConsoleMessage(data.message, 'combat');
                         messageDisplayed = true;
                     }
+                    
+                    // Mark that we're no longer in combat
+                    if (currentNode) {
+                        currentNode.inCombat = false;
+                    }
+                    
                     showControlPanel('direction');
                     // Small delay before requesting new location
                     setTimeout(() => {
@@ -967,18 +981,37 @@
                 }
                 
                 // Handle event state changes
-                // if (data.type === 'event') {
-                //     showControlPanel('event');
-                //     if (data.message) {
-                //         addConsoleMessage(data.message, 'event');
-                //     }
-                //     if (data.choices) {
-                //         showEventChoices(data.choices);
-                //     }
-                // } else if (data.isEndOfEvent) {
-                //     showControlPanel('direction');
-                //     requestNodeData(); // Refresh the current location
-                // }
+                if (data.type === 'event') {
+                    // Special case: if we received an event with null message,
+                    // it's likely an event end, so check if we should be in combat
+                    if (data.message === null && currentNode && currentNode.inCombat) {
+                        inEvent = false;
+                        showControlPanel('combat');
+                        messageDisplayed = true;
+                    } else {
+                        showControlPanel('event');
+                        if (data.message) {
+                            addConsoleMessage(data.message, 'event');
+                        }
+                        if (data.choices) {
+                            showEventChoices(data.choices);
+                        }
+                    }
+                } else if (data.isEndOfEvent) {
+                    inEvent = false;
+                    
+                    // Check if we should be showing combat controls instead of direction controls
+                    if (currentNode && currentNode.inCombat) {
+                        showControlPanel('combat');
+                    } else {
+                        showControlPanel('direction');
+                    }
+                    
+                    // Refresh the current location if not in combat
+                    if (!currentNode || !currentNode.inCombat) {
+                        requestNodeData();
+                    }
+                }
                 
                 // Handle playerStatus messages by updating the health bar
                 if (data.type === 'playerStatus') {
@@ -1205,8 +1238,16 @@
 
             socket.on('event end', (data) => {
                 addConsoleMessage(data.message, 'event');
-                showControlPanel('direction');
-                requestNodeData();
+                inEvent = false;
+                
+                // Check if we should be showing combat controls instead of direction controls
+                if (currentNode && currentNode.inCombat) {
+                    showControlPanel('combat');
+                } else {
+                    showControlPanel('direction');
+                    // Only request new node data if not in combat
+                    requestNodeData();
+                }
             });
 
             socket.on('event choice', (data) => {
