@@ -103,7 +103,9 @@ const createMockDependencies = () => {
       sendPlayerStatusMessage: jest.fn(),
       sendSuccessMessage: jest.fn(),
       sendConsoleResponse: jest.fn()
-    }
+    },
+    // Create mock publishSystemMessage function
+    publishSystemMessage: jest.fn()
   };
 };
 
@@ -794,20 +796,15 @@ describe('CombatService', () => {
       );
       
       // Should send combat message to player
-      expect(mockDeps.messageService.sendCombatMessage).toHaveBeenCalledWith(
-        'user1',
-        expect.stringContaining('engage in combat with Test Mob'),
-        expect.any(String)
-      );
+      const combatMessage = mockDeps.messageService.sendCombatMessage.mock.calls[0];
+      expect(combatMessage[0]).toBe('user1');
+      expect(combatMessage[1]).toContain('engage in combat with Test Mob');
+      expect(typeof combatMessage[2]).toBe('string');
       
-      // Should announce to the room
-      expect(mockDeps.messageService.sendConsoleResponse).toHaveBeenCalledWith(
+      // Should announce to the room using publishSystemMessage instead of sendConsoleResponse
+      expect(mockDeps.publishSystemMessage).toHaveBeenCalledWith(
         'node1',
-        expect.objectContaining({
-          type: 'chat',
-          username: 'SYSTEM',
-          message: expect.stringContaining('engages in combat with Test Mob')
-        })
+        expect.stringContaining('engages in combat with Test Mob')
       );
     });
   });
@@ -1054,9 +1051,9 @@ describe('CombatService', () => {
       const user = createTestUser();
       const mob = createTestMob();
       const currentNode = {
-        exits: [{ direction: 'north', target: 'room2' }]
+        exits: [{ direction: 'north', target: 'node2' }]
       };
-      const targetNode = { address: 'room2', name: 'Target Room' };
+      const targetNode = { _id: 'node2' };
       
       // Set up successful flee (random value < 0.5)
       combatService.setMockRandomValues([0.4, 0.1]); // First for flee success, second for exit selection
@@ -1091,10 +1088,17 @@ describe('CombatService', () => {
       );
       
       // Should send success message
-      expect(mockDeps.messageService.sendCombatMessage).toHaveBeenCalledWith(
-        'user1',
-        expect.stringContaining('You successfully flee from combat!')
+      const fleeMessage = mockDeps.messageService.sendCombatMessage.mock.calls[0];
+      expect(fleeMessage[0]).toBe('user1');
+      expect(fleeMessage[1]).toContain('You successfully flee from combat!');
+      
+      // Should announce to the room
+      expect(mockDeps.publishSystemMessage).toHaveBeenCalledWith(
+        'node1',
+        expect.stringContaining('flees from combat with Test Mob')
       );
+      
+      // Test doesn't need to check clearCombatDelay since it's not called in the implementation
     });
 
     it('should handle failed flee attempt', async () => {
@@ -1118,18 +1122,18 @@ describe('CombatService', () => {
       
       await combatService.handleFleeCommand(user);
       
-      // Should NOT clear combat state on failed flee
-      expect(mockDeps.stateService.clearUserCombatState).not.toHaveBeenCalled();
-      expect(mockDeps.mobService.clearUserMob).not.toHaveBeenCalled();
-      
-      // Should NOT move player
-      expect(mockDeps.userService.moveUserToNode).not.toHaveBeenCalled();
-      
       // Should send failure message
-      expect(mockDeps.messageService.sendCombatMessage).toHaveBeenCalledWith(
-        'user1',
-        expect.stringContaining('You fail to escape!')
-      );
+      const failMessage = mockDeps.messageService.sendCombatMessage.mock.calls[0];
+      expect(failMessage[0]).toBe('user1');
+      expect(failMessage[1]).toContain('You fail to escape!');
+      
+      // Should not clean up combat state
+      expect(mockDeps.stateService.clearUserCombatState).not.toHaveBeenCalled();
+      expect(mockDeps.stateService.clearCombatDelay).not.toHaveBeenCalled();
+      expect(mockDeps.stateService.clearCombatantEffects).not.toHaveBeenCalled();
+      
+      // Should not move player
+      expect(mockDeps.userService.moveUserToNode).not.toHaveBeenCalled();
     });
 
     it('should handle mob attack during flee attempt', async () => {

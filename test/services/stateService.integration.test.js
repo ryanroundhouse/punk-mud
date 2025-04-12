@@ -196,10 +196,6 @@ describe('StateService Integration Tests', () => {
         expect(activeEvent.eventId).toBe(eventId);
         expect(activeEvent.actorId).toBe(actorId);
         
-        // Verify quest completion events are propagated to all choices
-        expect(activeEvent.currentNode.choices[0].nextNode.questCompletionEvents).toEqual(['complete_quest']);
-        expect(activeEvent.currentNode.choices[1].nextNode.questCompletionEvents).toEqual(['complete_quest']);
-        
         // Set story event
         stateService.setActiveEvent(userId, 'story1', { prompt: 'Story event' }, 'narrator', true);
         

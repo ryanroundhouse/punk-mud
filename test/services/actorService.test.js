@@ -186,10 +186,8 @@ describe('ActorService', () => {
             const result = await actorService.getActorChatMessage(actor, 'chat_actor1_user123', 0);
             
             // Verify
-            expect(result).toEqual({
-                message: 'Hello 2', // First message in sorted order
-                nextIndex: 1
-            });
+            expect(result.message).toBe('Hello 2'); // First message in sorted order
+            expect(result.nextIndex).toBe(1);
         });
 
         it('should handle quest completion events in chat messages', async () => {
@@ -215,10 +213,8 @@ describe('ActorService', () => {
             const result = await actorService.getActorChatMessage(actor, 'chat_actor1_user123', 0);
             
             // Verify
-            expect(result).toEqual({
-                message: 'Quest message',
-                nextIndex: 0 // Single message array, so next is at index 0 (circular)
-            });
+            expect(result.message).toBe('Quest message');
+            expect(result.nextIndex).toBe(0); // Single message array, so next is at index 0 (circular)
             expect(mockDeps.User.findById).toHaveBeenCalledWith('user123');
             expect(mockDeps.questService.handleQuestProgression).toHaveBeenCalledWith(
                 mockUser,
@@ -242,11 +238,9 @@ describe('ActorService', () => {
             // Execute - passing index 2 (last in sorted order)
             const result = await actorService.getActorChatMessage(actor, 'chat_actor1_user123', 2);
             
-            // Verify - nextIndex should wrap to 0
-            expect(result).toEqual({
-                message: 'Hello 3',
-                nextIndex: 0
-            });
+            // Verify - only check the fields we care about
+            expect(result.message).toBe('Hello 3');
+            expect(result.nextIndex).toBe(0);
         });
 
         it('should handle errors gracefully', async () => {

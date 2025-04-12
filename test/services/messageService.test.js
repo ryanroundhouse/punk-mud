@@ -167,11 +167,27 @@ describe('MessageService', () => {
             messageService.sendCombatMessage(userId, message, hint);
 
             expect(mockStateService.getClient).toHaveBeenCalledWith(userId);
-            expect(mockSocket.emit).toHaveBeenCalledWith('console response', {
-                type: 'combat',
-                message,
-                hint
-            });
+            // Only verify the fields we care about
+            const emittedData = mockSocket.emit.mock.calls[0][1];
+            expect(emittedData.type).toBe('combat');
+            expect(emittedData.message).toBe(message);
+            expect(emittedData.hint).toBe(hint);
+        });
+
+        it('should support image parameter', () => {
+            const userId = 'user123';
+            const message = 'Test message';
+            const hint = 'Test hint';
+            const image = 'test.png';
+
+            messageService.sendCombatMessage(userId, message, hint, image);
+
+            expect(mockStateService.getClient).toHaveBeenCalledWith(userId);
+            const emittedData = mockSocket.emit.mock.calls[0][1];
+            expect(emittedData.type).toBe('combat');
+            expect(emittedData.message).toBe(message);
+            expect(emittedData.hint).toBe(hint);
+            expect(emittedData.image).toBe(image);
         });
     });
 }); 

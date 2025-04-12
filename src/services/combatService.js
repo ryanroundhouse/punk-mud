@@ -22,6 +22,7 @@ class CombatService {
         this.questService = deps.questService || questService;
         this.Move = deps.Move || Move;
         this.messageService = deps.messageService || messageService;
+        this.publishSystemMessage = deps.publishSystemMessage || publishSystemMessage;
         
         // For testing purposes
         this._mockRandomValues = null;

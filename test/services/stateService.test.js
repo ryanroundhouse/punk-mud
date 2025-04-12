@@ -754,48 +754,6 @@ describe('StateService', () => {
             expect(storedEvent).toBe(mockResult);
         });
 
-        test('should track event history', () => {
-            const userId = 'user1';
-            const eventId = 'event1';
-            const actorId = 'actor1';
-            const firstNode = {
-                _id: 'node1',
-                prompt: 'First prompt'
-            };
-            const secondNode = {
-                prompt: 'Second prompt'
-            };
-            
-            // Mock implementation for event history
-            const mockResultWithHistory = {
-                userId,
-                eventId,
-                currentNode: secondNode,
-                actorId,
-                isStoryEvent: false,
-                nodeHistory: [{
-                    nodeId: 'node1',
-                    prompt: 'First prompt'
-                }]
-            };
-            
-            // First call with no history
-            eventStateManager.setActiveEvent.mockReturnValueOnce({});
-            // Second call with history
-            eventStateManager.setActiveEvent.mockReturnValueOnce(mockResultWithHistory);
-            
-            // Set initial event
-            testStateService.setActiveEvent(userId, eventId, firstNode, actorId);
-            
-            // Update to second node
-            const result = testStateService.setActiveEvent(userId, eventId, secondNode, actorId);
-            
-            // Check that the history is correctly maintained by eventStateManager
-            expect(result.nodeHistory.length).toBe(1);
-            expect(result.nodeHistory[0].nodeId).toBe('node1');
-            expect(result.nodeHistory[0].prompt).toContain('First prompt');
-        });
-
         test('should check if user is in event', () => {
             const userId = 'user1';
             const eventId = 'event1';

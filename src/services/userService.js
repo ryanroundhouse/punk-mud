@@ -304,19 +304,23 @@ flee.............Attempt to escape combat
 
             // Send player status update to update health/energy bars
             // This should be sent after the user is saved and regardless of suppressMessage
-            const finalUser = await this.User.findById(userId);
-            this.messageService.sendPlayerStatusMessage(
-                userId,
-                `HP: ${finalUser.stats.currentHitpoints}/${finalUser.stats.hitpoints} | Energy: ${finalUser.stats.currentEnergy}/${finalUser.stats.energy}`
-            );
+            try {
+                const finalUser = await this.User.findById(userId);
+                if (finalUser) {
+                    this.messageService.sendPlayerStatusMessage(
+                        userId,
+                        `HP: ${finalUser.stats.currentHitpoints}/${finalUser.stats.hitpoints} | Energy: ${finalUser.stats.currentEnergy}/${finalUser.stats.energy}`
+                    );
+                }
+            } catch (error) {
+                this.logger.error('Error sending player status update:', error);
+                // Continue execution, don't throw here
+            }
             
             return result;
         } catch (error) {
             this.logger.error('Error awarding experience:', error);
-            return {
-                success: false,
-                error: error.message
-            };
+            throw error;
         }
     }
 

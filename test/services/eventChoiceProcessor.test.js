@@ -343,7 +343,6 @@ describe('EventChoiceProcessor', () => {
         mobName: 'Test Monster'
       });
       expect(mockMessageService.sendCombatMessage).toHaveBeenCalled();
-      expect(mockMessageService.sendConsoleResponse).toHaveBeenCalled();
     });
     
     it('should process combat until input is required', async () => {

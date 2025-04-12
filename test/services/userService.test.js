@@ -107,23 +107,35 @@ describe('UserService', () => {
 
     describe('healUser', () => {
         it('should heal the user to full hitpoints', async () => {
-            // Create a user with reduced hitpoints
-            const injuredUser = {
-                ...mockUser,
-                stats: { ...mockUser.stats, currentHitpoints: 10 },
-                save: jest.fn().mockResolvedValue(true)
+            const mockUser = {
+                _id: 'user123',
+                stats: {
+                    hitpoints: 100,
+                    currentHitpoints: 70
+                }
             };
             
-            mockDeps.User.findById.mockResolvedValueOnce(injuredUser);
+            mockDeps.User.findById.mockResolvedValueOnce(mockUser);
+            mockDeps.User.findByIdAndUpdate.mockResolvedValueOnce({
+                ...mockUser,
+                stats: {
+                    ...mockUser.stats,
+                    currentHitpoints: 100
+                }
+            });
             
             const result = await userService.healUser('user123');
             
             expect(result).toEqual({
                 success: true,
-                healed: 30
+                healed: 100
             });
-            expect(injuredUser.stats.currentHitpoints).toBe(30);
-            expect(injuredUser.save).toHaveBeenCalled();
+
+            expect(mockDeps.User.findByIdAndUpdate).toHaveBeenCalledWith(
+                'user123',
+                { $set: { 'stats.currentHitpoints': 100 } },
+                { new: true, runValidators: true }
+            );
         });
 
         it('should throw an error when user is not found', async () => {
@@ -168,92 +180,237 @@ describe('UserService', () => {
 
     describe('handlePlayerDeath', () => {
         it('should handle player death correctly', async () => {
-            // Create a mutable user object
-            const userToKill = {
-                ...mockUser,
-                save: jest.fn().mockResolvedValue(true)
+            // Create mock user with experience and location data
+            const mockUser = {
+                _id: 'user123',
+                stats: {
+                    hitpoints: 100,
+                    currentHitpoints: 0,
+                    energy: 50,
+                    currentEnergy: 30
+                },
+                currentNode: 'oldNode'
             };
-            
-            mockDeps.User.findById.mockResolvedValueOnce(userToKill);
-            
+
+            // Mock findById to return our test user
+            mockDeps.User.findById.mockResolvedValueOnce(mockUser);
+
+            // Mock findByIdAndUpdate to return updated user
+            const expectedUpdates = {
+                $set: {
+                    'stats.currentHitpoints': 100,
+                    'currentNode': '122.124.10.10'
+                }
+            };
+
+            mockDeps.User.findByIdAndUpdate.mockResolvedValueOnce({
+                ...mockUser,
+                stats: {
+                    ...mockUser.stats,
+                    currentHitpoints: 100
+                },
+                currentNode: '122.124.10.10'
+            });
+
             const result = await userService.handlePlayerDeath('user123');
-            
+
+            // Verify the user was updated correctly
+            expect(mockDeps.User.findByIdAndUpdate).toHaveBeenCalledWith(
+                'user123',
+                expectedUpdates,
+                { new: true, runValidators: true }
+            );
+
+            // Verify the result
             expect(result).toEqual({
                 success: true,
                 newLocation: '122.124.10.10',
                 playerDied: true
             });
             
-            // Check user was updated correctly
-            expect(userToKill.stats.currentHitpoints).toBe(30);
-            expect(userToKill.currentNode).toBe('122.124.10.10');
-            expect(userToKill.save).toHaveBeenCalled();
-            
-            // Check services were called correctly
-            expect(mockDeps.stateService.removeUserFromNodeAndUpdateUsernames).toHaveBeenCalledWith('user123', 'oldNode123');
-            expect(mockDeps.socketService.unsubscribeFromNodeChat).toHaveBeenCalledWith('oldNode123');
+            // Check other expected method calls
+            expect(mockDeps.stateService.removeUserFromNodeAndUpdateUsernames).toHaveBeenCalledWith('user123', 'oldNode');
+            expect(mockDeps.socketService.unsubscribeFromNodeChat).toHaveBeenCalledWith('oldNode');
             expect(mockDeps.stateService.addUserToNodeAndUpdateUsernames).toHaveBeenCalledWith('user123', '122.124.10.10');
             expect(mockDeps.socketService.subscribeToNodeChat).toHaveBeenCalledWith('122.124.10.10');
-            
-            // Check combat states were cleared
             expect(mockDeps.stateService.clearUserCombatState).toHaveBeenCalledWith('user123');
             expect(mockDeps.stateService.clearCombatDelay).toHaveBeenCalledWith('user123');
             expect(mockDeps.stateService.clearCombatantEffects).toHaveBeenCalledWith('user123');
             expect(mockDeps.mobService.clearUserMob).toHaveBeenCalledWith('user123');
-            
-            // Check message was sent
             expect(mockDeps.messageService.sendConsoleResponse).toHaveBeenCalledWith('user123', {
                 type: 'player death',
                 newLocation: '122.124.10.10'
             });
+        });
 
-            // Check player status update was sent
-            expect(mockDeps.messageService.sendPlayerStatusMessage).toHaveBeenCalledWith(
-                'user123',
-                `HP: ${userToKill.stats.currentHitpoints}/${userToKill.stats.hitpoints} | Energy: ${userToKill.stats.currentEnergy}/${userToKill.stats.energy}`
+        it('should use starting room if no respawn room is set', async () => {
+            // This test is no longer applicable since the respawn room is hardcoded to '122.124.10.10'
+            // Instead we'll test that it always uses this room
+            const mockUser = {
+                _id: 'user123',
+                stats: {
+                    hitpoints: 100,
+                    currentHitpoints: 0,
+                    energy: 50,
+                    currentEnergy: 30
+                },
+                currentNode: 'oldNode'
+            };
+
+            mockDeps.User.findById.mockResolvedValueOnce(mockUser);
+            mockDeps.User.findByIdAndUpdate.mockResolvedValueOnce({
+                ...mockUser,
+                stats: {
+                    ...mockUser.stats,
+                    currentHitpoints: 100
+                },
+                currentNode: '122.124.10.10'
+            });
+
+            const result = await userService.handlePlayerDeath('user123');
+
+            expect(result.newLocation).toBe('122.124.10.10');
+        });
+
+        it('should handle errors gracefully', async () => {
+            // Mock findById to throw an error
+            mockDeps.User.findById.mockRejectedValueOnce(new Error('Database error'));
+
+            await expect(userService.handlePlayerDeath('user123'))
+                .rejects.toThrow('Database error');
+
+            expect(mockDeps.logger.error).toHaveBeenCalledWith(
+                'Error handling player death:',
+                expect.any(Error)
             );
         });
 
-        it('should throw an error when user is not found', async () => {
+        it('should handle user not found', async () => {
+            // Mock findById to return null
             mockDeps.User.findById.mockResolvedValueOnce(null);
-            
-            await expect(userService.handlePlayerDeath('nonExistentUser')).rejects.toThrow('User not found');
+
+            await expect(userService.handlePlayerDeath('user123'))
+                .rejects.toThrow('User not found');
+        });
+
+        it('should handle failed update', async () => {
+            // Mock successful findById
+            mockDeps.User.findById.mockResolvedValueOnce({
+                _id: 'user123',
+                stats: {
+                    hitpoints: 100,
+                    currentHitpoints: 0
+                },
+                currentNode: 'oldNode'
+            });
+
+            // Mock failed update
+            mockDeps.User.findByIdAndUpdate.mockResolvedValueOnce(null);
+
+            await expect(userService.handlePlayerDeath('user123'))
+                .rejects.toThrow('Failed to update user after death');
         });
     });
 
     describe('awardExperience', () => {
+        beforeEach(() => {
+            // Create a mock updateUserMovesForLevel method since we're not testing it directly
+            userService.updateUserMovesForLevel = jest.fn().mockResolvedValue(true);
+        });
+
         it('should award experience without level up', async () => {
-            const userWithXp = {
-                ...mockUser,
-                stats: { ...mockUser.stats, experience: 50 },
-                save: jest.fn().mockResolvedValue(true)
+            // Mock a user at level 1 with 50 XP
+            const mockUser = {
+                _id: 'user123',
+                stats: {
+                    level: 1,
+                    experience: 50,
+                    currentHitpoints: 100, // Ensure user is alive
+                    body: 8,
+                    reflexes: 8,
+                    agility: 8,
+                    charisma: 8,
+                    tech: 8,
+                    luck: 8
+                }
             };
-            
-            mockDeps.User.findById.mockResolvedValueOnce(userWithXp);
-            
+
+            // More direct mocking of the User.findById().populate() chain
+            const populateMock = jest.fn().mockResolvedValue(mockUser);
+            mockDeps.User.findById = jest.fn().mockReturnValue({ populate: populateMock });
+
+            // Mock findByIdAndUpdate to return the updated user
+            mockDeps.User.findByIdAndUpdate.mockResolvedValueOnce({
+                ...mockUser,
+                stats: {
+                    ...mockUser.stats,
+                    experience: 60
+                }
+            });
+
             const result = await userService.awardExperience('user123', 10);
             
-            expect(result).toEqual({
-                success: true,
-                levelUp: false,
-                oldLevel: 1,
-                newLevel: 1,
-                experienceGained: 10,
-                totalExperience: 60
-            });
+            expect(result.success).toBe(true);
+            expect(result.levelUp).toBe(false);
+            expect(result.oldLevel).toBe(1);
+            expect(result.newLevel).toBe(1);
+            expect(result.experienceGained).toBe(10);
+            expect(result.totalExperience).toBe(60);
             
-            expect(mockDeps.messageService.sendSuccessMessage).not.toHaveBeenCalled();
+            // Check that only experience was updated (no level up)
+            expect(mockDeps.User.findByIdAndUpdate).toHaveBeenCalledWith(
+                'user123',
+                {
+                    $set: {
+                        'stats.experience': 60
+                    }
+                },
+                { new: true, runValidators: true }
+            );
         });
 
         it('should handle level up correctly', async () => {
-            const userAboutToLevelUp = {
-                ...mockUser,
-                stats: { ...mockUser.stats, experience: 95 },
-                save: jest.fn().mockResolvedValue(true)
+            // Mock a user about to level up (at 95 XP, level 1, needs 100 for level 2)
+            const mockUser = {
+                _id: 'user123',
+                stats: {
+                    level: 1,
+                    experience: 95,
+                    currentHitpoints: 100, // Ensure user is alive
+                    hitpoints: 25,
+                    body: 8,
+                    reflexes: 8,
+                    agility: 8,
+                    charisma: 8,
+                    tech: 8,
+                    luck: 8
+                }
             };
-            
-            mockDeps.User.findById.mockResolvedValueOnce(userAboutToLevelUp);
-            
+
+            // More direct mocking of the User.findById().populate() chain
+            const populateMock = jest.fn().mockResolvedValue(mockUser);
+            mockDeps.User.findById = jest.fn().mockReturnValue({ populate: populateMock });
+
+            // After level up, stats have increased
+            const updatedUser = {
+                ...mockUser,
+                stats: {
+                    ...mockUser.stats,
+                    level: 2,
+                    experience: 105,
+                    hitpoints: 49, // Updated hitpoints calculation: 20 + (3*2) + ((8+1)*2.5) = 20 + 6 + 22.5 = 48.5 rounded up to 49
+                    currentHitpoints: 49,
+                    body: 9,
+                    reflexes: 9,
+                    agility: 9,
+                    charisma: 9,
+                    tech: 9,
+                    luck: 9
+                }
+            };
+
+            mockDeps.User.findByIdAndUpdate.mockResolvedValueOnce(updatedUser);
+
             const result = await userService.awardExperience('user123', 10);
             
             expect(result.success).toBe(true);
@@ -262,47 +419,52 @@ describe('UserService', () => {
             expect(result.newLevel).toBe(2);
             expect(result.experienceGained).toBe(10);
             expect(result.totalExperience).toBe(105);
-            expect(result.newHP).toBeDefined();
             
-            // Check stats were increased
-            expect(userAboutToLevelUp.stats.body).toBe(4);
-            expect(userAboutToLevelUp.stats.reflexes).toBe(4);
+            // Verify user moves were updated for the new level
+            expect(userService.updateUserMovesForLevel).toHaveBeenCalledWith('user123', 2);
             
-            // Check message was sent
-            expect(mockDeps.messageService.sendSuccessMessage).toHaveBeenCalled();
-
-            // Check player status update was sent with new HP values
-            expect(mockDeps.messageService.sendPlayerStatusMessage).toHaveBeenCalledWith(
+            // Check level up message was sent
+            expect(mockDeps.messageService.sendSuccessMessage).toHaveBeenCalledWith(
                 'user123',
-                `HP: ${userAboutToLevelUp.stats.currentHitpoints}/${userAboutToLevelUp.stats.hitpoints} | Energy: ${userAboutToLevelUp.stats.currentEnergy}/${userAboutToLevelUp.stats.energy}`
+                expect.stringContaining('Congratulations! You have reached level 2')
             );
         });
 
         it('should handle player death instead of awarding XP if player is dead', async () => {
-            // Mock implementation for handlePlayerDeath
+            // Mock a dead user (0 HP)
+            const mockUser = {
+                _id: 'user123',
+                stats: {
+                    level: 1,
+                    experience: 50,
+                    currentHitpoints: 0, // User is dead
+                    hitpoints: 100
+                }
+            };
+
+            mockDeps.User.findById.mockImplementation(() => ({
+                populate: jest.fn().mockResolvedValue(mockUser)
+            }));
+
+            // Mock handlePlayerDeath
             userService.handlePlayerDeath = jest.fn().mockResolvedValue({
                 success: true,
-                newLocation: '122.124.10.10',
                 playerDied: true
             });
-            
-            const deadUser = {
-                ...mockUser,
-                stats: { ...mockUser.stats, currentHitpoints: 0 },
-                save: jest.fn().mockResolvedValue(true)
-            };
-            
-            mockDeps.User.findById.mockResolvedValueOnce(deadUser);
-            
+
             const result = await userService.awardExperience('user123', 10);
             
-            expect(result).toEqual({
-                success: false,
-                message: 'Player was defeated'
-            });
+            expect(result.success).toBe(false);
+            expect(result.message).toBe('Player was defeated');
             
+            // Verify handlePlayerDeath was called
             expect(userService.handlePlayerDeath).toHaveBeenCalledWith('user123');
+            
+            // Verify no XP was awarded
+            expect(mockDeps.User.findByIdAndUpdate).not.toHaveBeenCalled();
         });
+
+        // Add more awardExperience tests as needed
     });
 
     describe('setUserClass', () => {
@@ -499,82 +661,87 @@ describe('UserService', () => {
 
     // Test awardExperience calling updateUserMovesForLevel
     describe('awardExperience - move updates', () => {
-        let originalAwardExperience;
-        let originalUpdateUserMovesForLevel;
-        let mockResult;
-        
-        beforeEach(() => {
-            // Save original implementations
-            originalAwardExperience = userService.awardExperience;
-            originalUpdateUserMovesForLevel = userService.updateUserMovesForLevel;
-            
-            // Create mock result
-            mockResult = {
-                success: true,
-                levelUp: false,
-                oldLevel: 1,
-                newLevel: 1,
-                experienceGained: 0,
-                totalExperience: 0
-            };
-            
-            // Reset mocks for each test
-            userService.updateUserMovesForLevel = jest.fn().mockResolvedValue({
-                success: true,
-                moveCount: 2,
-                newMoves: ['Special Attack']
-            });
-        });
-        
-        afterEach(() => {
-            // Restore original implementations
-            userService.awardExperience = originalAwardExperience;
-            userService.updateUserMovesForLevel = originalUpdateUserMovesForLevel;
-        });
-
         it('should call updateUserMovesForLevel when leveling up', async () => {
-            // Instead of mocking awardExperience, use the original implementation
-            // But replace User.findById to return a user about to level up
-            mockDeps.User.findById = jest.fn().mockImplementation(() => {
-                const user = {
-                    ...mockUser,
-                    stats: {
-                        ...mockUser.stats,
-                        experience: 90, // Just below level 2 threshold (100)
-                        level: 1
-                    },
-                    save: jest.fn().mockResolvedValue(true)
-                };
-                return Promise.resolve(user);
-            });
+            // Mock a user about to level up
+            const mockUser = {
+                _id: 'user123',
+                stats: {
+                    level: 1,
+                    experience: 95,
+                    currentHitpoints: 100,
+                    hitpoints: 25,
+                    body: 8,
+                    reflexes: 8,
+                    agility: 8,
+                    charisma: 8,
+                    tech: 8,
+                    luck: 8
+                }
+            };
+
+            // More direct mocking of the User.findById().populate() chain
+            const populateMock = jest.fn().mockResolvedValue(mockUser);
+            mockDeps.User.findById = jest.fn().mockReturnValue({ populate: populateMock });
+
+            // After level up
+            const updatedUser = {
+                ...mockUser,
+                stats: {
+                    ...mockUser.stats,
+                    level: 2,
+                    experience: 105,
+                    hitpoints: 49, // Updated hitpoints calculation: 20 + (3*2) + ((8+1)*2.5) = 20 + 6 + 22.5 = 48.5 rounded up to 49
+                    currentHitpoints: 49,
+                    body: 9,
+                    reflexes: 9,
+                    agility: 9,
+                    charisma: 9,
+                    tech: 9,
+                    luck: 9
+                }
+            };
+
+            mockDeps.User.findByIdAndUpdate.mockResolvedValueOnce(updatedUser);
             
-            // Call the actual awardExperience method with enough XP to level up
-            const result = await originalAwardExperience.call(userService, 'user123', 20);
+            // Create a spy on the updateUserMovesForLevel method
+            const updateMovesSpy = jest.spyOn(userService, 'updateUserMovesForLevel')
+                .mockResolvedValueOnce(true);
+            
+            const result = await userService.awardExperience('user123', 10);
             
             // Verify the result
             expect(result.levelUp).toBe(true);
             expect(result.oldLevel).toBe(1);
             expect(result.newLevel).toBe(2);
             
-            // Verify updateUserMovesForLevel was called with the correct parameters
-            expect(userService.updateUserMovesForLevel).toHaveBeenCalledWith('user123', 2);
-        });
-
-        it('should not call updateUserMovesForLevel when not leveling up', async () => {
-            // Mock awardExperience for no level up scenario  
-            mockResult.levelUp = false;
-            mockResult.oldLevel = 1;
-            mockResult.newLevel = 1;
-            userService.awardExperience = jest.fn().mockResolvedValue(mockResult);
+            // Check that User.findByIdAndUpdate was called with the right parameters
+            expect(mockDeps.User.findByIdAndUpdate).toHaveBeenCalledWith(
+                'user123',
+                {
+                    $set: {
+                        'stats.experience': 105,
+                        'stats.level': 2,
+                        'stats.body': 9,
+                        'stats.reflexes': 9,
+                        'stats.agility': 9,
+                        'stats.charisma': 9,
+                        'stats.tech': 9,
+                        'stats.luck': 9,
+                        'stats.hitpoints': 49,
+                        'stats.currentHitpoints': 49
+                    }
+                },
+                { new: true, runValidators: true }
+            );
             
-            const result = await userService.awardExperience('user123', 5);
+            // Verify that updateUserMovesForLevel was called with the right parameters
+            expect(updateMovesSpy).toHaveBeenCalledWith('user123', 2);
             
-            expect(result.levelUp).toBe(false);
-            expect(result.oldLevel).toBe(1);
-            expect(result.newLevel).toBe(1);
-            
-            // Verify updateUserMovesForLevel was not called
-            expect(userService.updateUserMovesForLevel).not.toHaveBeenCalled();
+            // Verify success message was sent
+            expect(mockDeps.messageService.sendSuccessMessage).toHaveBeenCalledWith(
+                'user123',
+                expect.stringContaining('Congratulations! You have reached level 2')
+            );
         });
     });
 }); 

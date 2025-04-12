@@ -184,11 +184,22 @@ describe('NodeService', () => {
             }]
           };
         } else if (query.address === 'room2') {
-          return { address: 'room2', name: 'Target Room' };
+          return { 
+            address: 'room2', 
+            name: 'Target Room',
+            toObject: jest.fn().mockReturnValue({
+              address: 'room2',
+              name: 'Target Room'
+            })
+          };
         }
         return null;
       });
       
+      // Mock isExitAccessible to return true
+      jest.spyOn(nodeService, 'isExitAccessible').mockReturnValue(true);
+      
+      // Mock getNodeWithOverrides to return the target node
       jest.spyOn(nodeService, 'getNodeWithOverrides').mockResolvedValue({ 
         address: 'room2', 
         name: 'Target Room' 
@@ -199,6 +210,15 @@ describe('NodeService', () => {
       
       // Assert
       expect(result).toEqual({ address: 'room2', name: 'Target Room' });
+      expect(nodeService.isExitAccessible).toHaveBeenCalledWith(
+        expect.objectContaining({
+          direction: 'north',
+          target: 'room2',
+          requiredQuestId: 'quest1',
+          requiredQuestEventId: 'event1'
+        }),
+        userQuestInfo
+      );
     });
     
     it('should throw error if required quest is missing', async () => {

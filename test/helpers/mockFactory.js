@@ -69,12 +69,39 @@ const createMockUserModel = (mockData = {}) => {
     return {
         findById: jest.fn().mockImplementation((id) => {
             if (id === 'user123') {
-                return Promise.resolve({ ...user });
+                return {
+                    ...Promise.resolve({ ...user }),
+                    populate: jest.fn().mockResolvedValue({ ...user })
+                };
             } else if (id === 'deadUser123') {
-                return Promise.resolve({ 
-                    ...user, 
-                    stats: { ...user.stats, currentHitpoints: 0 } 
-                });
+                return {
+                    ...Promise.resolve({ 
+                        ...user, 
+                        stats: { ...user.stats, currentHitpoints: 0 } 
+                    }),
+                    populate: jest.fn().mockResolvedValue({ 
+                        ...user, 
+                        stats: { ...user.stats, currentHitpoints: 0 } 
+                    })
+                };
+            } else if (id === 'nonExistentUser') {
+                return Promise.resolve(null);
+            }
+            return {
+                ...Promise.resolve({ ...user }),
+                populate: jest.fn().mockResolvedValue({ ...user })
+            };
+        }),
+        findByIdAndUpdate: jest.fn().mockImplementation((id, update, options) => {
+            if (id === 'user123') {
+                const updatedUser = { ...user };
+                if (update.stats) {
+                    updatedUser.stats = { ...updatedUser.stats, ...update.stats };
+                }
+                if (update.currentNode) {
+                    updatedUser.currentNode = update.currentNode;
+                }
+                return Promise.resolve(updatedUser);
             } else if (id === 'nonExistentUser') {
                 return Promise.resolve(null);
             }
