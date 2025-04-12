@@ -753,7 +753,7 @@
                     const option = document.createElement('option');
                     option.value = event._id;
                     // Use the most descriptive field available
-                    option.textContent = event.title || event.description || event.name || 'Unnamed Event';
+                    option.textContent = (event.hint ? event.hint.substring(0, 15) + '...' : 'No hint') + ' (' + (event.title || event.description || event.name || 'Unnamed Event') + ')';
                     questEventSelect.appendChild(option);
                 });
                 
@@ -1130,8 +1130,8 @@
                 return {
                     direction: exit.querySelector('.exit-direction').value,
                     target: exit.querySelector('.exit-target').value,
-                    requiredQuestId: requiredQuestId || undefined,
-                    requiredQuestEventId: requiredQuestEventId || undefined
+                    requiredQuestId: requiredQuestId || null,
+                    requiredQuestEventId: requiredQuestEventId || null
                 };
             });
 
@@ -1269,14 +1269,13 @@
                         questEvent = allQuestEvents.find(e => e._id && e._id.toString() === exit.requiredQuestEventId.toString());
                     }
                     
-                    // If still not found, log the issue
                     if (!questEvent) {
                         console.warn(`Could not find quest event with ID: ${exit.requiredQuestEventId}`);
                         console.log('Available quest events:', allQuestEvents);
                     }
                     
-                    questEventName = questEvent ? 
-                        (questEvent.title || questEvent.description || questEvent.name || 'Unnamed Event') : 
+                    questEventName = questEvent ?
+                        (questEvent.hint ? questEvent.hint.substring(0, 15) + '...' : 'No hint') :
                         'Unknown Event';
                 }
                 
@@ -1433,7 +1432,7 @@
                     
                     const option = document.createElement('option');
                     option.value = event._id;
-                    option.textContent = (event.title || event.description || event.name || 'Unnamed Event') + questTitle;
+                    option.textContent = (event.hint ? event.hint.substring(0, 15) + '...' : 'No hint') + questTitle;
                     questEventSelect.appendChild(option);
                 });
             } else {

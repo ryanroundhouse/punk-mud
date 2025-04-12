@@ -34,80 +34,9 @@ class NodeService {
             throw new Error(`No exit to the ${direction}`);
         }
 
-        // Check quest requirements if the exit has them
-        if ((exit.requiredQuestId || exit.requiredQuestEventId) && userQuestInfo) {
-            logger.debug('Checking quest requirements for exit', {
-                userId,
-                direction,
-                exitRequirements: {
-                    requiredQuestId: exit.requiredQuestId,
-                    requiredQuestEventId: exit.requiredQuestEventId
-                },
-                userQuestInfo: {
-                    activeQuestCount: userQuestInfo.activeQuestIds?.length || 0,
-                    completedQuestEventCount: userQuestInfo.completedQuestEventIds?.length || 0
-                }
-            });
-
-            // If exit requires a quest
-            if (exit.requiredQuestId) {
-                const hasRequiredQuest = userQuestInfo.activeQuestIds && 
-                    userQuestInfo.activeQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
-                
-                const hasCompletedQuest = userQuestInfo.completedQuestIds && 
-                    userQuestInfo.completedQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
-                
-                logger.debug('Quest requirement check result', {
-                    userId,
-                    direction,
-                    requiredQuestId: exit.requiredQuestId,
-                    userActiveQuestIds: userQuestInfo.activeQuestIds,
-                    userCompletedQuestIds: userQuestInfo.completedQuestIds,
-                    hasRequiredQuest,
-                    hasCompletedQuest
-                });
-                
-                if (!hasRequiredQuest && !hasCompletedQuest) {
-                    logger.debug('Exit blocked - missing required quest', {
-                        userId,
-                        direction,
-                        requiredQuestId: exit.requiredQuestId
-                    });
-                    throw new Error(`No exit to the ${direction}`);
-                }
-            }
-            
-            // If exit requires a specific quest event
-            if (exit.requiredQuestEventId) {
-                const hasRequiredQuestEvent = userQuestInfo.completedQuestEventIds && 
-                    userQuestInfo.completedQuestEventIds.some(id => id.toString() === exit.requiredQuestEventId.toString());
-                
-                logger.debug('Quest event requirement check result', {
-                    userId,
-                    direction,
-                    requiredQuestEventId: exit.requiredQuestEventId,
-                    userCompletedQuestEventIds: userQuestInfo.completedQuestEventIds,
-                    hasRequiredQuestEvent
-                });
-                
-                if (!hasRequiredQuestEvent) {
-                    logger.debug('Exit blocked - missing required quest event', {
-                        userId,
-                        direction,
-                        requiredQuestEventId: exit.requiredQuestEventId
-                    });
-                    throw new Error(`No exit to the ${direction}`);
-                }
-            }
-            
-            logger.debug('Quest requirements passed for exit', {
-                userId,
-                direction,
-                exitRequirements: {
-                    requiredQuestId: exit.requiredQuestId,
-                    requiredQuestEventId: exit.requiredQuestEventId
-                }
-            });
+        // Check if the exit is accessible based on quest requirements
+        if (!this.isExitAccessible(exit, userQuestInfo)) {
+            throw new Error(`No exit to the ${direction}`);
         }
 
         // Get the target node with any quest overrides
@@ -439,6 +368,98 @@ class NodeService {
             logger.error('Error getting public nodes:', error);
             return [];
         }
+    }
+
+    // Centralized method to check if an exit is accessible based on quest requirements
+    isExitAccessible(exit, userQuestInfo) {
+        logger.debug('Checking exit accessibility', {
+            exitDetails: {
+                direction: exit.direction,
+                requiredQuestId: exit.requiredQuestId,
+                requiredQuestEventId: exit.requiredQuestEventId
+            },
+            userQuestInfoStructure: {
+                hasQuests: !!userQuestInfo?.quests,
+                questCount: userQuestInfo?.quests?.length || 0,
+                quests: userQuestInfo?.quests?.map(q => ({
+                    questId: q.questId,
+                    currentEventId: q.currentEventId,
+                    completedEventCount: q.completedEventIds?.length || 0
+                }))
+            }
+        });
+
+        // Check quest requirement
+        if (exit.requiredQuestId) {
+            const hasRequiredQuest = userQuestInfo.activeQuestIds && 
+                userQuestInfo.activeQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+            
+            const hasCompletedQuest = userQuestInfo.completedQuestIds && 
+                userQuestInfo.completedQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+            
+            if (!hasRequiredQuest && !hasCompletedQuest) {
+                logger.debug('Exit not accessible - missing required quest', {
+                    direction: exit.direction,
+                    requiredQuestId: exit.requiredQuestId
+                });
+                return false;
+            }
+        }
+        
+        // Check quest event requirement
+        if (exit.requiredQuestEventId) {
+            logger.debug('Checking quest event requirement', {
+                requiredEventId: exit.requiredQuestEventId,
+                questDetails: userQuestInfo.quests?.map(q => ({
+                    questId: q.questId,
+                    currentEventId: q.currentEventId,
+                    currentEventMatches: q.currentEventId?.toString() === exit.requiredQuestEventId.toString(),
+                    completedEventIds: q.completedEventIds,
+                    hasCompletedEvent: q.completedEventIds?.some(id => id.toString() === exit.requiredQuestEventId.toString())
+                }))
+            });
+
+            // Check if the event is either completed or is the current event in any quest
+            const hasRequiredQuestEvent = userQuestInfo.quests && userQuestInfo.quests.some(quest => {
+                const isCurrentEvent = quest.currentEventId && quest.currentEventId.toString() === exit.requiredQuestEventId.toString();
+                const isCompletedEvent = quest.completedEventIds && quest.completedEventIds.some(id => id.toString() === exit.requiredQuestEventId.toString());
+                
+                logger.debug('Quest event check details', {
+                    questId: quest.questId,
+                    currentEventId: quest.currentEventId,
+                    isCurrentEvent,
+                    completedEventCount: quest.completedEventIds?.length || 0,
+                    isCompletedEvent,
+                    overallResult: isCurrentEvent || isCompletedEvent
+                });
+                
+                return isCurrentEvent || isCompletedEvent;
+            });
+            
+            if (!hasRequiredQuestEvent) {
+                logger.debug('Exit not accessible - missing required quest event', {
+                    direction: exit.direction,
+                    requiredQuestEventId: exit.requiredQuestEventId,
+                    userQuestInfo: {
+                        questCount: userQuestInfo.quests?.length || 0,
+                        questDetails: userQuestInfo.quests?.map(q => ({
+                            questId: q.questId,
+                            currentEventId: q.currentEventId,
+                            completedEventCount: q.completedEventIds?.length || 0
+                        }))
+                    }
+                });
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    // Method to filter exits based on quest requirements
+    filterAccessibleExits(exits, userQuestInfo) {
+        if (!exits) return [];
+        return exits.filter(exit => this.isExitAccessible(exit, userQuestInfo));
     }
 }
 

@@ -546,11 +546,13 @@ class CombatService {
     
         // Process mob's action if they're still alive
         if (mobInstance.stats.currentHitpoints <= 0) {
-            // Clear combat state
-            this.stateService.clearUserCombatState(user._id.toString());
-            this.stateService.clearCombatDelay(user._id.toString());
-            this.stateService.clearCombatantEffects(user._id.toString());
-            
+            this.logger.debug('Mob defeated - Starting victory sequence', {
+                userId: user._id.toString(),
+                mobId: mobInstance.mobId || mobInstance._id,
+                mobName: mobInstance.name,
+                mobHP: mobInstance.stats.currentHitpoints
+            });
+
             // Construct the combat result message
             let victoryMessage = '';
             if (playerResult.move) {
@@ -566,17 +568,52 @@ class CombatService {
             // Send the victory message first
             this.messageService.sendCombatMessage(user._id.toString(), victoryMessage, null, mobInstance.image);
             
+            this.logger.debug('Processing quest updates and XP', {
+                userId: user._id.toString(),
+                mobId: mobInstance.mobId || mobInstance._id,
+                hasCombatState: Boolean(this.stateService.userCombatStates.get(user._id.toString())),
+                hasDelayState: Boolean(this.stateService.getCombatDelay(user._id.toString()))
+            });
+
             // Process quest updates without including them in the victory message
             const questUpdates = await this.questService.handleMobKill(user, mobInstance._id || mobInstance.mobId);
+
+            this.logger.debug('Quest updates complete, clearing combat state', {
+                userId: user._id.toString(),
+                questUpdates,
+                hasCombatState: Boolean(this.stateService.userCombatStates.get(user._id.toString())),
+                hasDelayState: Boolean(this.stateService.getCombatDelay(user._id.toString()))
+            });
+
+            // Clear combat state AFTER all processing is complete
+            this.stateService.clearUserCombatState(user._id.toString());
+            this.stateService.clearCombatDelay(user._id.toString());
+            this.stateService.clearCombatantEffects(user._id.toString());
             this.mobService.clearUserMob(user._id.toString());
+
+            this.logger.debug('Combat state cleared, processing experience', {
+                userId: user._id.toString(),
+                hasCombatState: Boolean(this.stateService.userCombatStates.get(user._id.toString())),
+                hasDelayState: Boolean(this.stateService.getCombatDelay(user._id.toString()))
+            });
             
             // Then award experience points and send as a separate success message
             try {
                 const experiencePoints = mobInstance.experiencePoints || 10;
-                this.logger.debug('Awarding experience points:', { userId: user._id.toString(), amount: experiencePoints });
+                this.logger.debug('Awarding experience points:', { 
+                    userId: user._id.toString(), 
+                    amount: experiencePoints,
+                    hasCombatState: Boolean(this.stateService.userCombatStates.get(user._id.toString())),
+                    hasDelayState: Boolean(this.stateService.getCombatDelay(user._id.toString()))
+                });
                 
                 const experienceResult = await this.userService.awardExperience(user._id.toString(), experiencePoints, true);
-                this.logger.debug('Experience result:', JSON.stringify(experienceResult));
+                this.logger.debug('Experience result:', {
+                    ...experienceResult,
+                    userId: user._id.toString(),
+                    hasCombatState: Boolean(this.stateService.userCombatStates.get(user._id.toString())),
+                    hasDelayState: Boolean(this.stateService.getCombatDelay(user._id.toString()))
+                });
                 
                 if (experienceResult.success) {
                     // Send XP gain as a success message
@@ -618,7 +655,7 @@ class CombatService {
             }
             
             // Announce victory to the room
-            this.publishSystemMessage(
+            publishSystemMessage(
                 user.currentNode,
                 `${user.avatarName} has defeated ${mobInstance.name}!`
             );

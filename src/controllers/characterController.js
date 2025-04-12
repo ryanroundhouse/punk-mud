@@ -59,10 +59,25 @@ async function registerAvatar(req, res) {
             return res.status(400).json({ error: 'Avatar name already taken' });
         }
 
-        // Update user with avatar name
+        // Get the current user to check their moves
+        const currentUser = await User.findOne({ email });
+        if (!currentUser) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Prepare update object
+        const updateObj = { avatarName };
+        
+        // If user has no moves, add the default move
+        if (!currentUser.moves || currentUser.moves.length === 0) {
+            updateObj.moves = ['67e5ee92505d5890de625149'];
+            logger.debug('Adding default move to new character');
+        }
+
+        // Update user with avatar name and potentially default move
         const user = await User.findOneAndUpdate(
             { email },
-            { avatarName },
+            updateObj,
             { new: true }
         );
 

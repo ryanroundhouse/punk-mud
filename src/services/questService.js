@@ -1339,7 +1339,12 @@ class QuestService {
             const user = await this.User.findById(userId);
             if (!user || !user.quests) {
                 this.logger.debug('No user or no quests found for user', { userId });
-                return { activeQuestIds: [], completedQuestIds: [], completedQuestEventIds: [] };
+                return { 
+                    activeQuestIds: [], 
+                    completedQuestIds: [], 
+                    completedQuestEventIds: [],
+                    quests: []
+                };
             }
 
             // Get all active quest IDs
@@ -1364,17 +1369,24 @@ class QuestService {
                 userId,
                 activeQuestCount: activeQuestIds.length,
                 completedQuestCount: completedQuestIds.length,
-                completedQuestEventCount: completedQuestEventIds.length
+                completedQuestEventCount: completedQuestEventIds.length,
+                questCount: user.quests.length
             });
 
             return {
                 activeQuestIds,
                 completedQuestIds,
-                completedQuestEventIds
+                completedQuestEventIds,
+                quests: user.quests
             };
         } catch (error) {
             this.logger.error('Error getting user quest info:', error, { userId });
-            return { activeQuestIds: [], completedQuestIds: [], completedQuestEventIds: [] };
+            return { 
+                activeQuestIds: [], 
+                completedQuestIds: [], 
+                completedQuestEventIds: [],
+                quests: []
+            };
         }
     }
     

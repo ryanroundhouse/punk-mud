@@ -28,7 +28,8 @@ const nodeSchema = new mongoose.Schema({
         },
         requiredQuestEventId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'QuestEvent'
+            // Remove the ref since quest events are embedded in quests
+            // ref: 'QuestEvent'
         }
     }],
     events: [{

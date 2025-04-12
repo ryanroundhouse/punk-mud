@@ -115,11 +115,18 @@ async function createOrUpdateNode(req, res) {
                 
                 // Validate requiredQuestEventId if present
                 if (exit.requiredQuestEventId) {
-                    const questEventExists = await mongoose.model('QuestEvent').exists({ _id: exit.requiredQuestEventId });
+                    // Find all quests and check if any contain this event ID
+                    const quests = await mongoose.model('Quest').find({});
+                    const questEventExists = quests.some(quest => 
+                        quest.events && quest.events.some(event => 
+                            event._id.toString() === exit.requiredQuestEventId.toString()
+                        )
+                    );
+                    
                     if (!questEventExists) {
                         return res.status(400).json({
                             error: 'Invalid quest event reference',
-                            details: `Quest Event with ID "${exit.requiredQuestEventId}" does not exist`
+                            details: `Quest Event with ID "${exit.requiredQuestEventId}" does not exist in any quest`
                         });
                     }
                 }

@@ -69,12 +69,25 @@ flee.............Attempt to escape combat
                 throw new Error('User not found');
             }
             
-            user.stats.currentHitpoints = user.stats.hitpoints;
-            await user.save();
+            const updates = {
+                $set: {
+                    'stats.currentHitpoints': user.stats.hitpoints
+                }
+            };
+
+            const updatedUser = await this.User.findByIdAndUpdate(
+                userId,
+                updates,
+                { new: true, runValidators: true }
+            );
+
+            if (!updatedUser) {
+                throw new Error('Failed to heal user');
+            }
             
             return {
                 success: true,
-                healed: user.stats.hitpoints
+                healed: updatedUser.stats.hitpoints
             };
         } catch (error) {
             this.logger.error('Error healing user:', error);
@@ -95,21 +108,34 @@ flee.............Attempt to escape combat
             }
 
             // Heal the player
-            user.stats.currentHitpoints = user.stats.hitpoints;
+            const updates = {
+                $set: {
+                    'stats.currentHitpoints': user.stats.hitpoints,
+                    'currentNode': '122.124.10.10'
+                }
+            };
 
-            // Move player to Neon Plaza
+            // Update the user with proper options
+            const updatedUser = await this.User.findByIdAndUpdate(
+                userId,
+                updates,
+                { new: true, runValidators: true }
+            );
+
+            if (!updatedUser) {
+                throw new Error('Failed to update user after death');
+            }
+
+            // Store old node for cleanup
             const oldNode = user.currentNode;
-            user.currentNode = '122.124.10.10';
-
-            await user.save();
 
             // Handle node subscriptions
             if (oldNode) {
                 this.stateService.removeUserFromNodeAndUpdateUsernames(userId, oldNode);
                 await this.socketService.unsubscribeFromNodeChat(oldNode);
             }
-            await this.stateService.addUserToNodeAndUpdateUsernames(userId, user.currentNode);
-            await this.socketService.subscribeToNodeChat(user.currentNode);
+            await this.stateService.addUserToNodeAndUpdateUsernames(userId, updatedUser.currentNode);
+            await this.socketService.subscribeToNodeChat(updatedUser.currentNode);
 
             // Clear ALL combat-related states
             this.stateService.clearUserCombatState(userId);
@@ -120,18 +146,18 @@ flee.............Attempt to escape combat
             // Send the player death event through the message service
             this.messageService.sendConsoleResponse(userId, {
                 type: 'player death',
-                newLocation: user.currentNode
+                newLocation: updatedUser.currentNode
             });
 
             // Send player status update to update health/energy bars
             this.messageService.sendPlayerStatusMessage(
                 userId,
-                `HP: ${user.stats.currentHitpoints}/${user.stats.hitpoints} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
+                `HP: ${updatedUser.stats.currentHitpoints}/${updatedUser.stats.hitpoints} | Energy: ${updatedUser.stats.currentEnergy}/${updatedUser.stats.energy}`
             );
 
             return {
                 success: true,
-                newLocation: user.currentNode,
+                newLocation: updatedUser.currentNode,
                 playerDied: true
             };
         } catch (error) {
@@ -142,7 +168,7 @@ flee.............Attempt to escape combat
 
     async awardExperience(userId, amount, suppressMessage = false) {
         try {
-            const user = await this.User.findById(userId);
+            const user = await this.User.findById(userId).populate('class');
             if (!user) {
                 throw new Error('User not found');
             }
@@ -157,7 +183,7 @@ flee.............Attempt to escape combat
             }
 
             const oldLevel = user.stats.level;
-            user.stats.experience += amount;
+            const newExperience = user.stats.experience + amount;
 
             // Level thresholds
             const levelThresholds = [
@@ -176,7 +202,7 @@ flee.............Attempt to escape combat
 
             // Check for level up
             let newLevel = oldLevel;
-            while (newLevel < levelThresholds.length && user.stats.experience >= levelThresholds[newLevel]) {
+            while (newLevel < levelThresholds.length && newExperience >= levelThresholds[newLevel]) {
                 newLevel++;
             }
 
@@ -185,41 +211,59 @@ flee.............Attempt to escape combat
                 success: true,
                 levelUp: false,
                 oldLevel: oldLevel,
-                newLevel: newLevel
+                newLevel: newLevel,
+                experienceGained: amount,
+                totalExperience: newExperience
             };
 
             // If level changed, update stats
             if (newLevel > oldLevel) {
-                user.stats.level = newLevel;
-                
-                // Increase all stats by 1
-                user.stats.body += 1;
-                user.stats.reflexes += 1;
-                user.stats.agility += 1;
-                user.stats.charisma += 1;
-                user.stats.tech += 1;
-                user.stats.luck += 1;
-                
-                // Calculate new hitpoints using formula:
-                // baseHP (20) + 3 * level + body * 2.5
+                // Calculate stat increases
+                const updates = {
+                    $set: {
+                        'stats.experience': newExperience,
+                        'stats.level': newLevel,
+                        'stats.body': user.stats.body + 1,
+                        'stats.reflexes': user.stats.reflexes + 1,
+                        'stats.agility': user.stats.agility + 1,
+                        'stats.charisma': user.stats.charisma + 1,
+                        'stats.tech': user.stats.tech + 1,
+                        'stats.luck': user.stats.luck + 1
+                    }
+                };
+
+                // Calculate new hitpoints
                 const baseHP = 20;
-                const levelBonus = 3 * user.stats.level;
-                const bodyBonus = Math.ceil(user.stats.body * 2.5);
-                user.stats.hitpoints = baseHP + levelBonus + bodyBonus;
-                user.stats.currentHitpoints = user.stats.hitpoints;
+                const levelBonus = 3 * newLevel;
+                const bodyBonus = Math.ceil((user.stats.body + 1) * 2.5);
+                const newHitpoints = baseHP + levelBonus + bodyBonus;
+
+                updates.$set['stats.hitpoints'] = newHitpoints;
+                updates.$set['stats.currentHitpoints'] = newHitpoints;
+
+                // Update the user with all new stats
+                const updatedUser = await this.User.findByIdAndUpdate(
+                    userId,
+                    updates,
+                    { new: true, runValidators: true }
+                );
+
+                if (!updatedUser) {
+                    throw new Error('Failed to update user stats');
+                }
 
                 // Update moves for the new level
                 await this.updateUserMovesForLevel(userId, newLevel);
 
                 // Update result object with level up info
                 result.levelUp = true;
-                result.newHP = user.stats.hitpoints;
+                result.newHP = newHitpoints;
                 
                 this.logger.debug('Level up detected', {
                     userId,
                     oldLevel,
                     newLevel,
-                    newHP: user.stats.hitpoints
+                    newHP: newHitpoints
                 });
 
                 // Send level up message using messageService if not suppressed
@@ -229,9 +273,9 @@ flee.............Attempt to escape combat
                         
                         this.messageService.sendSuccessMessage(
                             userId,
-                            `Congratulations! You have reached level ${user.stats.level}!\n` +
+                            `Congratulations! You have reached level ${updatedUser.stats.level}!\n` +
                             `All your stats have increased by 1!\n` +
-                            `Your maximum health is now ${user.stats.hitpoints} points.`
+                            `Your maximum health is now ${updatedUser.stats.hitpoints} points.`
                         );
                         
                         this.logger.debug('Level up message sent');
@@ -239,29 +283,32 @@ flee.............Attempt to escape combat
                         this.logger.error('Error sending level up message:', error);
                     }
                 }
-            }
+            } else {
+                // Just update experience if no level up
+                const updates = {
+                    $set: {
+                        'stats.experience': newExperience
+                    }
+                };
 
-            await user.save();
+                const updatedUser = await this.User.findByIdAndUpdate(
+                    userId,
+                    updates,
+                    { new: true, runValidators: true }
+                );
+
+                if (!updatedUser) {
+                    throw new Error('Failed to update user experience');
+                }
+            }
 
             // Send player status update to update health/energy bars
             // This should be sent after the user is saved and regardless of suppressMessage
+            const finalUser = await this.User.findById(userId);
             this.messageService.sendPlayerStatusMessage(
                 userId,
-                `HP: ${user.stats.currentHitpoints}/${user.stats.hitpoints} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
+                `HP: ${finalUser.stats.currentHitpoints}/${finalUser.stats.hitpoints} | Energy: ${finalUser.stats.currentEnergy}/${finalUser.stats.energy}`
             );
-
-            // Add additional information to the result
-            result.experienceGained = amount;
-            result.totalExperience = user.stats.experience;
-            
-            this.logger.debug('Returning experience result', {
-                userId,
-                success: result.success,
-                levelUp: result.levelUp,
-                oldLevel: result.oldLevel,
-                newLevel: result.newLevel,
-                newHP: result.newHP
-            });
             
             return result;
         } catch (error) {

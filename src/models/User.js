@@ -75,8 +75,7 @@ const userSchema = new mongoose.Schema({
     },
     moves: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Move',
-        default: ['67e5ee92505d5890de625149']
+        ref: 'Move'
     }]
 }, {
     timestamps: true
