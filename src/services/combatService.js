@@ -5,7 +5,7 @@ const mobService = require('./mobService');
 const nodeService = require('./nodeService');
 const socketService = require('./socketService');
 const userService = require('./userService');
-const { publishSystemMessage, publishCombatSystemMessage } = require('./systemMessageService');
+const { publishSystemMessage, publishCombatSystemMessage, publishUserMoveSystemMessage } = require('./systemMessageService');
 const questService = require('./questService');
 const Move = require('../models/Move');
 const messageService = require('./messageService');
@@ -24,6 +24,7 @@ class CombatService {
         this.messageService = deps.messageService || messageService;
         this.publishSystemMessage = deps.publishSystemMessage || publishSystemMessage;
         this.publishCombatSystemMessage = deps.publishCombatSystemMessage || publishCombatSystemMessage;
+        this.publishUserMoveSystemMessage = deps.publishUserMoveSystemMessage || publishUserMoveSystemMessage;
         
         // For testing purposes
         this._mockRandomValues = null;
@@ -442,9 +443,21 @@ class CombatService {
                     this.stateService.clearCombatantEffects(user._id.toString());
                     this.mobService.clearUserMob(user._id.toString());
     
-                    // First handle death (teleport and heal)
+                    // First handle death
                     await this.userService.handlePlayerDeath(user._id.toString());
     
+                    // Announce defeat to the room
+                    this.publishCombatSystemMessage(
+                        user.currentNode,
+                        {
+                            message: `${user.avatarName} has been defeated by ${mobInstance.name}!`
+                        },
+                        user
+                    );
+                    
+                    // Update user presence between nodes
+                    await this.publishUserMoveSystemMessage(user.currentNode, '122.124.10.10', user);
+
                     // Send the complete death sequence message
                     this.messageService.sendCombatMessage(
                         user._id.toString(),
@@ -657,7 +670,7 @@ class CombatService {
             }
             
             // Announce victory to the room
-            publishCombatSystemMessage(
+            this.publishCombatSystemMessage(
                 user.currentNode,
                 {
                     message: `${user.avatarName} has defeated ${mobInstance.name}!`
@@ -674,6 +687,18 @@ class CombatService {
             // First handle death
             await this.userService.handlePlayerDeath(user._id.toString());
     
+            // Announce defeat to the room
+            this.publishCombatSystemMessage(
+                user.currentNode,
+                {
+                    message: `${user.avatarName} has been defeated by ${mobInstance.name}!`
+                },
+                user
+            );
+            
+            // Update user presence between nodes
+            await this.publishUserMoveSystemMessage(user.currentNode, '122.124.10.10', user);
+
             // Send the complete death sequence message
             this.messageService.sendCombatMessage(
                 user._id.toString(),
