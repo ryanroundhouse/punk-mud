@@ -511,6 +511,12 @@ flee.............Attempt to escape combat
             // Handle node client management
             this.stateService.removeUserFromNodeAndUpdateUsernames(userId, oldNode);
             await this.stateService.addUserToNodeAndUpdateUsernames(userId, targetNode.address);
+            
+            // Update chat subscriptions - unsubscribe from old node and subscribe to new one
+            if (oldNode) {
+                await this.socketService.unsubscribeFromNodeChat(oldNode);
+            }
+            await this.socketService.subscribeToNodeChat(targetNode.address);
 
             // Send movement messages using the new dedicated function
             await this.systemMessageService.publishUserMoveSystemMessage(

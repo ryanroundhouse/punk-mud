@@ -69,6 +69,8 @@ class StateService {
     }
 
     addUserToNode(userId, nodeAddress) {
+        const socket = this.clients.get(userId);
+        
         // First, remove user from any other nodes they might be in
         for (const [existingNodeAddress, nodeUsers] of this.nodeClients.entries()) {
             if (existingNodeAddress !== nodeAddress && nodeUsers.has(userId)) {
@@ -84,15 +86,29 @@ class StateService {
         nodeUsers.add(userId);
         
         // Also track in EventStateManager
-        const socket = this.clients.get(userId);
         if (socket) {
+            // Update socket.data to ensure it has the correct currentNode
+            if (!socket.data) socket.data = {};
+            socket.data.currentNode = nodeAddress;
+            
+            this.logger.debug('Updated socket.data with current node:', {
+                userId,
+                nodeAddress,
+                socketData: socket.data
+            });
+            
             eventStateManager.addUserToRoom(userId, nodeAddress, socket.id);
         }
+        
+        // Also update userNodes map to keep track
+        this.userNodes.set(userId, nodeAddress);
         
         return nodeUsers;
     }
 
     removeUserFromNode(userId, nodeAddress) {
+        const socket = this.clients.get(userId);
+        
         const nodeUsers = this.nodeClients.get(nodeAddress);
         if (!nodeUsers) {
             return null;
@@ -103,6 +119,23 @@ class StateService {
 
         // Also remove from EventStateManager
         eventStateManager.removeUserFromRoom(userId, nodeAddress);
+        
+        // Remove node reference from socket data if it matches the current node
+        if (socket && socket.data && socket.data.currentNode === nodeAddress) {
+            // Clear the node reference but don't delete the whole data object
+            socket.data.currentNode = null;
+            
+            this.logger.debug('Cleared socket.data node reference:', {
+                userId,
+                nodeAddress,
+                socketDataAfter: socket.data
+            });
+        }
+        
+        // If this is the user's current tracked node, remove from userNodes map
+        if (this.userNodes.get(userId) === nodeAddress) {
+            this.userNodes.delete(userId);
+        }
 
         // If node is empty, clean up node data
         if (nodeUsers.size === 0) {

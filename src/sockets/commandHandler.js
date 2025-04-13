@@ -188,13 +188,8 @@ async function handleCommand(socket, data) {
                         storyEvent: nodeEventResult.storyEvent
                     };
                     
-                    if (oldNode) {
-                        await stateService.removeUserFromNodeAndUpdateUsernames(socket.user.userId, oldNode);
-                        await socketService.unsubscribeFromNodeChat(oldNode);
-                    }
-                    
-                    await stateService.addUserToNodeAndUpdateUsernames(socket.user.userId, user.currentNode);
-                    await socketService.subscribeToNodeChat(user.currentNode);
+                    // Chat subscription is now handled in moveUserToNode
+                    // No need for additional subscribeToNodeChat call here
 
                     // Send the move confirmation first
                     socket.emit('console response', {

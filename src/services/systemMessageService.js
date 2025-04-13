@@ -22,15 +22,41 @@ async function publishSystemMessage(nodeAddress, messageData) {
         return;
     }
     
-    logger.debug(`Found ${nodeUsers.length} users in node ${nodeAddress}`);
+    logger.debug(`Found ${nodeUsers.length} users in node ${nodeAddress}`, {
+        userIds: nodeUsers,
+        nodeMembers: Array.from(stateService.nodeClients.entries())
+            .filter(([node, users]) => users.length > 0)
+            .map(([node, users]) => ({ node, users }))
+    });
     
     let messagesSent = 0;
     nodeUsers.forEach(userId => {
         const userSocket = stateService.getClient(userId);
         if (userSocket) {
+            // Log which node the user thinks they're in (from socket data if available)
+            const userCurrentNode = userSocket.data && userSocket.data.currentNode 
+                ? userSocket.data.currentNode 
+                : 'unknown';
+            
+            // Log actual node from the stateService
+            const stateServiceNode = stateService.userNodes.get(userId) || 'not set';
+                
             logger.debug(`Sending system message to user ${userId}`, {
-                type: messageData.type
+                type: messageData.type,
+                userCurrentNode: userCurrentNode,
+                stateServiceNode: stateServiceNode,
+                messageNode: nodeAddress,
+                messageContent: messageData.message,
+                messageMatches: stateServiceNode === nodeAddress,
+                userData: {
+                    id: messageData.user?.id,
+                    name: messageData.user?.name
+                }
             });
+            
+            // Correctly update socket.data with current node information
+            if (!userSocket.data) userSocket.data = {};
+            userSocket.data.currentNode = nodeAddress;
             
             // Emit 'system message' event directly instead of using messageService
             userSocket.emit('system message', messageData);
@@ -53,12 +79,25 @@ async function publishSystemMessage(nodeAddress, messageData) {
 async function publishUserMoveSystemMessage(fromNodeAddress, toNodeAddress, userData) {
     // Debug the parameters
     logger.debug('publishUserMoveSystemMessage called with:', {
-        fromNodeAddress: fromNodeAddress,
-        toNodeAddress: toNodeAddress,
+        fromNodeAddress,
+        toNodeAddress,
         userData: {
             id: userData._id,
             avatarName: userData.avatarName
         }
+    });
+
+    // Log the current node membership before processing the move
+    logger.debug('Current node membership before move:', {
+        movingUserId: userData._id,
+        fromNode: fromNodeAddress,
+        toNode: toNodeAddress,
+        fromNodeUsers: fromNodeAddress ? Array.from(stateService.nodeClients.get(fromNodeAddress) || []) : [],
+        toNodeUsers: toNodeAddress ? Array.from(stateService.nodeClients.get(toNodeAddress) || []) : [],
+        allUserNodes: Array.from(stateService.userNodes.entries())
+            .filter(([userId, nodeAddress]) => 
+                nodeAddress === fromNodeAddress || nodeAddress === toNodeAddress)
+            .map(([userId, nodeAddress]) => ({ userId, nodeAddress }))
     });
 
     // Send departure message to origin node
@@ -98,6 +137,19 @@ async function publishUserMoveSystemMessage(fromNodeAddress, toNodeAddress, user
         
         await publishSystemMessage(toNodeAddress, arrivalMessage);
     }
+
+    // Log the node membership after processing the move
+    logger.debug('Node membership after move:', {
+        movingUserId: userData._id,
+        fromNode: fromNodeAddress,
+        toNode: toNodeAddress,
+        fromNodeUsers: fromNodeAddress ? Array.from(stateService.nodeClients.get(fromNodeAddress) || []) : [],
+        toNodeUsers: toNodeAddress ? Array.from(stateService.nodeClients.get(toNodeAddress) || []) : [],
+        allUserNodes: Array.from(stateService.userNodes.entries())
+            .filter(([userId, nodeAddress]) => 
+                nodeAddress === fromNodeAddress || nodeAddress === toNodeAddress)
+            .map(([userId, nodeAddress]) => ({ userId, nodeAddress }))
+    });
 }
 
 /**
