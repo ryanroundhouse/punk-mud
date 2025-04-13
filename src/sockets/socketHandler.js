@@ -62,6 +62,8 @@ function socketHandler(io) {
                 await stateService.addUserToNodeAndUpdateUsernames(socket.user.userId, user.currentNode);
                 // Subscribe to node's chat channel
                 await socketService.subscribeToNodeChat(user.currentNode);
+                // Subscribe to global chat channel
+                await socketService.subscribeToGlobalChat();
                 
                 // Only send connection message if this is not a session restoration
                 if (!isRestoring) {

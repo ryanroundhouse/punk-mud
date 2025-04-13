@@ -142,6 +142,48 @@ class SocketService {
     }
 
     /**
+     * Subscribe to the global chat channel
+     * @returns {Promise<void>}
+     */
+    async subscribeToGlobalChat() {
+        const channel = 'global:chat';
+        
+        // Only subscribe if we haven't already
+        if (!this.subscribedNodes.has(channel)) {
+            const subscriber = this.getSubscriber();
+            
+            await subscriber.subscribe(channel, (message) => {
+                try {
+                    const chatMessage = JSON.parse(message);
+                    // Emit to all connected clients using the stateService clients Map
+                    for (const [userId, userSocket] of this.stateService.clients) {
+                        if (userSocket) {
+                            userSocket.emit('global chat', chatMessage);
+                        }
+                    }
+                } catch (error) {
+                    this.logger.error('Error broadcasting global chat message:', error);
+                }
+            });
+
+            this.subscribedNodes.add(channel);
+            this.logger.info('Subscribed to global chat channel');
+        }
+    }
+
+    /**
+     * Unsubscribe from the global chat channel
+     * @returns {Promise<void>}
+     */
+    async unsubscribeFromGlobalChat() {
+        const channel = 'global:chat';
+        const subscriber = this.getSubscriber();
+        await subscriber.unsubscribe(channel);
+        this.subscribedNodes.delete(channel);
+        this.logger.info('Unsubscribed from global chat channel');
+    }
+
+    /**
      * Check if we're subscribed to a node's chat channel
      * @param {string} nodeAddress - The address of the node
      * @returns {boolean} Whether we're subscribed
@@ -160,7 +202,7 @@ class SocketService {
             nodeUsers.forEach(receiverId => {
                 const socket = this.stateService.getClient(receiverId);
                 if (socket) {
-                    socket.emit('chat message', {
+                    socket.emit('system message', {
                         username: 'SYSTEM',
                         message: `${username} has connected.`,
                         timestamp: new Date().toISOString()
@@ -202,7 +244,7 @@ class SocketService {
                         message: `${username} has disconnected.`,
                         timestamp: new Date().toISOString()
                     };
-                    socket.emit('chat message', message);
+                    socket.emit('system message', message);
                     this.logger.debug('Sent disconnect message:', { 
                         receiverId, 
                         socketId: socket.id,

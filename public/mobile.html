@@ -112,6 +112,9 @@
         .menu-container {
             position: relative;
             margin-left: 0.5rem;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
         }
 
         .hamburger-button {
@@ -142,6 +145,72 @@
 
         .hamburger-button:hover span {
             box-shadow: 0 0 5px var(--neon-pink);
+        }
+
+        .chat-button {
+            background: transparent;
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            padding: 0.2rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            cursor: pointer;
+            width: 1.8rem;
+            height: 1.8rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-right: 0.5rem;
+            position: relative;
+        }
+
+        .chat-button:hover {
+            box-shadow: 0 0 5px var(--neon-blue);
+        }
+
+        .chat-icon::before {
+            content: "";
+            display: block;
+            width: 0.8rem;
+            height: 0.8rem;
+            background: transparent;
+            border: 2px solid var(--neon-blue);
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            position: absolute;
+            top: calc(50% - 0.5rem);
+            left: calc(50% - 0.5rem);
+        }
+
+        .chat-icon::after {
+            content: "";
+            display: block;
+            width: 0.25rem;
+            height: 0.25rem;
+            background: var(--neon-blue);
+            border-radius: 50%;
+            position: absolute;
+            top: calc(50% - 0.1rem);
+            left: calc(50% - 0.1rem);
+            box-shadow: 0 0 3px var(--neon-blue);
+        }
+
+        .notification-dot {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 10px;
+            height: 10px;
+            background-color: var(--neon-red);
+            border-radius: 50%;
+            box-shadow: 0 0 5px var(--neon-red);
+            display: none;
+        }
+
+        .notification-dot.show {
+            display: block;
+            animation: pulse 1.5s infinite;
         }
 
         .menu-dropdown {
@@ -499,11 +568,217 @@
             100% { transform: translateY(4px); } /* Increased bounce movement */
         }
 
+        /* Chat container styles */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 97dvh;
+            height: calc(var(--vh, 1vh) * 97);
+            width: 100%;
+            position: relative;
+            margin-top: 3dvh;
+            margin-top: calc(var(--vh, 1vh) * 3);
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            background: rgba(10, 10, 15, 0.95);
+        }
+
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.8rem;
+            border-bottom: 2px solid var(--neon-blue);
+            background: rgba(0, 255, 249, 0.1);
+        }
+
+        .chat-title {
+            color: var(--neon-blue);
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-shadow: 0 0 5px var(--neon-blue);
+        }
+
+        .chat-back-button {
+            background: transparent;
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            padding: 0.2rem;
+            border-radius: 5px;
+            width: 2rem;
+            height: 2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .chat-back-button:hover {
+            box-shadow: 0 0 5px var(--neon-blue);
+        }
+
+        .back-icon::before {
+            content: "←";
+            font-size: 1.2rem;
+            color: var(--neon-blue);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .system-message {
+            color: var(--neon-yellow);
+            font-style: italic;
+            padding: 0.5rem;
+            border-radius: 5px;
+            background: rgba(255, 255, 0, 0.05);
+            align-self: center;
+            max-width: 80%;
+            text-align: center;
+        }
+
+        .chat-message {
+            display: flex;
+            flex-direction: column;
+            max-width: 80%;
+            padding: 0.5rem;
+            border-radius: 5px;
+            word-break: break-word;
+        }
+
+        .chat-message.own {
+            align-self: flex-end;
+            background: rgba(255, 46, 136, 0.1);
+            border: 1px solid var(--neon-pink);
+        }
+
+        .chat-message.other {
+            align-self: flex-start;
+            background: rgba(0, 255, 249, 0.1);
+            border: 1px solid var(--neon-blue);
+        }
+
+        .chat-sender {
+            font-weight: bold;
+            font-size: 0.8rem;
+            margin-bottom: 0.2rem;
+        }
+
+        .chat-message.own .chat-sender {
+            color: var(--neon-pink);
+        }
+
+        .chat-message.other .chat-sender {
+            color: var(--neon-blue);
+        }
+
+        .chat-content {
+            color: var(--terminal-green);
+        }
+
+        .chat-time {
+            align-self: flex-end;
+            font-size: 0.7rem;
+            opacity: 0.7;
+            margin-top: 0.2rem;
+        }
+
+        .chat-input-area {
+            display: flex;
+            padding: 1rem;
+            gap: 0.5rem;
+            border-top: 1px solid var(--neon-blue);
+            background: rgba(0, 255, 249, 0.05);
+        }
+
+        .chat-input {
+            flex: 1;
+            background: rgba(10, 10, 15, 0.8);
+            color: var(--terminal-green);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 0.7rem;
+            font-family: 'Courier New', monospace;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            box-shadow: 0 0 5px var(--neon-blue);
+        }
+
+        .chat-send-button {
+            background: rgba(0, 255, 249, 0.1);
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            padding: 0 1rem;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .chat-send-button:hover {
+            background: rgba(0, 255, 249, 0.2);
+            box-shadow: 0 0 5px var(--neon-blue);
+        }
+
+        /* Toast notifications for global chat */
+        .toast-container {
+            position: fixed;
+            top: calc(3dvh + 10px);
+            top: calc(var(--vh, 1vh) * 3 + 10px);
+            right: 10px;
+            max-width: 250px;
+            z-index: 110;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+            pointer-events: none;
+        }
+
+        .toast-notification {
+            background: rgba(10, 10, 15, 0.9);
+            border-left: 3px solid var(--neon-blue);
+            padding: 8px 12px;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            font-size: 0.8rem;
+            max-width: 100%;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+        }
+
+        .toast-notification.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast-notification .toast-sender {
+            color: var(--neon-blue);
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .toast-notification .toast-message {
+            color: var(--terminal-green);
+        }
+
         @supports (height: 1dvh) {
             .status-bar {
                 height: 3dvh;
             }
-            .mobile-container {
+            .mobile-container,
+            .chat-container {
                 height: 97dvh;
                 margin-top: 3dvh;
             }
@@ -552,6 +827,10 @@
             </div>
         </div>
         <div class="menu-container">
+            <button class="chat-button" id="chatButton">
+                <span class="chat-icon"></span>
+                <span class="notification-dot"></span>
+            </button>
             <button class="hamburger-button" id="menuButton">
                 <span></span>
                 <span></span>
@@ -562,6 +841,9 @@
             </div>
         </div>
     </div>
+    
+    <!-- Toast container for global chat notifications -->
+    <div class="toast-container" id="toastContainer"></div>
     
     <div class="mobile-container">
         <div class="scrollable-content">
@@ -610,6 +892,24 @@
         </div>
     </div>
 
+    <div class="chat-container" style="display: none;">
+        <div class="chat-header">
+            <div class="chat-title">GLOBAL CHAT</div>
+            <button class="chat-back-button" id="chatBackButton">
+                <span class="back-icon"></span>
+            </button>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+            <!-- Chat messages will appear here -->
+            <div class="system-message">Welcome to PUNK MUD Global Chat!</div>
+            <div class="system-message">Connect with other players in real-time.</div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" class="chat-input" id="chatInput" placeholder="Type your message..." maxlength="100">
+            <button class="chat-send-button" id="chatSendButton">SEND</button>
+        </div>
+    </div>
+
     <!-- Add socket.io client library before the script tag -->
     <script src="/socket.io/socket.io.js"></script>
 
@@ -618,8 +918,71 @@
         let currentNode = null;
         let currentUsername = null;
         let inEvent = false;
+        let unreadMessages = 0;
         const TERMINAL_HISTORY_KEY_PREFIX = 'terminalHistory_';
         const MAX_TERMINAL_HISTORY = 20;
+        const CHAT_HISTORY_KEY = 'global_chat_history';
+        const MAX_CHAT_HISTORY = 50;
+
+        // Function to display chat message
+        function displayChatMessage(message, sender, isOwnMessage = false) {
+            const chatMessages = document.getElementById('chatMessages');
+            
+            // Create message container
+            const msgContainer = document.createElement('div');
+            msgContainer.className = isOwnMessage ? 'chat-message own' : 'chat-message other';
+            
+            // Create sender element
+            const senderElement = document.createElement('div');
+            senderElement.className = 'chat-sender';
+            senderElement.textContent = sender;
+            
+            // Create content element
+            const contentElement = document.createElement('div');
+            contentElement.className = 'chat-content';
+            contentElement.textContent = message;
+            
+            // Create time element
+            const timeElement = document.createElement('div');
+            timeElement.className = 'chat-time';
+            const now = new Date();
+            timeElement.textContent = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+            
+            // Assemble message
+            msgContainer.appendChild(senderElement);
+            msgContainer.appendChild(contentElement);
+            msgContainer.appendChild(timeElement);
+            
+            // Add to chat container
+            chatMessages.appendChild(msgContainer);
+            
+            // Save to localStorage
+            saveChatMessage(message, sender, isOwnMessage, now.toISOString());
+            
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // Function to send chat message
+        function sendChatMessage() {
+            const chatInput = document.getElementById('chatInput');
+            const message = chatInput.value.trim();
+            
+            if (message) {
+                // Display message locally in chat UI
+                displayChatMessage(message, currentUsername || 'You', true);
+                
+                // Also show toast notification for your own message
+                showToast(currentUsername || 'You', message);
+                
+                // Clear input field
+                chatInput.value = '';
+                
+                // Use emitSocketCommand to send the message to the server as a global chat
+                // This will be redistributed as a 'global chat' event to all connected clients
+                emitSocketCommand('chat message', message);
+            }
+        }
 
         // Helper function for socket emissions
         function emitSocketCommand(eventName, data) {
@@ -640,7 +1003,12 @@
                 timestamp: new Date().toISOString()
             });
 
-            socket.emit(eventName, data);
+            // Handle 'chat message' event differently - pass the string directly
+            if (eventName === 'chat message') {
+                socket.emit(eventName, data);
+            } else {
+                socket.emit(eventName, data);
+            }
         }
 
         // Function to request node data via WebSocket
@@ -786,7 +1154,7 @@
             const token = localStorage.getItem('token');
             const existingSocketId = localStorage.getItem('socketId');
             
-            console.log('⚡ Initializing socket connection:', {
+            console.log('⚡ SOCKET INIT - Initializing socket connection:', {
                 hasToken: !!token,
                 existingSocketId: existingSocketId || 'none',
                 timestamp: new Date().toISOString()
@@ -806,7 +1174,7 @@
             });
 
             socket.on('connect', () => {
-                console.log('✅ Socket connected:', {
+                console.log('✅ SOCKET CONNECT - Connected:', {
                     socketId: socket.id,
                     previousId: existingSocketId,
                     timestamp: new Date().toISOString(),
@@ -824,7 +1192,7 @@
                 // This ensures the server has fully established the session
                 const initialSetup = (eventName, ...args) => {
                     if (eventName === 'users update') {
-                        console.log('👥 Received initial users update, session ready');
+                        console.log('👥 SOCKET READY - Received initial users update, session ready');
                         // Remove this one-time listener
                         socket.offAny(initialSetup);
                         // Now request node data
@@ -833,6 +1201,79 @@
                 };
                 
                 socket.onAny(initialSetup);
+            });
+
+            // Create a unique ID for this socket instance to track duplicate handlers
+            const socketInstanceId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+            console.log(`🔄 SOCKET HANDLERS - Setting up event handlers for instance ${socketInstanceId}`);
+            
+            // Keep track of all global messages for debugging
+            const globalMsgTracker = {};
+
+            socket.on('chat message', (data) => {
+                console.log('Received chat message:', data);
+                
+                // Don't display our own messages again (they're already shown when sent)
+                if (data.username === currentUsername) {
+                    return;
+                }
+                
+                // Only show node chat messages in game console, not in chat UI
+                if (data.username && data.message) {
+                    addConsoleMessage(`${data.username}: ${data.message}`, 'chat');
+                }
+            });
+
+            socket.on('global chat', (data) => {
+                // Generate a unique ID for this message
+                const msgId = `${data.username}_${Date.now()}`;
+                
+                // Check if we've already seen this message
+                if (globalMsgTracker[msgId]) {
+                    console.warn(`⚠️ DUPLICATE - Message already processed [${socketInstanceId}]`, data);
+                    return;
+                }
+                
+                // Mark message as seen with timestamp
+                globalMsgTracker[msgId] = new Date().toISOString();
+                
+                // Clean up old entries
+                const now = Date.now();
+                Object.keys(globalMsgTracker).forEach(key => {
+                    const timestamp = new Date(globalMsgTracker[key]).getTime();
+                    if (now - timestamp > 10000) { // Remove entries older than 10 seconds
+                        delete globalMsgTracker[key];
+                    }
+                });
+                
+                console.log(`🌐 GLOBAL CHAT [${socketInstanceId}] - Received message:`, {
+                    data,
+                    msgId,
+                    socketId: socket.id,
+                    handlerInstance: socketInstanceId
+                });
+                
+                // Don't display our own messages again (they're already shown when sent)
+                if (data.username === currentUsername) {
+                    return;
+                }
+                
+                // Always display global chat messages in the chat UI
+                displayChatMessage(data.message, data.username, false);
+                
+                // If chat view is currently visible, reload chat history to ensure it's up to date
+                const chatContainer = document.querySelector('.chat-container');
+                if (chatContainer.style.display === 'flex') {
+                    // We're in the chat view, reload history
+                    loadChatHistory();
+                } else {
+                    // Show toast notification instead of console message when in game view
+                    showToast(data.username, data.message);
+                    
+                    // Increment unread messages counter
+                    unreadMessages++;
+                    updateNotificationDot();
+                }
             });
 
             socket.on('connect_error', (error) => {
@@ -1281,6 +1722,41 @@
                 
                 // Add a visual separator for death
                 addConsoleMessage('*** YOU HAVE DIED ***', 'death');
+            });
+
+            socket.on('reconnect', (attemptNumber) => {
+                console.log(`🔄 SOCKET RECONNECT - Reconnected after ${attemptNumber} attempts`, {
+                    socketId: socket.id,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // Store the new socket ID
+                localStorage.setItem('socketId', socket.id);
+            });
+            
+            socket.on('reconnect_attempt', (attemptNumber) => {
+                console.log(`⏳ SOCKET RECONNECT - Attempt #${attemptNumber}`, {
+                    timestamp: new Date().toISOString()
+                });
+            });
+            
+            socket.on('disconnect', (reason) => {
+                console.log('❌ Socket disconnected:', {
+                    reason: reason,
+                    socketId: socket.id,
+                    timestamp: new Date().toISOString(),
+                    state: {
+                        connected: socket.connected,
+                        disconnected: socket.disconnected,
+                        connecting: socket.connecting
+                    }
+                });
+                addConsoleMessage('Disconnected from server.', 'error');
+                
+                if (reason === 'io server disconnect') {
+                    localStorage.removeItem('socketId');
+                    socket.connect();
+                }
             });
         }
 
@@ -1882,13 +2358,33 @@
                 window.location.href = '/';
             });
             
-            // Set up node image for actor info
-            document.getElementById('nodeImage').addEventListener('click', function() {
-                // Remove click handler since we don't want any action on image click
+            // Chat button - opens a global chat interface
+            document.getElementById('chatButton').addEventListener('click', function() {
+                document.querySelector('.mobile-container').style.display = 'none';
+                document.querySelector('.chat-container').style.display = 'flex';
+                
+                // Load chat history from localStorage
+                loadChatHistory();
+                
+                // Mark messages as read when entering chat view
+                markMessagesAsRead();
             });
             
-            // Create global reference for updating scroll indicators
-            window.updateScrollIndicator = null;
+            // Chat back button
+            document.getElementById('chatBackButton').addEventListener('click', function() {
+                document.querySelector('.chat-container').style.display = 'none';
+                document.querySelector('.mobile-container').style.display = 'flex';
+            });
+            
+            // Chat send button
+            document.getElementById('chatSendButton').addEventListener('click', sendChatMessage);
+            
+            // Allow pressing Enter to send chat message
+            document.getElementById('chatInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendChatMessage();
+                }
+            });
         }
 
         // Function to check if user is in an event when the page loads
@@ -2076,8 +2572,59 @@
                     console.error('Error parsing token:', e);
                 }
 
+                // Initialize unread message counter and notification dot
+                unreadMessages = 0;
+                updateNotificationDot();
+
+                // Load any saved chat messages to check for unread messages
+                try {
+                    const chatHistory = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '[]');
+                    if (chatHistory.length > 0) {
+                        console.log(`📜 Loaded ${chatHistory.length} saved chat messages`);
+                        
+                        // Check if there are messages newer than the last login
+                        const lastLogin = localStorage.getItem('lastLogin');
+                        if (lastLogin) {
+                            const lastLoginTime = new Date(lastLogin).getTime();
+                            // Count messages received since last login
+                            const newMessages = chatHistory.filter(msg => 
+                                !msg.isOwnMessage && new Date(msg.timestamp).getTime() > lastLoginTime
+                            );
+                            if (newMessages.length > 0) {
+                                unreadMessages = newMessages.length;
+                                updateNotificationDot();
+                                console.log(`📬 Found ${newMessages.length} unread messages since last login`);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error loading chat history:', e);
+                }
+                
+                // Update last login time
+                localStorage.setItem('lastLogin', new Date().toISOString());
+
                 // Set up event listeners
                 setupEventListeners();
+                
+                // Check for existing handlers to prevent duplicates
+                console.log('🔍 DEBUG - Checking for existing socket handlers before initialization');
+                if (socket) {
+                    console.log('🔄 DEBUG - Socket exists, cleaning up before reinitialization', {
+                        socketId: socket.id,
+                        connected: socket.connected,
+                        hasListeners: socket.hasListeners?.('global chat') || 'unknown'
+                    });
+                    
+                    // Try to remove existing handlers
+                    socket.off('global chat');
+                    socket.off('chat message');
+                    
+                    // If socket is disconnected, try reconnecting
+                    if (!socket.connected) {
+                        console.log('🔌 DEBUG - Existing socket disconnected, will create new connection');
+                    }
+                }
                 
                 // Initialize socket connection
                 initializeSocket();
@@ -2087,6 +2634,32 @@
                 
                 // Set up scroll indicators
                 const updateScrollIndicator = setupScrollIndicators();
+                
+                // Remove duplicate event handler by commenting out this code
+                /*
+                // Add the global chat message handler with notification functionality
+                socket.on('global chat', (data) => {
+                    console.log('Received global chat message:', data);
+                    
+                    // Don't display our own messages again (they're already shown when sent)
+                    if (data.username === currentUsername) {
+                        return;
+                    }
+                    
+                    // Always display global chat messages in the chat UI
+                    displayChatMessage(data.message, data.username, false);
+                    
+                    // Show toast notification instead of console message
+                    showToast(data.username, data.message);
+                    
+                    // Increment unread messages counter if not in chat view
+                    const chatContainer = document.querySelector('.chat-container');
+                    if (chatContainer.style.display === 'none') {
+                        unreadMessages++;
+                        updateNotificationDot();
+                    }
+                });
+                */
                 
                 // Override addConsoleMessage to update scroll indicator after adding messages
                 const originalAddConsoleMessage = addConsoleMessage;
@@ -2367,6 +2940,143 @@
             showControlPanel('other');
             
             addConsoleMessage("Select an option:", "default");
+        }
+
+        // Function to display toast notification for global chat
+        function showToast(sender, message) {
+            // Only show toast when in game view (mobile container), not in chat view
+            const mobileContainer = document.querySelector('.mobile-container');
+            if (mobileContainer.style.display === 'none') {
+                // Don't show toast in chat view
+                return;
+            }
+            
+            // Get toast container
+            const toastContainer = document.getElementById('toastContainer');
+            
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            
+            // Truncate message if longer than 25 characters
+            let displayMessage = message;
+            if (message.length > 25) {
+                displayMessage = message.substring(0, 25) + '...';
+            }
+            
+            // Add content
+            toast.innerHTML = `
+                <span class="toast-sender">${sender}:</span>
+                <span class="toast-message">${displayMessage}</span>
+            `;
+            
+            // Add to container
+            toastContainer.appendChild(toast);
+            
+            // Trigger animation after a small delay to ensure it gets applied
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                // Remove element after fade out
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 3000);
+        }
+
+        // Function to update notification dot
+        function updateNotificationDot() {
+            const notificationDot = document.querySelector('.notification-dot');
+            if (unreadMessages > 0) {
+                notificationDot.classList.add('show');
+            } else {
+                notificationDot.classList.remove('show');
+            }
+        }
+        
+        // Function to mark messages as read
+        function markMessagesAsRead() {
+            unreadMessages = 0;
+            updateNotificationDot();
+        }
+
+        // Function to save chat message to localStorage
+        function saveChatMessage(message, sender, isOwnMessage, timestamp) {
+            // Get existing chat history
+            let chatHistory = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '[]');
+            
+            // Add new message
+            chatHistory.push({
+                message,
+                sender,
+                isOwnMessage,
+                timestamp: timestamp || new Date().toISOString()
+            });
+            
+            // Limit to MAX_CHAT_HISTORY entries
+            if (chatHistory.length > MAX_CHAT_HISTORY) {
+                chatHistory = chatHistory.slice(chatHistory.length - MAX_CHAT_HISTORY);
+            }
+            
+            // Save back to localStorage
+            localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(chatHistory));
+        }
+        
+        // Function to load chat history from localStorage
+        function loadChatHistory() {
+            // Get chat history from localStorage
+            const chatHistory = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '[]');
+            
+            // Clear existing messages
+            const chatMessages = document.getElementById('chatMessages');
+            
+            // Keep system messages (first two children)
+            const systemMessages = [];
+            if (chatMessages.children.length > 0) {
+                for (let i = 0; i < Math.min(2, chatMessages.children.length); i++) {
+                    if (chatMessages.children[i].classList.contains('system-message')) {
+                        systemMessages.push(chatMessages.children[i].cloneNode(true));
+                    }
+                }
+            }
+            
+            // Clear the container
+            chatMessages.innerHTML = '';
+            
+            // Add back system messages
+            systemMessages.forEach(msg => chatMessages.appendChild(msg));
+            
+            // Add each message from history
+            chatHistory.forEach(item => {
+                const msgContainer = document.createElement('div');
+                msgContainer.className = item.isOwnMessage ? 'chat-message own' : 'chat-message other';
+                
+                const senderElement = document.createElement('div');
+                senderElement.className = 'chat-sender';
+                senderElement.textContent = item.sender;
+                
+                const contentElement = document.createElement('div');
+                contentElement.className = 'chat-content';
+                contentElement.textContent = item.message;
+                
+                const timeElement = document.createElement('div');
+                timeElement.className = 'chat-time';
+                const messageDate = new Date(item.timestamp);
+                timeElement.textContent = `${messageDate.getHours().toString().padStart(2, '0')}:${messageDate.getMinutes().toString().padStart(2, '0')}`;
+                
+                msgContainer.appendChild(senderElement);
+                msgContainer.appendChild(contentElement);
+                msgContainer.appendChild(timeElement);
+                
+                chatMessages.appendChild(msgContainer);
+            });
+            
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     </script>
 </body>

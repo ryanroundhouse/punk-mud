@@ -43,7 +43,21 @@ async function publishChatMessage(nodeAddress, message) {
     }
 }
 
+async function publishGlobalChatMessage(message) {
+    try {
+        const redisClient = getClient();
+        await redisClient.publish(
+            'global:chat',
+            JSON.stringify(message)
+        );
+    } catch (error) {
+        logger.error('Error publishing global chat message:', error);
+        throw error;
+    }
+}
+
 module.exports = {
     publishSystemMessage,
-    publishChatMessage
+    publishChatMessage,
+    publishGlobalChatMessage
 }; 
