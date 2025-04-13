@@ -5,7 +5,7 @@ const mobService = require('./mobService');
 const nodeService = require('./nodeService');
 const socketService = require('./socketService');
 const userService = require('./userService');
-const { publishSystemMessage } = require('./systemMessageService');
+const { publishSystemMessage, publishCombatSystemMessage } = require('./systemMessageService');
 const questService = require('./questService');
 const Move = require('../models/Move');
 const messageService = require('./messageService');
@@ -23,6 +23,7 @@ class CombatService {
         this.Move = deps.Move || Move;
         this.messageService = deps.messageService || messageService;
         this.publishSystemMessage = deps.publishSystemMessage || publishSystemMessage;
+        this.publishCombatSystemMessage = deps.publishCombatSystemMessage || publishCombatSystemMessage;
         
         // For testing purposes
         this._mockRandomValues = null;
@@ -656,12 +657,12 @@ class CombatService {
             }
             
             // Announce victory to the room
-            publishSystemMessage(
+            publishCombatSystemMessage(
                 user.currentNode,
                 {
-                    message: `${user.avatarName} has defeated ${mobInstance.name}!`,
-                    type: 'system'
-                }
+                    message: `${user.avatarName} has defeated ${mobInstance.name}!`
+                },
+                user
             );
             return;
         } else if (user.stats.currentHitpoints <= 0) {
@@ -790,12 +791,12 @@ class CombatService {
                     mobInstance.image
                 );
     
-                this.publishSystemMessage(
+                this.publishCombatSystemMessage(
                     oldNode,
                     {
-                        message: `${user.avatarName} flees from combat with ${mobInstance.name}!`,
-                        type: 'system'
-                    }
+                        message: `${user.avatarName} flees from combat with ${mobInstance.name}!`
+                    },
+                    user
                 );
             } else {
                 this.messageService.sendCombatMessage(
@@ -842,12 +843,12 @@ class CombatService {
             mobInstance.image
         );
 
-        this.publishSystemMessage(
+        this.publishCombatSystemMessage(
             user.currentNode,
             {
-                message: `${user.avatarName} engages in combat with ${mobInstance.name}!`,
-                type: 'system'
-            }
+                message: `${user.avatarName} engages in combat with ${mobInstance.name}!`
+            },
+            user
         );
     }
     

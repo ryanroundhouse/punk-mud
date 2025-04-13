@@ -917,6 +917,7 @@
         let socket;
         let currentNode = null;
         let currentUsername = null;
+        let currentUserId = null;
         let inEvent = false;
         let unreadMessages = 0;
         const TERMINAL_HISTORY_KEY_PREFIX = 'terminalHistory_';
@@ -1827,6 +1828,18 @@
                     // Display message in console
                     addConsoleMessage(data.message, 'system');
                 }
+                else if (data.type === 'system combat result') {
+                    // Handle combat system message
+                    console.log(`⚔️ Combat result:`, data);
+                    
+                    // Only display message in console if it's not about the current user
+                    // This way other players see combat events but the current user doesn't get duplicate messages
+                    if (!data.user || data.user.id !== currentUserId) {
+                        addConsoleMessage(data.message, 'system');
+                    } else {
+                        console.log(`Skipping display of combat message for current user: ${data.message}`);
+                    }
+                }
                 else {
                     // Handle other system messages
                     addConsoleMessage(data.message, 'system');
@@ -2668,6 +2681,8 @@
                     if (tokenParts.length === 3) {
                         const payload = JSON.parse(atob(tokenParts[1]));
                         currentUsername = payload.avatarName;
+                        currentUserId = payload.userId;
+                        console.log(`Authenticated as: ${currentUsername} (ID: ${currentUserId})`);
                     }
                 } catch (e) {
                     console.error('Error parsing token:', e);
