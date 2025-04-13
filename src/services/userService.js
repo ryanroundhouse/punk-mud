@@ -274,7 +274,7 @@ flee.............Attempt to escape combat
                         this.messageService.sendSuccessMessage(
                             userId,
                             `Congratulations! You have reached level ${updatedUser.stats.level}!\n` +
-                            `All your stats have increased by 1!\n` +
+                            `Your stats have increased!\n` +
                             `Your maximum health is now ${updatedUser.stats.hitpoints} points.`
                         );
                         
@@ -503,7 +503,7 @@ flee.............Attempt to escape combat
             await this.stateService.addUserToNodeAndUpdateUsernames(userId, targetNode.address);
 
             // Send movement messages
-            await this.publishSystemMessage(oldNode, `${user.avatarName} has left.`);
+            await this.publishSystemMessage(oldNode.address, `${user.avatarName} has left.`);
             await this.publishSystemMessage(
                 targetNode.address,
                 `${user.avatarName} has arrived.`,
