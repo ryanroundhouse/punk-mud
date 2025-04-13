@@ -227,7 +227,13 @@ const createMockDependencies = (overrides = {}) => {
             getQuestNodeActorOverrides: jest.fn(),
             handleQuestProgression: jest.fn()
         },
-        publishSystemMessage: jest.fn().mockResolvedValue(true),
+        publishSystemMessage: jest.fn().mockImplementation((nodeAddress, messageData) => {
+            return Promise.resolve(true);
+        }),
+        systemMessageService: {
+            publishSystemMessage: jest.fn().mockResolvedValue(true),
+            publishUserMoveSystemMessage: jest.fn().mockResolvedValue(true)
+        },
         emailService: createMockEmailService(),
         ...overrides
     };

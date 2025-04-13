@@ -554,13 +554,14 @@ describe('UserService', () => {
             expect(mockDeps.stateService.removeUserFromNodeAndUpdateUsernames).toHaveBeenCalledWith('user123', 'oldNode123');
             expect(mockDeps.stateService.addUserToNodeAndUpdateUsernames).toHaveBeenCalledWith('user123', 'newNode456');
             
-            // Check messages were published
-            expect(mockDeps.publishSystemMessage).toHaveBeenCalledWith('oldNode123', 'TestUser has left.');
-            expect(mockDeps.publishSystemMessage).toHaveBeenCalledWith(
+            // Check movement messages were published
+            expect(mockDeps.systemMessageService.publishUserMoveSystemMessage).toHaveBeenCalledWith(
+                'oldNode123',
                 'newNode456',
-                'TestUser has arrived.',
-                'You have entered New Test Node.',
-                'user123'
+                expect.objectContaining({
+                    _id: 'user123',
+                    avatarName: 'TestUser'
+                })
             );
             
             // Check mob was cleared

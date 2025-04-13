@@ -4,6 +4,7 @@ const stateService = require('../services/stateService');
 const socketService = require('../services/socketService');
 const userService = require('../services/userService');
 const chatService = require('../services/chatService');
+const systemMessageService = require('../services/systemMessageService');
 const combatService = require('../services/combatService');
 const actorService = require('../services/actorService');
 const questService = require('../services/questService');
@@ -798,7 +799,10 @@ async function handleFightCommand(user, target) {
     });
 
     // Publish system message to the node
-    chatService.publishSystemMessage(user.currentNode, `${user.avatarName} engages in combat with ${mobInstance.name}!`);
+    systemMessageService.publishSystemMessage(user.currentNode, {
+        message: `${user.avatarName} engages in combat with ${mobInstance.name}!`,
+        type: 'system'
+    });
 
     // Get and send the moves list immediately after entering combat
     const moves = await userService.getUserMoves(user._id.toString());

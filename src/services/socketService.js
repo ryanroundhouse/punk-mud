@@ -226,32 +226,6 @@ class SocketService {
                 userCount: nodeUsers?.size,
                 users: nodeUsers ? Array.from(nodeUsers) : []
             });
-            
-            if (!nodeUsers) return;
-
-            // Broadcast disconnection message to all users in the node
-            nodeUsers.forEach(receiverId => {
-                const socket = this.stateService.getClient(receiverId);
-                this.logger.debug('Attempting to send disconnect message to user:', {
-                    receiverId,
-                    hasSocket: !!socket,
-                    socketId: socket?.id
-                });
-                
-                if (socket) {
-                    const message = {
-                        username: 'SYSTEM',
-                        message: `${username} has disconnected.`,
-                        timestamp: new Date().toISOString()
-                    };
-                    socket.emit('system message', message);
-                    this.logger.debug('Sent disconnect message:', { 
-                        receiverId, 
-                        socketId: socket.id,
-                        message 
-                    });
-                }
-            });
         } catch (error) {
             this.logger.error('Error handling user disconnection:', error);
         }

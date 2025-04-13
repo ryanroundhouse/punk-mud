@@ -2,29 +2,6 @@ const { getClient } = require('../config/redis');
 const logger = require('../config/logger');
 const stateService = require('./stateService');
 
-async function publishSystemMessage(nodeAddress, message, personalMessage, userId) {
-    const baseMessage = {
-        username: 'SYSTEM',
-        timestamp: new Date(),
-        type: 'system'
-    };
-
-    const nodeUsers = stateService.nodeClients.get(nodeAddress);
-    if (nodeUsers) {
-        nodeUsers.forEach(targetUserId => {
-            const userSocket = stateService.getClient(targetUserId);
-            if (userSocket) {
-                if (targetUserId !== userId && personalMessage) {
-                    userSocket.emit('system message', {
-                        ...baseMessage,
-                        message: message
-                    });
-                }
-            }
-        });
-    }
-}
-
 async function publishChatMessage(nodeAddress, message) {
     try {
         const redisClient = getClient();
@@ -52,7 +29,6 @@ async function publishGlobalChatMessage(message) {
 }
 
 module.exports = {
-    publishSystemMessage,
     publishChatMessage,
     publishGlobalChatMessage
 }; 

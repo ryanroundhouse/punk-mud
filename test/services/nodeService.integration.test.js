@@ -26,6 +26,7 @@ describe('NodeService Integration Tests', () => {
   let mockEventService;
   let mockMessageService;
   let mockChatService;
+  let mockSystemMessageService;
   let testUser;
   let startNode;
   let targetNode;
@@ -184,6 +185,11 @@ describe('NodeService Integration Tests', () => {
       publishSystemMessage: jest.fn()
     };
     
+    // Mock systemMessageService
+    mockSystemMessageService = {
+      publishSystemMessage: jest.fn()
+    };
+    
     // Create a controlled random generator for testing
     const mockRandomGenerator = jest.fn().mockReturnValue(0.5);
     
@@ -198,6 +204,7 @@ describe('NodeService Integration Tests', () => {
       eventService: mockEventService,
       messageService: mockMessageService,
       chatService: mockChatService,
+      systemMessageService: mockSystemMessageService,
       randomGenerator: mockRandomGenerator
     });
   });

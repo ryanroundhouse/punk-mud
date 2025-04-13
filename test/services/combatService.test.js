@@ -804,7 +804,10 @@ describe('CombatService', () => {
       // Should announce to the room using publishSystemMessage instead of sendConsoleResponse
       expect(mockDeps.publishSystemMessage).toHaveBeenCalledWith(
         'node1',
-        expect.stringContaining('engages in combat with Test Mob')
+        expect.objectContaining({
+          message: expect.stringContaining('engages in combat with Test Mob'),
+          type: 'system'
+        })
       );
     });
   });

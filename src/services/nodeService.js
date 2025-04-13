@@ -304,12 +304,6 @@ class NodeService {
                         });
                         this.stateService.playerMobs.set(userId, mobInstance);
                         result.mobSpawn = mobInstance;
-                        await this.chatService.publishSystemMessage(
-                            nodeAddress,
-                            `A ${mobInstance.name} appears!`,
-                            `A ${mobInstance.name} appears!`,
-                            userId
-                        );
                     }
                 } else if (selectedEvent.eventId) {
                     // Handle story event

@@ -5,7 +5,7 @@ const mobService = require('./mobService');
 const nodeService = require('./nodeService');
 const socketService = require('./socketService');
 const userService = require('./userService');
-const { publishSystemMessage } = require('./chatService');
+const { publishSystemMessage } = require('./systemMessageService');
 const questService = require('./questService');
 const Move = require('../models/Move');
 const messageService = require('./messageService');
@@ -658,7 +658,10 @@ class CombatService {
             // Announce victory to the room
             publishSystemMessage(
                 user.currentNode,
-                `${user.avatarName} has defeated ${mobInstance.name}!`
+                {
+                    message: `${user.avatarName} has defeated ${mobInstance.name}!`,
+                    type: 'system'
+                }
             );
             return;
         } else if (user.stats.currentHitpoints <= 0) {
@@ -789,7 +792,10 @@ class CombatService {
     
                 this.publishSystemMessage(
                     oldNode,
-                    `${user.avatarName} flees from combat with ${mobInstance.name}!`
+                    {
+                        message: `${user.avatarName} flees from combat with ${mobInstance.name}!`,
+                        type: 'system'
+                    }
                 );
             } else {
                 this.messageService.sendCombatMessage(
@@ -838,7 +844,10 @@ class CombatService {
 
         this.publishSystemMessage(
             user.currentNode,
-            `${user.avatarName} engages in combat with ${mobInstance.name}!`
+            {
+                message: `${user.avatarName} engages in combat with ${mobInstance.name}!`,
+                type: 'system'
+            }
         );
     }
     

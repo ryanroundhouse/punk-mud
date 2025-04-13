@@ -4,7 +4,7 @@ const logger = require('../config/logger');
 const nodeService = require('../services/nodeService');
 const stateService = require('../services/stateService');
 const socketService = require('../services/socketService');
-const { publishSystemMessage } = require('../services/chatService');
+const { publishSystemMessage } = require('../services/systemMessageService');
 const mongoose = require('mongoose');
 const questService = require('../services/questService');
 

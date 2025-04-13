@@ -1035,6 +1035,11 @@
             currentNode.actors = nodeData.actors || [];
             currentNode.enemies = nodeData.enemies || [];
             currentNode.items = nodeData.items || [];
+            
+            // Initialize users list if not present
+            if (!currentNode.users) {
+                currentNode.users = [];
+            }
 
             // Determine which control panel to show based on node state
             // Only change the control panel if we're not suppressing display updates
@@ -1201,6 +1206,12 @@
                 };
                 
                 socket.onAny(initialSetup);
+                
+                // Confirm system message handler is set up
+                console.log('🔄 Setting up system message handler on socket connection', {
+                    socketId: socket.id,
+                    hasSystemMessageHandler: typeof socket._callbacks['$system message'] !== 'undefined'
+                });
             });
 
             // Create a unique ID for this socket instance to track duplicate handlers
@@ -1758,6 +1769,69 @@
                     socket.connect();
                 }
             });
+
+            // Add after other socket event handlers
+            
+            // Keep track of users in the current node
+            if (!currentNode) currentNode = { users: [] };
+            if (!currentNode.users) currentNode.users = [];
+
+            // Handler for system message events
+            socket.on('system message', (data) => {
+                // Log all system messages for debugging
+                console.log('📝 System message received:', data);
+                
+                if (data.type === 'system user arrive') {
+                    // Add to in-memory node data
+                    if (currentNode && data.user) {
+                        // Check if user already exists to avoid duplicates
+                        const existingUserIndex = currentNode.users.findIndex(u => 
+                            (typeof u === 'object' && u.id === data.user.id) || 
+                            (typeof u === 'string' && u === data.user.name)
+                        );
+                        
+                        if (existingUserIndex === -1) {
+                            currentNode.users.push(data.user);
+                            
+                            // Update examine controls if currently displayed
+                            addUserToExamineControls(data.user);
+                        }
+                    }
+                    
+                    // Only display message in console if it's not about the current user
+                    if (data.user && data.user.name !== currentUsername) {
+                        addConsoleMessage(data.message, 'system');
+                    }
+                } 
+                else if (data.type === 'system user depart') {
+                    // Handle user departure
+                    console.log(`👤 User departed: ${data.user.name}`);
+                    
+                    // Remove from in-memory node data
+                    if (currentNode && data.user) {
+                        currentNode.users = currentNode.users.filter(u => {
+                            if (typeof u === 'object' && u.id === data.user.id) {
+                                return false; // Remove this user
+                            }
+                            if (typeof u === 'string' && u === data.user.name) {
+                                return false; // Remove this user
+                            }
+                            return true; // Keep all other users
+                        });
+                        console.log(`Removed user ${data.user.name} from node data`);
+                        
+                        // Update examine controls if currently displayed
+                        removeUserFromExamineControls(data.user);
+                    }
+                    
+                    // Display message in console
+                    addConsoleMessage(data.message, 'system');
+                }
+                else {
+                    // Handle other system messages
+                    addConsoleMessage(data.message, 'system');
+                }
+            });
         }
 
         // Function to add messages to console output
@@ -2057,7 +2131,10 @@
             
             // Add players if available
             if (currentNode.users && currentNode.users.length > 0) {
-                currentNode.users.forEach(username => {
+                currentNode.users.forEach(user => {
+                    // Handle both user objects and username strings
+                    const username = typeof user === 'object' ? user.name : user;
+                    
                     // Don't list the current user themselves
                     if (username !== currentUsername) {
                         examineOptions.push({
@@ -2907,6 +2984,13 @@
                 }
             });
 
+            // Add WHO button to show users in the location
+            otherOptions.push({
+                name: 'WHO',
+                command: 'who',
+                action: showUsersInLocation
+            });
+
             // Add rest button if at a rest point
             if (currentNode && currentNode.isRestPoint) {
                 otherOptions.push({
@@ -3101,6 +3185,106 @@
             
             // Scroll to bottom
             chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Add this function before showOtherInterface
+        function showUsersInLocation() {
+            if (!currentNode || !currentNode.users || currentNode.users.length === 0) {
+                addConsoleMessage("No other players in this area.", "info");
+                return;
+            }
+            
+            // Create a message showing all users
+            let message = "Players in this area:\n";
+            currentNode.users.forEach(user => {
+                message += `- ${user.name}\n`;
+            });
+            
+            addConsoleMessage(message, "info");
+        }
+
+        // Add this function to handle adding a user to examine controls if they're currently displayed
+        function addUserToExamineControls(userData) {
+            // Only proceed if we're currently in the examine view
+            const examineControls = document.querySelector('.examine-controls');
+            if (!examineControls || getComputedStyle(examineControls).display !== 'flex') {
+                return; // Not currently displaying examine controls
+            }
+            
+            const username = userData.name;
+            console.log(`Adding user ${username} to examine controls`);
+            
+            // Check if this user is already in the controls
+            const existingButtons = examineControls.querySelectorAll('.examine-button');
+            for (const button of existingButtons) {
+                if (button.textContent === username) {
+                    console.log(`User ${username} already in examine controls`);
+                    return; // User already in controls
+                }
+            }
+            
+            // Don't add the current user
+            if (username === currentUsername) {
+                console.log(`Not adding current user ${username} to examine controls`);
+                return;
+            }
+            
+            // Create a new button for this user
+            const button = document.createElement('button');
+            button.className = 'examine-button';
+            button.textContent = username;
+            
+            // Style it as a player button
+            button.style.background = 'rgba(255, 46, 136, 0.1)';
+            button.style.color = 'var(--neon-pink)';
+            button.style.border = '1px solid var(--neon-pink)';
+            button.style.borderRadius = '5px';
+            button.style.padding = '0.7rem';
+            button.style.fontFamily = 'Courier New, monospace';
+            button.style.fontSize = '0.9rem';
+            button.style.cursor = 'pointer';
+            button.style.textAlign = 'center';
+            
+            // Add a data attribute to mark this as a player button
+            button.dataset.playerName = username;
+            
+            // Set onclick to view player character page
+            button.addEventListener('click', function() {
+                window.location.href = `/character.html?view=${encodeURIComponent(username)}`;
+            });
+            
+            // Insert before the back button (which should be the last button)
+            const backButton = Array.from(examineControls.children).find(child => 
+                child.textContent === '« BACK');
+            
+            if (backButton) {
+                examineControls.insertBefore(button, backButton);
+            } else {
+                examineControls.appendChild(button);
+            }
+            
+            console.log(`Added user ${username} to examine controls`);
+        }
+
+        // Add this function to handle removing a user from examine controls if they're currently displayed
+        function removeUserFromExamineControls(userData) {
+            // Only proceed if we're currently in the examine view
+            const examineControls = document.querySelector('.examine-controls');
+            if (!examineControls || getComputedStyle(examineControls).display !== 'flex') {
+                return; // Not currently displaying examine controls
+            }
+            
+            const username = userData.name;
+            console.log(`Removing user ${username} from examine controls`);
+            
+            // Find and remove the button for this user
+            const buttons = examineControls.querySelectorAll('.examine-button');
+            buttons.forEach(button => {
+                if (button.textContent === username || button.dataset.playerName === username) {
+                    button.remove();
+                    console.log(`Removed user ${username} from examine controls`);
+                }
+            });
         }
     </script>
 </body>

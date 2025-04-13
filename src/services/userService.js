@@ -17,7 +17,9 @@ class UserService {
         
         // Functions
         const chatService = deps.chatService || require('./chatService');
-        this.publishSystemMessage = deps.publishSystemMessage || chatService.publishSystemMessage;
+        const systemMessageService = deps.systemMessageService || require('./systemMessageService');
+        this.publishSystemMessage = deps.publishSystemMessage || systemMessageService.publishSystemMessage;
+        this.systemMessageService = deps.systemMessageService || systemMessageService;
     }
 
     async getUser(userId) {
@@ -496,19 +498,25 @@ flee.............Attempt to escape combat
             const oldNode = user.currentNode;
             user.currentNode = targetNode.address;
 
+            // Log the node addresses
+            this.logger.debug('Node addresses for movement:', {
+                oldNode,
+                newNode: targetNode.address,
+                userIdString: userId.toString(),
+                userName: user.avatarName
+            });
+
             await user.save();
 
             // Handle node client management
             this.stateService.removeUserFromNodeAndUpdateUsernames(userId, oldNode);
             await this.stateService.addUserToNodeAndUpdateUsernames(userId, targetNode.address);
 
-            // Send movement messages
-            await this.publishSystemMessage(oldNode.address, `${user.avatarName} has left.`);
-            await this.publishSystemMessage(
+            // Send movement messages using the new dedicated function
+            await this.systemMessageService.publishUserMoveSystemMessage(
+                oldNode,
                 targetNode.address,
-                `${user.avatarName} has arrived.`,
-                `You have entered ${targetNode.name}.`,
-                userId
+                user
             );
 
             // Clear any existing mob and check for new spawn
