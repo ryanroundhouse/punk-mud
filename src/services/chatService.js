@@ -15,7 +15,7 @@ async function publishSystemMessage(nodeAddress, message, personalMessage, userI
             const userSocket = stateService.getClient(targetUserId);
             if (userSocket) {
                 if (targetUserId !== userId && personalMessage) {
-                    userSocket.emit('chat message', {
+                    userSocket.emit('system message', {
                         ...baseMessage,
                         message: message
                     });

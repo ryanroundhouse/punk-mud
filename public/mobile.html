@@ -2055,6 +2055,20 @@
                 });
             }
             
+            // Add players if available
+            if (currentNode.users && currentNode.users.length > 0) {
+                currentNode.users.forEach(username => {
+                    // Don't list the current user themselves
+                    if (username !== currentUsername) {
+                        examineOptions.push({
+                            name: username,
+                            command: 'view_player', // Custom command type
+                            target: username
+                        });
+                    }
+                });
+            }
+
             // Add items if available
             if (currentNode.items && currentNode.items.length > 0) {
                 currentNode.items.forEach(item => {
@@ -2086,7 +2100,14 @@
                 button.style.fontSize = '0.9rem';
                 button.style.cursor = 'pointer';
                 button.style.textAlign = 'center';
-                
+
+                // Style player buttons differently
+                if (option.command === 'view_player') {
+                    button.style.background = 'rgba(255, 46, 136, 0.1)';
+                    button.style.color = 'var(--neon-pink)';
+                    button.style.border = '1px solid var(--neon-pink)';
+                }
+
                 // Set onclick event
                 button.addEventListener('click', function() {
                     if (option.command === 'back') {
@@ -2098,6 +2119,9 @@
                         } else {
                             showControlPanel('direction');
                         }
+                    } else if (option.command === 'view_player') {
+                        // Navigate to character page for the selected player
+                        window.location.href = `/character.html?view=${encodeURIComponent(option.target)}`;
                     } else if (option.action) {
                         // Execute custom action if provided
                         option.action();
