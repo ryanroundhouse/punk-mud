@@ -924,6 +924,8 @@
         const MAX_TERMINAL_HISTORY = 20;
         const CHAT_HISTORY_KEY = 'global_chat_history';
         const MAX_CHAT_HISTORY = 50;
+        let nodeDataRequestTimeoutId = null; // Added for request timeout
+        let nodeDataRetryAttempted = false; // Added to limit retries
 
         // Function to display chat message
         function displayChatMessage(message, sender, isOwnMessage = false) {
@@ -1013,8 +1015,32 @@
         }
 
         // Function to request node data via WebSocket
-        function requestNodeData(address = null) {
+        function requestNodeData(address = null, isRetry = false) {
+            // Clear any existing timeout before sending a new request
+            clearTimeout(nodeDataRequestTimeoutId);
+            
+            // Reset retry flag only if this is a fresh request (not a retry)
+            if (!isRetry) {
+                nodeDataRetryAttempted = false;
+            }
+
             emitSocketCommand('get node data', { address: address || null });
+
+            // Set a timeout for receiving node data (3 seconds)
+            nodeDataRequestTimeoutId = setTimeout(() => {
+                console.warn('⏳ Node data not received after 3 seconds. Checking if retry is needed...');
+                // Only retry if the first attempt failed and we haven't already retried
+                if (!nodeDataRetryAttempted) {
+                    console.log('Retrying node data request...');
+                    nodeDataRetryAttempted = true; // Mark that we've attempted a retry
+                    requestNodeData(address, true); // Call requestNodeData again, marking it as a retry
+                } else {
+                    console.error('❌ Node data retry failed. Server may be unresponsive.');
+                    addConsoleMessage('Error: Still unable to load location data after retry.', 'error');
+                    // Clear the timeout ID as the retry attempt is complete (failed)
+                    nodeDataRequestTimeoutId = null;
+                }
+            }, 3000);
         }
 
         // Function to display node data received via WebSocket
@@ -1323,6 +1349,11 @@
             });
 
             socket.on('node data', (nodeData) => {
+                // Clear the request timeout immediately upon receiving data
+                clearTimeout(nodeDataRequestTimeoutId);
+                nodeDataRequestTimeoutId = null;
+                nodeDataRetryAttempted = false; // Reset retry flag
+
                 console.log('🔷 Received node data:', {
                     timestamp: new Date().toISOString(),
                     socketId: socket.id,
