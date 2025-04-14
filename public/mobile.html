@@ -1782,6 +1782,26 @@
                 // Log all system messages for debugging
                 console.log('📝 System message received:', data);
                 
+                // Skip displaying connection messages in the console (still logged to browser console above)
+                if (data.message && data.message.includes('has connected.')) {
+                    // Don't add to consoleOutput, but still proceed with any needed data updates
+                    if (data.type === 'system user arrive' && currentNode && data.user) {
+                        // Check if user already exists to avoid duplicates
+                        const existingUserIndex = currentNode.users.findIndex(u => 
+                            (typeof u === 'object' && u.id === data.user.id) || 
+                            (typeof u === 'string' && u === data.user.name)
+                        );
+                        
+                        if (existingUserIndex === -1) {
+                            currentNode.users.push(data.user);
+                            
+                            // Update examine controls if currently displayed
+                            addUserToExamineControls(data.user);
+                        }
+                    }
+                    return; // Skip displaying the message in consoleOutput
+                }
+                
                 if (data.type === 'system user arrive') {
                     // Add to in-memory node data
                     if (currentNode && data.user) {

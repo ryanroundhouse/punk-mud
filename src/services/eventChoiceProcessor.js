@@ -15,7 +15,7 @@ class EventChoiceProcessor {
     this.User = dependencies.User || require('../models/User');
     this.eventNodeService = dependencies.eventNodeService || eventNodeService;
     this.messageService = dependencies.messageService || require('./messageService');
-    this.publishSystemMessage = dependencies.publishSystemMessage || require('./systemMessageService').publishSystemMessage;
+    this.publishCombatSystemMessage = dependencies.publishCombatSystemMessage || require('./systemMessageService').publishCombatSystemMessage;
     
     // Lazy-loaded services to avoid circular dependencies
     this._mobService = null;
@@ -250,12 +250,12 @@ class EventChoiceProcessor {
       );
 
       // Announce combat to the room
-      this.publishSystemMessage(
+      this.publishCombatSystemMessage(
         user.currentNode,
         {
-          message: `${user.avatarName} engages in combat with ${mobInstance.name}!`,
-          type: 'system'
-        }
+          message: `${user.avatarName} engages in combat with ${mobInstance.name}!`
+        },
+        user
       );
 
       try {

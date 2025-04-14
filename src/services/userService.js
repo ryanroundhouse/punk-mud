@@ -18,7 +18,6 @@ class UserService {
         // Functions
         const chatService = deps.chatService || require('./chatService');
         const systemMessageService = deps.systemMessageService || require('./systemMessageService');
-        this.publishSystemMessage = deps.publishSystemMessage || systemMessageService.publishSystemMessage;
         this.systemMessageService = deps.systemMessageService || systemMessageService;
     }
 

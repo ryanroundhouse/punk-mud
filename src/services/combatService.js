@@ -5,7 +5,7 @@ const mobService = require('./mobService');
 const nodeService = require('./nodeService');
 const socketService = require('./socketService');
 const userService = require('./userService');
-const { publishSystemMessage, publishCombatSystemMessage, publishUserMoveSystemMessage } = require('./systemMessageService');
+const { publishCombatSystemMessage, publishUserMoveSystemMessage } = require('./systemMessageService');
 const questService = require('./questService');
 const Move = require('../models/Move');
 const messageService = require('./messageService');
@@ -22,7 +22,6 @@ class CombatService {
         this.questService = deps.questService || questService;
         this.Move = deps.Move || Move;
         this.messageService = deps.messageService || messageService;
-        this.publishSystemMessage = deps.publishSystemMessage || publishSystemMessage;
         this.publishCombatSystemMessage = deps.publishCombatSystemMessage || publishCombatSystemMessage;
         this.publishUserMoveSystemMessage = deps.publishUserMoveSystemMessage || publishUserMoveSystemMessage;
         

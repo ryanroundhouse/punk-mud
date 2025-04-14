@@ -794,10 +794,9 @@ async function handleFightCommand(user, target) {
     });
 
     // Publish system message to the node
-    systemMessageService.publishSystemMessage(user.currentNode, {
-        message: `${user.avatarName} engages in combat with ${mobInstance.name}!`,
-        type: 'system'
-    });
+    systemMessageService.publishCombatSystemMessage(user.currentNode, {
+        message: `${user.avatarName} engages in combat with ${mobInstance.name}!`
+    }, user);
 
     // Get and send the moves list immediately after entering combat
     const moves = await userService.getUserMoves(user._id.toString());
