@@ -1,4 +1,5 @@
 const logger = require('../config/logger');
+const systemMessageService = require('./systemMessageService');
 
 class NodeService {
     constructor(deps = {}) {
@@ -12,6 +13,7 @@ class NodeService {
         this.eventService = deps.eventService || require('./eventService');
         this.messageService = deps.messageService || require('./messageService');
         this.chatService = deps.chatService || require('./chatService');
+        this.systemMessageService = deps.systemMessageService || systemMessageService;
         
         // For testing to override Math.random
         this.randomGenerator = deps.randomGenerator || Math.random;
@@ -324,6 +326,22 @@ class NodeService {
                                 true // Mark as story event
                             );
                             result.storyEvent = storyEvent;
+
+                            // Get the user data for the system message
+                            const user = await this.User.findById(userId);
+                            
+                            if (user) {
+                                // Publish event system message for the story event
+                                await this.systemMessageService.publishEventSystemMessage(
+                                    nodeAddress,
+                                    {
+                                        message: `${user.avatarName} has encountered something interesting.`
+                                    },
+                                    user,
+                                    'environment', // Use 'environment' as the actor for story events
+                                    storyEvent.title
+                                );
+                            }
 
                             // Get the socket for this user to send initial prompt
                             const socket = this.stateService.getClient(userId);

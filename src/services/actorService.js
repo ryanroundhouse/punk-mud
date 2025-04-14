@@ -6,7 +6,17 @@ class ActorService {
         
         // Services
         this.logger = deps.logger || require('../config/logger');
-        this.questService = deps.questService || require('./questService');
+        
+        // Avoid circular dependency with questService by using lazy loading
+        this._questService = null;
+    }
+    
+    // Getter for questService to avoid circular dependency
+    get questService() {
+        if (!this._questService) {
+            this._questService = require('./questService');
+        }
+        return this._questService;
     }
 
     async findActorInLocation(actorName, locationId, userId = null) {

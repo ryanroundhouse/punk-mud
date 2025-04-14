@@ -201,8 +201,187 @@ async function publishCombatSystemMessage(nodeAddress, messageData, userData) {
     logger.debug(`Combat system messages sent to ${messagesSent} of ${nodeUsers.length} users in node ${nodeAddress}`);
 }
 
+/**
+ * Publishes an inspect system message to all users in a node when a user inspects something
+ * @param {string} nodeAddress - The address of the node where message will be published
+ * @param {Object} messageData - The message data object to send
+ * @param {Object} userData - The user data of the user who performed the inspect action
+ * @param {string} target - The name of the target being inspected
+ * @returns {Promise<void>}
+ */
+async function publishInspectSystemMessage(nodeAddress, messageData, userData, target) {
+    logger.debug('publishInspectSystemMessage called with:', {
+        nodeAddress,
+        messageType: 'system inspect',
+        message: messageData.message,
+        user: userData.avatarName,
+        target: target
+    });
+
+    const nodeUsers = stateService.nodeClients.get(nodeAddress);
+    
+    if (!nodeUsers || nodeUsers.length === 0) {
+        logger.debug('No users found in node:', nodeAddress);
+        return;
+    }
+    
+    logger.debug(`Found ${nodeUsers.length} users in node ${nodeAddress}`);
+    
+    // Include user information in the message data
+    const enrichedMessageData = {
+        ...messageData,
+        type: 'system inspect',
+        user: {
+            id: userData._id,
+            name: userData.avatarName
+        },
+        target: target
+    };
+    
+    let messagesSent = 0;
+    nodeUsers.forEach(userId => {
+        // Don't send the message to the user who performed the action
+        if (userId === userData._id.toString()) {
+            return;
+        }
+        
+        const userSocket = stateService.getClient(userId);
+        if (userSocket) {
+            logger.debug(`Sending inspect system message to user ${userId}`);
+            userSocket.emit('system message', enrichedMessageData);
+            messagesSent++;
+        } else {
+            logger.debug(`No socket found for user ${userId}`);
+        }
+    });
+    
+    logger.debug(`Inspect system messages sent to ${messagesSent} of ${nodeUsers.length - 1} users in node ${nodeAddress}`);
+}
+
+/**
+ * Publishes a chat system message to all users in a node when a user chats with an NPC or mob
+ * @param {string} nodeAddress - The address of the node where message will be published
+ * @param {Object} messageData - The message data object to send
+ * @param {Object} userData - The user data of the user who initiated the chat
+ * @param {string} target - The name of the NPC or mob being chatted with
+ * @param {string} response - The response from the NPC or mob (optional)
+ * @returns {Promise<void>}
+ */
+async function publishChatSystemMessage(nodeAddress, messageData, userData, target, response = null) {
+    logger.debug('publishChatSystemMessage called with:', {
+        nodeAddress,
+        messageType: 'system chat',
+        message: messageData.message,
+        user: userData.avatarName,
+        target: target,
+        hasResponse: !!response
+    });
+
+    const nodeUsers = stateService.nodeClients.get(nodeAddress);
+    
+    if (!nodeUsers || nodeUsers.length === 0) {
+        logger.debug('No users found in node:', nodeAddress);
+        return;
+    }
+    
+    logger.debug(`Found ${nodeUsers.length} users in node ${nodeAddress}`);
+    
+    // Include user information in the message data
+    const enrichedMessageData = {
+        ...messageData,
+        type: 'system chat',
+        user: {
+            id: userData._id,
+            name: userData.avatarName
+        },
+        target: target
+    };
+    
+    let messagesSent = 0;
+    nodeUsers.forEach(userId => {
+        // Don't send the message to the user who performed the action
+        if (userId === userData._id.toString()) {
+            return;
+        }
+        
+        const userSocket = stateService.getClient(userId);
+        if (userSocket) {
+            logger.debug(`Sending chat system message to user ${userId}`);
+            userSocket.emit('system message', enrichedMessageData);
+            messagesSent++;
+        } else {
+            logger.debug(`No socket found for user ${userId}`);
+        }
+    });
+    
+    logger.debug(`Chat system messages sent to ${messagesSent} of ${nodeUsers.length - 1} users in node ${nodeAddress}`);
+}
+
+/**
+ * Publishes an event system message to all users in a node when a user starts an event
+ * @param {string} nodeAddress - The address of the node where message will be published
+ * @param {Object} messageData - The message data object to send
+ * @param {Object} userData - The user data of the user who started the event
+ * @param {string} actorName - The name of the actor involved in the event
+ * @param {string} eventTitle - The title of the event (optional)
+ * @returns {Promise<void>}
+ */
+async function publishEventSystemMessage(nodeAddress, messageData, userData, actorName, eventTitle = null) {
+    logger.debug('publishEventSystemMessage called with:', {
+        nodeAddress,
+        messageType: 'system event',
+        message: messageData.message,
+        user: userData.avatarName,
+        actor: actorName,
+        eventTitle
+    });
+
+    const nodeUsers = stateService.nodeClients.get(nodeAddress);
+    
+    if (!nodeUsers || nodeUsers.length === 0) {
+        logger.debug('No users found in node:', nodeAddress);
+        return;
+    }
+    
+    logger.debug(`Found ${nodeUsers.length} users in node ${nodeAddress}`);
+    
+    // Include user information in the message data
+    const enrichedMessageData = {
+        ...messageData,
+        type: 'system event',
+        user: {
+            id: userData._id,
+            name: userData.avatarName
+        },
+        actor: actorName,
+        eventTitle: eventTitle
+    };
+    
+    let messagesSent = 0;
+    nodeUsers.forEach(userId => {
+        // Don't send the message to the user who performed the action
+        if (userId === userData._id.toString()) {
+            return;
+        }
+        
+        const userSocket = stateService.getClient(userId);
+        if (userSocket) {
+            logger.debug(`Sending event system message to user ${userId}`);
+            userSocket.emit('system message', enrichedMessageData);
+            messagesSent++;
+        } else {
+            logger.debug(`No socket found for user ${userId}`);
+        }
+    });
+    
+    logger.debug(`Event system messages sent to ${messagesSent} of ${nodeUsers.length - 1} users in node ${nodeAddress}`);
+}
+
 module.exports = {
     publishSystemMessage,
     publishUserMoveSystemMessage,
-    publishCombatSystemMessage
+    publishCombatSystemMessage,
+    publishInspectSystemMessage,
+    publishChatSystemMessage,
+    publishEventSystemMessage
 }; 

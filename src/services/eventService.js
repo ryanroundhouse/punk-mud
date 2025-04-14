@@ -6,6 +6,8 @@ const mongoose = require('mongoose');
 const eventNodeService = require('./eventNodeService');
 const eventStateManager = require('./eventStateManager');
 const eventChoiceProcessor = require('./eventChoiceProcessor');
+const systemMessageService = require('./systemMessageService');
+const actorService = require('./actorService');
 
 // Add a function to get questService when needed
 function getQuestService() {
@@ -22,6 +24,8 @@ class EventService {
         this.eventStateManager = dependencies.eventStateManager || eventStateManager;
         this.eventChoiceProcessor = dependencies.eventChoiceProcessor || eventChoiceProcessor;
         this.stateService = dependencies.stateService || stateService;
+        this.systemMessageService = dependencies.systemMessageService || systemMessageService;
+        this.actorService = dependencies.actorService || actorService;
         
         // Avoid circular dependency with questService
         this._questService = dependencies.questService || null;
@@ -283,6 +287,21 @@ class EventService {
             if (rootNode.questCompletionEvents?.length > 0) {
                 // Implement quest completion logic here
                 // This would need to be coordinated with questService
+            }
+
+            // Get the actor's name for the system message
+            const actor = await this.actorService.findActorById(event.actorId);
+            if (actor) {
+                // Publish event system message
+                await this.systemMessageService.publishEventSystemMessage(
+                    user.currentNode,
+                    {
+                        message: `${user.avatarName} is engaged in a conversation with ${actor.name}.`
+                    },
+                    user,
+                    actor.name,
+                    event.title
+                );
             }
 
             // Pass userId to formatEventResponse

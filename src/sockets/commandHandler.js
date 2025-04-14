@@ -424,6 +424,17 @@ async function handleListCommand(socket, user, target) {
                     message: `${node.name}\n${'-'.repeat(node.name.length)}\n\n${node.description}`,
                     image: node.image
                 });
+
+                // Publish a system message that user is examining the location
+                await systemMessageService.publishInspectSystemMessage(
+                    user.currentNode,
+                    {
+                        message: `${user.avatarName} is looking around the area.`
+                    },
+                    user,
+                    'location'
+                );
+                
                 return;
             }
         }
@@ -439,6 +450,17 @@ async function handleListCommand(socket, user, target) {
                 redirect: true,
                 target: targetUser
             });
+
+            // Publish a system message that user is examining another player
+            await systemMessageService.publishInspectSystemMessage(
+                user.currentNode,
+                {
+                    message: `${user.avatarName} is examining ${targetUser}.`
+                },
+                user,
+                targetUser
+            );
+            
             return;
         }
         
@@ -454,6 +476,17 @@ async function handleListCommand(socket, user, target) {
                 description: targetActor.description,
                 image: targetActor.image
             });
+
+            // Publish a system message that user is examining an actor
+            await systemMessageService.publishInspectSystemMessage(
+                user.currentNode,
+                {
+                    message: `${user.avatarName} is examining ${targetActor.name}.`
+                },
+                user,
+                targetActor.name
+            );
+            
             return;
         }
 
@@ -467,6 +500,17 @@ async function handleListCommand(socket, user, target) {
                 description: mobInstance.description,
                 image: mobInstance.image
             });
+
+            // Publish a system message that user is examining a mob
+            await systemMessageService.publishInspectSystemMessage(
+                user.currentNode,
+                {
+                    message: `${user.avatarName} is examining ${mobInstance.name}.`
+                },
+                user,
+                mobInstance.name
+            );
+            
             return;
         }
 
@@ -515,6 +559,16 @@ async function handleListCommand(socket, user, target) {
             actors: actors.map(actor => actor.name),
             enemies: mobInstance ? [{name: mobInstance.name, level: mobInstance.level}] : [],
         });
+
+        // Publish a system message that user is listing everyone in the room
+        await systemMessageService.publishInspectSystemMessage(
+            user.currentNode,
+            {
+                message: `${user.avatarName} is looking at everyone in the area.`
+            },
+            user,
+            'all'
+        );
     }
 }
 
@@ -550,6 +604,17 @@ async function handleChatCommand(socket, user, target) {
                     isEndOfEvent: result.isEnd,
                     image: actor.image
                 });
+
+                // Publish system message about the event chat
+                await systemMessageService.publishChatSystemMessage(
+                    user.currentNode,
+                    {
+                        message: `${user.avatarName} is talking with ${actor.name}.`
+                    },
+                    user,
+                    actor.name,
+                    result.message
+                );
 
                 // If this is the end of the event, clear the state
                 if (result.isEnd) {
@@ -593,6 +658,17 @@ async function handleChatCommand(socket, user, target) {
                 actorName: actor.name,
                 questResult: JSON.stringify(questResult)
             });
+            
+            // Even with quest progression, we want to publish the chat system message
+            await systemMessageService.publishChatSystemMessage(
+                user.currentNode,
+                {
+                    message: `${user.avatarName} is talking with ${actor.name} about a quest.`
+                },
+                user,
+                actor.name
+            );
+            
             return;
         }
 
@@ -605,6 +681,18 @@ async function handleChatCommand(socket, user, target) {
                 isEndOfEvent: result.isEnd,
                 image: actor.image
             });
+            
+            // Publish system message for event chat
+            await systemMessageService.publishChatSystemMessage(
+                user.currentNode,
+                {
+                    message: `${user.avatarName} is in deep conversation with ${actor.name}.`
+                },
+                user,
+                actor.name,
+                result.message
+            );
+            
             return;
         }
 
@@ -619,6 +707,17 @@ async function handleChatCommand(socket, user, target) {
                 message: `${actor.name} has nothing to say.`,
                 image: actor.image
             });
+            
+            // Publish system message for no-response chat
+            await systemMessageService.publishChatSystemMessage(
+                user.currentNode,
+                {
+                    message: `${user.avatarName} tries to talk to ${actor.name}, but gets no response.`
+                },
+                user,
+                actor.name
+            );
+            
             return;
         }
 
@@ -630,6 +729,18 @@ async function handleChatCommand(socket, user, target) {
             message: `${actor.name} says: "${chatResult.message}"`,
             image: chatResult.image || actor.image
         });
+        
+        // Publish system message for successful chat
+        await systemMessageService.publishChatSystemMessage(
+            user.currentNode,
+            {
+                message: `${user.avatarName} is talking with ${actor.name}.`
+            },
+            user,
+            actor.name,
+            chatResult.message
+        );
+        
         return;
     }
 
@@ -646,6 +757,17 @@ async function handleChatCommand(socket, user, target) {
                 message: `${mobInstance.name} has nothing to say.`,
                 image: mobInstance.image
             });
+            
+            // Publish system message for no-response mob chat
+            await systemMessageService.publishChatSystemMessage(
+                user.currentNode,
+                {
+                    message: `${user.avatarName} tries to talk to ${mobInstance.name}, but gets no response.`
+                },
+                user,
+                mobInstance.name
+            );
+            
             return;
         }
 
@@ -658,6 +780,18 @@ async function handleChatCommand(socket, user, target) {
             message: `${mobInstance.name} says: "${message.message}"`,
             image: mobInstance.image
         });
+        
+        // Publish system message for successful mob chat
+        await systemMessageService.publishChatSystemMessage(
+            user.currentNode,
+            {
+                message: `${user.avatarName} is talking with ${mobInstance.name}.`
+            },
+            user,
+            mobInstance.name,
+            message.message
+        );
+        
         return;
     }
 

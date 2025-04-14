@@ -1779,8 +1779,6 @@
 
             // Handler for system message events
             socket.on('system message', (data) => {
-                // Log all system messages for debugging
-                console.log('📝 System message received:', data);
                 
                 // Skip displaying connection messages in the console (still logged to browser console above)
                 if (data.message && data.message.includes('has connected.')) {
@@ -1859,6 +1857,35 @@
                     } else {
                         console.log(`Skipping display of combat message for current user: ${data.message}`);
                     }
+                }
+                else if (data.type === 'system inspect') {
+                    // Handle inspect system message
+                    console.log(`👁️ Inspect action:`, data);
+                    
+                    // Display the message in the console
+                    // Include details about who is inspecting what
+                    addConsoleMessage(data.message, 'system');
+                }
+                else if (data.type === 'system chat') {
+                    // Handle chat system message
+                    console.log(`💬 NPC Chat:`, data);
+                    
+                    // Display the message in the console
+                    addConsoleMessage(data.message, 'system');
+                    
+                    // If there's a response from the NPC, display it in a different color
+                    if (data.response) {
+                        const responseMessage = `${data.target} responded: "${data.response}"`;
+                        addConsoleMessage(responseMessage, 'chat');
+                    }
+                }
+                else if (data.type === 'system event') {
+                    // Handle event system message
+                    console.log(`📜 Event started:`, data);
+                    
+                    // Display the basic message
+                    addConsoleMessage(data.message, 'system');
+                    
                 }
                 else {
                     // Handle other system messages
