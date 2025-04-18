@@ -37,6 +37,7 @@ class MobService {
             description: mob.description,
             image: mob.image,
             hurtImage: mob.hurtImage,
+            defeatImage: mob.defeatImage,
             level: mob.stats.level,
             stats: {
                 hitpoints: mob.stats.hitpoints,

@@ -25,6 +25,7 @@ const mobSchema = new mongoose.Schema({
     },
     image: String,
     hurtImage: String,
+    defeatImage: String,
     experiencePoints: {
         type: Number,
         default: 10

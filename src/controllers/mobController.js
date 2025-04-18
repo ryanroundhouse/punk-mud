@@ -35,6 +35,7 @@ async function createOrUpdateMob(req, res) {
             description,
             image,
             hurtImage,
+            defeatImage,
             stats,
             chatMessages,
             moves,
@@ -80,6 +81,7 @@ async function createOrUpdateMob(req, res) {
             description,
             image,
             hurtImage,
+            defeatImage,
             stats: {
                 ...stats,
                 level: stats.level || 1,

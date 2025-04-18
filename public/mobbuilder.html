@@ -848,6 +848,19 @@
                                     <input type="hidden" id="hurtImagePath">
                                 </div>
                             </div>
+
+                            <!-- Defeat Image -->
+                            <div class="image-controls-group">
+                                <div class="image-preview-container">
+                                    <img id="defeatImagePreview" class="image-preview">
+                                    <span class="no-image-text" id="noDefeatImageText">No defeat image uploaded</span>
+                                </div>
+                                <div class="image-upload-controls">
+                                    <label for="defeatImageUpload">Mob Defeat Image:</label>
+                                    <input type="file" id="defeatImageUpload" accept="image/*" disabled>
+                                    <input type="hidden" id="defeatImagePath">
+                                </div>
+                            </div>
                         </div>
 
                         <div class="form-full">
@@ -929,6 +942,8 @@
         const imagePreview = document.getElementById('imagePreview');
         const hurtImageUpload = document.getElementById('hurtImageUpload');
         const hurtImagePreview = document.getElementById('hurtImagePreview');
+        const defeatImageUpload = document.getElementById('defeatImageUpload');
+        const defeatImagePreview = document.getElementById('defeatImagePreview');
         const addMessageBtn = document.getElementById('addMessageBtn');
         const mobFilter = document.getElementById('mobFilter');
         let allMobs = [];
@@ -1094,6 +1109,67 @@
 
                     // Reset the file input
                     hurtImageUpload.value = '';
+                }
+            }
+        });
+
+        // Add event listener for defeat image upload
+        defeatImageUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('image', file);
+                const mobId = document.getElementById('mobForm').dataset.mobId;
+
+                if (!mobId) {
+                    alert('Please save the mob before uploading an image.');
+                    defeatImageUpload.value = ''; // Reset file input
+                    return;
+                }
+
+                try {
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        window.location.href = '/';
+                        return;
+                    }
+
+                    // Append mobId to the query string
+                    const response = await fetch(`/api/upload/mob?mobId=${mobId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        console.error('Upload response:', {
+                            status: response.status,
+                            statusText: response.statusText,
+                            error: errorData
+                        });
+                        throw new Error(`Upload failed: ${errorData.error || response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    if (!data.path) {
+                        throw new Error('No path returned from upload');
+                    }
+
+                    document.getElementById('defeatImagePath').value = data.path;
+
+                    // Update defeat image preview
+                    defeatImagePreview.src = data.path;
+                    defeatImagePreview.style.display = 'block';
+                    document.getElementById('noDefeatImageText').style.display = 'none';
+                } catch (error) {
+                    console.error('Error uploading defeat image:', error);
+                    alert(`Failed to upload defeat image: ${error.message}`);
+
+                    // Reset the file input
+                    defeatImageUpload.value = '';
                 }
             }
         });
@@ -1323,6 +1399,7 @@
                     description: document.getElementById('description').value.trim(),
                     image: document.getElementById('imagePath').value,
                     hurtImage: document.getElementById('hurtImagePath').value,
+                    defeatImage: document.getElementById('defeatImagePath').value,
                     stats: {
                         level: parseInt(document.getElementById('level').value) || 1,
                         hitpoints: parseInt(document.getElementById('hitpoints').value) || 10,
@@ -1369,6 +1446,7 @@
                 document.getElementById('mobForm').dataset.mobId = savedData._id;
                 imageUpload.disabled = false;
                 hurtImageUpload.disabled = false;
+                defeatImageUpload.disabled = false;
                 await loadMobs();
             } catch (error) {
                 console.error('Error saving mob:', error);
@@ -1410,6 +1488,7 @@
             // Enable image uploads now that we have an ID
             imageUpload.disabled = false;
             hurtImageUpload.disabled = false;
+            defeatImageUpload.disabled = false;
             
             document.getElementById('mobName').value = mob.name;
             document.getElementById('mobIntent').value = mob.intent;
@@ -1426,9 +1505,11 @@
             document.getElementById('charisma').value = mob.stats.charisma;
             document.getElementById('imagePath').value = mob.image || '';
             document.getElementById('hurtImagePath').value = mob.hurtImage || '';
+            document.getElementById('defeatImagePath').value = mob.defeatImage || '';
             
             const noImageText = document.getElementById('noImageText');
             const noHurtImageText = document.getElementById('noHurtImageText');
+            const noDefeatImageText = document.getElementById('noDefeatImageText');
             
             if (mob.image) {
                 imagePreview.src = mob.image;
@@ -1447,6 +1528,16 @@
             } else {
                 hurtImagePreview.style.display = 'none';
                 noHurtImageText.style.display = 'block';
+            }
+
+            // Update defeat image preview
+            if (mob.defeatImage) {
+                defeatImagePreview.src = mob.defeatImage;
+                defeatImagePreview.style.display = 'block';
+                noDefeatImageText.style.display = 'none';
+            } else {
+                defeatImagePreview.style.display = 'none';
+                noDefeatImageText.style.display = 'block';
             }
 
             // Clear existing messages
@@ -1519,8 +1610,10 @@
             // Disable image uploads for new mob
             imageUpload.disabled = true;
             hurtImageUpload.disabled = true;
+            defeatImageUpload.disabled = true;
             imageUpload.value = ''; // Reset file input
             hurtImageUpload.value = ''; // Reset file input
+            defeatImageUpload.value = ''; // Reset defeat file input
 
             document.getElementById('movesList').innerHTML = '';
             document.getElementById('moveSelect').value = '';
@@ -1535,6 +1628,10 @@
             hurtImagePreview.src = '';
             hurtImagePreview.style.display = 'none';
             document.getElementById('noHurtImageText').style.display = 'block';
+            document.getElementById('defeatImagePath').value = '';
+            defeatImagePreview.src = '';
+            defeatImagePreview.style.display = 'none';
+            document.getElementById('noDefeatImageText').style.display = 'block';
         };
 
         // Delete mob

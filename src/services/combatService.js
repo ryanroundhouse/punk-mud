@@ -580,7 +580,7 @@ class CombatService {
             victoryMessage += `\n\nVictory! You have defeated ${mobInstance.name}!`;
             
             // Determine images for the final message
-            const imageToSend = mobInstance.hurtImage || mobInstance.image; // Use hurt image since the mob was just damaged
+            const imageToSend = mobInstance.defeatImage || mobInstance.hurtImage || mobInstance.image;
             const fallbackMoveImage = "/assets/moves/move-1744936855322-679154253.png";
             // Use the image from the final player move, if one exists
             const moveImageToSend = playerResult.move?.image || fallbackMoveImage;
