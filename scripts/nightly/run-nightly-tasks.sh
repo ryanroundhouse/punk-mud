@@ -14,6 +14,10 @@ echo "Starting nightly tasks at $(date)"
 echo "Running energy restoration..."
 node scripts/nightly/restoreEnergy.js
 
+# Run the inactive user deletion script
+echo "Running inactive user deletion..."
+node scripts/nightly/deleteInactiveUsers.js
+
 # Add more nightly tasks here as needed
 # echo "Running another task..."
 # node scripts/nightly/anotherTask.js
