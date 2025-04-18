@@ -171,6 +171,7 @@
         .image-upload-section {
             position: static;
             width: 100%;
+            margin-bottom: 1rem;
         }
 
         .image-preview-container {
@@ -822,14 +823,30 @@
                         </div>
 
                         <div class="image-upload-section">
-                            <div class="image-preview-container">
-                                <img id="imagePreview" class="image-preview">
-                                <span class="no-image-text" id="noImageText">No image uploaded</span>
+                            <!-- Regular Image -->
+                            <div class="image-controls-group" style="margin-bottom: 1rem;">
+                                <div class="image-preview-container">
+                                    <img id="imagePreview" class="image-preview">
+                                    <span class="no-image-text" id="noImageText">No image uploaded</span>
+                                </div>
+                                <div class="image-upload-controls">
+                                    <label for="imageUpload">Mob Image:</label>
+                                    <input type="file" id="imageUpload" accept="image/*">
+                                    <input type="hidden" id="imagePath">
+                                </div>
                             </div>
-                            <div class="image-upload-controls">
-                                <label for="imageUpload">Mob Image:</label>
-                                <input type="file" id="imageUpload" accept="image/*">
-                                <input type="hidden" id="imagePath">
+
+                            <!-- Hurt Image -->
+                            <div class="image-controls-group">
+                                <div class="image-preview-container">
+                                    <img id="hurtImagePreview" class="image-preview">
+                                    <span class="no-image-text" id="noHurtImageText">No hurt image uploaded</span>
+                                </div>
+                                <div class="image-upload-controls">
+                                    <label for="hurtImageUpload">Mob Hurt Image:</label>
+                                    <input type="file" id="hurtImageUpload" accept="image/*">
+                                    <input type="hidden" id="hurtImagePath">
+                                </div>
                             </div>
                         </div>
 
@@ -910,6 +927,8 @@
         const saveMobBtn = document.getElementById('saveMobBtn');
         const imageUpload = document.getElementById('imageUpload');
         const imagePreview = document.getElementById('imagePreview');
+        const hurtImageUpload = document.getElementById('hurtImageUpload');
+        const hurtImagePreview = document.getElementById('hurtImagePreview');
         const addMessageBtn = document.getElementById('addMessageBtn');
         const mobFilter = document.getElementById('mobFilter');
         let allMobs = [];
@@ -1006,6 +1025,59 @@
                     
                     // Reset the file input
                     imageUpload.value = '';
+                }
+            }
+        });
+
+        // Add event listener for hurt image upload
+        hurtImageUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('image', file);
+
+                try {
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        window.location.href = '/';
+                        return;
+                    }
+
+                    const response = await fetch('/api/upload/mob', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        console.error('Upload response:', {
+                            status: response.status,
+                            statusText: response.statusText,
+                            error: errorData
+                        });
+                        throw new Error(`Upload failed: ${errorData.error || response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    if (!data.path) {
+                        throw new Error('No path returned from upload');
+                    }
+
+                    document.getElementById('hurtImagePath').value = data.path;
+
+                    // Update hurt image preview
+                    hurtImagePreview.src = data.path;
+                    hurtImagePreview.style.display = 'block';
+                    document.getElementById('noHurtImageText').style.display = 'none';
+                } catch (error) {
+                    console.error('Error uploading hurt image:', error);
+                    alert(`Failed to upload hurt image: ${error.message}`);
+
+                    // Reset the file input
+                    hurtImageUpload.value = '';
                 }
             }
         });
@@ -1234,6 +1306,7 @@
                     experiencePoints: parseInt(document.getElementById('experiencePoints').value) || 10,
                     description: document.getElementById('description').value.trim(),
                     image: document.getElementById('imagePath').value,
+                    hurtImage: document.getElementById('hurtImagePath').value,
                     stats: {
                         level: parseInt(document.getElementById('level').value) || 1,
                         hitpoints: parseInt(document.getElementById('hitpoints').value) || 10,
@@ -1328,8 +1401,10 @@
             document.getElementById('luck').value = mob.stats.luck;
             document.getElementById('charisma').value = mob.stats.charisma;
             document.getElementById('imagePath').value = mob.image || '';
+            document.getElementById('hurtImagePath').value = mob.hurtImage || '';
             
             const noImageText = document.getElementById('noImageText');
+            const noHurtImageText = document.getElementById('noHurtImageText');
             
             if (mob.image) {
                 imagePreview.src = mob.image;
@@ -1338,6 +1413,16 @@
             } else {
                 imagePreview.style.display = 'none';
                 noImageText.style.display = 'block';
+            }
+
+            // Update hurt image preview
+            if (mob.hurtImage) {
+                hurtImagePreview.src = mob.hurtImage;
+                hurtImagePreview.style.display = 'block';
+                noHurtImageText.style.display = 'none';
+            } else {
+                hurtImagePreview.style.display = 'none';
+                noHurtImageText.style.display = 'block';
             }
 
             // Clear existing messages
@@ -1411,6 +1496,15 @@
             document.getElementById('usageChance').value = '100';
             document.getElementById('mobIntent').value = 'neutral';
             document.getElementById('experiencePoints').value = '10';
+            document.getElementById('imagePath').value = '';
+            imagePreview.src = '';
+            imagePreview.style.display = 'none';
+            document.getElementById('noImageText').style.display = 'block';
+            document.getElementById('hurtImagePath').value = '';
+            hurtImagePreview.src = '';
+            hurtImagePreview.style.display = 'none';
+            document.getElementById('noHurtImageText').style.display = 'block';
+            hurtImageUpload.value = '';
         };
 
         // Delete mob

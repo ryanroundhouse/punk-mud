@@ -716,8 +716,15 @@ class CombatService {
         if (user.stats.currentHitpoints > 0) {
             // Construct combat message
             let combatMessage = '';
+            let imageToSend = mobInstance.image; // Default image
+    
             if (playerResult.move) {
                 combatMessage += `You use ${playerResult.move.name}! ${playerResult.message}\n`;
+                
+                // If player hit, use hurtImage
+                if (playerResult.damage > 0) {
+                    imageToSend = mobInstance.hurtImage || mobInstance.image; // Use hurtImage if available, fallback to default
+                }
                 
                 // Only show status after player moves
                 combatMessage += `\nStatus:\n` +
@@ -732,7 +739,7 @@ class CombatService {
                 combatMessage += `${mobInstance.name} uses ${mobResult.move.name}! ${mobResult.message}`;
             }
     
-            this.messageService.sendCombatMessage(user._id.toString(), combatMessage, null, mobInstance.image);
+            this.messageService.sendCombatMessage(user._id.toString(), combatMessage, null, imageToSend);
         }
     }
     
