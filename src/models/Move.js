@@ -48,6 +48,9 @@ const moveSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    image: {
+        type: String
+    },
     basePower: {
         type: Number,
         required: true,

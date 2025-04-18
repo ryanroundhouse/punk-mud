@@ -783,6 +783,19 @@
                 margin-top: 3dvh;
             }
         }
+
+        /* Styles for move image overlay */
+        .move-image-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 35vh; /* Same height as node-image */
+            object-fit: contain; /* Or cover, depending on desired effect */
+            z-index: 11; /* Above node-image */
+            opacity: 0;
+            pointer-events: none; /* Prevent interaction */
+        }
     </style>
 </head>
 <body>
@@ -850,6 +863,7 @@
             <div class="node-info">
                 <div class="node-name" id="nodeName"></div>
                 <img id="nodeImage" class="node-image" src="" alt="Location Image">
+                <img id="moveImageOverlay" class="move-image-overlay" src="" alt="Move Effect"> <!-- Add overlay image element -->
             </div>
             
             <div class="console-container">
@@ -1388,6 +1402,13 @@
                 } else if (data.type === 'combat') {
                     // Check if this is a death message
                     if (data.message && data.message.includes('*** YOU HAVE BEEN DEFEATED ***')) {
+                        // Clear any move effect overlay
+                        const moveOverlay = document.getElementById('moveImageOverlay');
+                        if (moveOverlay) {
+                            moveOverlay.style.opacity = 0;
+                            moveOverlay.src = '';
+                        }
+
                         // Show the death message
                         addConsoleMessage(data.message, 'combat');
                         messageDisplayed = true;
@@ -1400,6 +1421,13 @@
                     }
                     // Check if this is a victory message
                     if (data.message && data.message.includes('Victory! You have defeated')) {
+                        // Clear any move effect overlay
+                        const moveOverlay = document.getElementById('moveImageOverlay');
+                        if (moveOverlay) {
+                            moveOverlay.style.opacity = 0;
+                            moveOverlay.src = '';
+                        }
+
                         // Show the victory message
                         addConsoleMessage(data.message, 'combat');
                         messageDisplayed = true;
@@ -1412,6 +1440,13 @@
                     }
                     // Check if this is a flee success message
                     if (data.message && data.message.includes('You successfully flee from combat!')) {
+                        // Clear any move effect overlay
+                        const moveOverlay = document.getElementById('moveImageOverlay');
+                        if (moveOverlay) {
+                            moveOverlay.style.opacity = 0;
+                            moveOverlay.src = '';
+                        }
+
                         // Show the combat message first
                         addConsoleMessage(data.message, 'combat');
                         messageDisplayed = true;
@@ -1440,6 +1475,27 @@
                         nodeImage.src = data.image;
                         nodeImage.style.borderColor = 'var(--neon-red)';
                         nodeImage.style.boxShadow = '0 0 15px var(--neon-red)';
+                    }
+                    
+                    // Handle move image overlay if provided
+                    const moveOverlay = document.getElementById('moveImageOverlay');
+                    if (moveOverlay && data.moveImage) {
+                        moveOverlay.src = data.moveImage;
+                        moveOverlay.style.opacity = 0.8; // Make it slightly transparent
+                        moveOverlay.style.transition = 'opacity 0.1s ease-in-out';
+
+                        // Fade out after a short duration (e.g., 500ms)
+                        setTimeout(() => {
+                            moveOverlay.style.opacity = 0;
+                            // Reset src after fade out to prevent old image briefly showing
+                            setTimeout(() => {
+                                moveOverlay.src = '';
+                            }, 100); // Adjust timing based on transition duration
+                        }, 500);
+                    } else if (moveOverlay) {
+                        // Ensure overlay is hidden if no move image is sent
+                        moveOverlay.style.opacity = 0;
+                        moveOverlay.src = '';
                     }
                     
                     // After receiving a combat message, we need to get moves immediately

@@ -96,6 +96,36 @@
             resize: vertical;
         }
 
+        /* Add image upload styles */
+        .image-upload-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .image-preview-container {
+            width: 100%;
+            height: 150px; /* Adjust height as needed */
+            border: 2px solid var(--neon-blue);
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            margin-bottom: 1rem;
+        }
+
+        .image-preview {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+
+        .no-image-text {
+            color: var(--neon-blue);
+            font-style: italic;
+            opacity: 0.7;
+        }
+
         .outcome-section {
             border: 1px solid var(--neon-blue);
             padding: 1rem;
@@ -281,10 +311,26 @@
             <div class="left-panel">
                 <button class="action-button" id="newMoveBtn">Add New Move</button>
                 <div class="move-form" id="moveForm">
+                    <input type="hidden" id="moveId">
+
                     <div class="form-group">
                         <label for="moveName">Move Name:</label>
                         <input type="text" id="moveName" required>
                     </div>
+
+                    <!-- Add Image Upload Section -->
+                    <div class="image-upload-section">
+                        <div class="image-preview-container">
+                            <img id="imagePreview" class="image-preview">
+                            <span class="no-image-text" id="noImageText">No image uploaded</span>
+                        </div>
+                        <div class="image-upload-controls">
+                            <label for="imageUpload">Move Image:</label>
+                            <input type="file" id="imageUpload" accept="image/*">
+                            <input type="hidden" id="imagePath">
+                        </div>
+                    </div>
+                    <!-- End Image Upload Section -->
 
                     <div class="form-group">
                         <label for="helpDescription">Help Description:</label>
@@ -437,6 +483,12 @@
         const saveMoveBtn = document.getElementById('saveMoveBtn');
         const deleteMoveBtn = document.getElementById('deleteMoveBtn');
         const moveFilter = document.getElementById('moveFilter');
+        // Get image elements
+        const imageUpload = document.getElementById('imageUpload');
+        const imagePreview = document.getElementById('imagePreview');
+        const noImageText = document.getElementById('noImageText');
+        const imagePath = document.getElementById('imagePath');
+
         let allMoves = [];
 
         // Check authentication
@@ -519,6 +571,22 @@
             document.getElementById('attackStat').value = move.attackStat;
             document.getElementById('defenceStat').value = move.defenceStat;
             
+            // Load image
+            imagePath.value = move.image || '';
+            if (move.image) {
+                imagePreview.src = move.image;
+                imagePreview.style.display = 'block';
+                noImageText.style.display = 'none';
+            } else {
+                imagePreview.src = '';
+                imagePreview.style.display = 'none';
+                noImageText.style.display = 'block';
+            }
+
+            // Clear existing success/failure effects
+            document.getElementById('successEffects').innerHTML = '';
+            document.getElementById('failureEffects').innerHTML = '';
+
             loadEffects('success', move.success);
             loadEffects('failure', move.failure);
 
@@ -533,20 +601,17 @@
 
         // Clear form for new move
         newMoveBtn.addEventListener('click', () => {
-            document.getElementById('moveForm').dataset.moveId = '';
-            deleteMoveBtn.classList.add('hidden');
-            
-            document.getElementById('moveName').value = '';
-            document.getElementById('helpDescription').value = '';
-            document.getElementById('moveDelay').value = '1';
-            document.getElementById('basePower').value = '5';
-            document.getElementById('scalingFactor').value = '0.8';
-            
-            document.getElementById('attackStat').value = 'body';
-            document.getElementById('defenceStat').value = 'body';
-            
+            document.getElementById('moveForm').reset();
+            document.getElementById('moveId').value = '';
             document.getElementById('successEffects').innerHTML = '';
             document.getElementById('failureEffects').innerHTML = '';
+            // Clear image preview and path
+            imagePath.value = '';
+            imagePreview.src = '';
+            imagePreview.style.display = 'none';
+            noImageText.style.display = 'block';
+            imageUpload.value = ''; // Reset file input
+            deleteMoveBtn.classList.add('hidden');
         });
 
         // Save move
@@ -554,12 +619,13 @@
             const moveId = document.getElementById('moveForm').dataset.moveId;
             const moveData = {
                 name: document.getElementById('moveName').value,
-                helpDescription: document.getElementById('helpDescription').value,
-                delay: parseInt(document.getElementById('moveDelay').value),
-                basePower: parseFloat(document.getElementById('basePower').value),
-                scalingFactor: parseFloat(document.getElementById('scalingFactor').value),
+                helpDescription: document.getElementById('helpDescription').value.trim(),
+                basePower: parseInt(document.getElementById('basePower').value) || 5,
+                scalingFactor: parseFloat(document.getElementById('scalingFactor').value) || 0.8,
+                delay: parseInt(document.getElementById('moveDelay').value) || 1,
                 attackStat: document.getElementById('attackStat').value,
                 defenceStat: document.getElementById('defenceStat').value,
+                image: imagePath.value, // Include image path
                 success: getEffectsData('success'),
                 failure: getEffectsData('failure')
             };
@@ -583,12 +649,12 @@
                     const savedMove = await response.json();
                     alert('Move saved successfully!');
                     await loadMoves();
-                    
-                    // Update the form with the saved move's ID
+                    loadMoveData(savedMove);
                     document.getElementById('moveForm').dataset.moveId = savedMove._id;
                     deleteMoveBtn.classList.remove('hidden');
                 } else {
-                    throw new Error('Failed to save move');
+                    const errorData = await response.json().catch(() => ({ error: 'Failed to save move' }));
+                    throw new Error(errorData.error || 'Failed to save move');
                 }
             } catch (error) {
                 console.error('Error saving move:', error);
@@ -738,6 +804,50 @@
                 handleEffectTypeChange(entry.querySelector('.effect-type'));
             });
         }
+
+        // Add image upload handler
+        imageUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('image', file);
+                
+                try {
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        window.location.href = '/';
+                        return;
+                    }
+
+                    const response = await fetch('/api/upload/move', { // Use the /move endpoint
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(`Upload failed: ${errorData.error || response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    if (!data.path) {
+                        throw new Error('No path returned from upload');
+                    }
+                    
+                    imagePath.value = data.path;
+                    imagePreview.src = data.path;
+                    imagePreview.style.display = 'block';
+                    noImageText.style.display = 'none';
+                } catch (error) {
+                    console.error('Error uploading image:', error);
+                    alert(`Failed to upload image: ${error.message}`);
+                    imageUpload.value = ''; // Reset input
+                }
+            }
+        });
     </script>
 </body>
 </html> 

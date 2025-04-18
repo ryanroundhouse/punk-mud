@@ -35,4 +35,13 @@ router.post('/mob', verifyBuilderAccess, upload.single('image'), (req, res) => {
     res.json({ path: '/assets/mobs/' + req.file.filename });
 });
 
+// Add the route for move images
+router.post('/move', verifyBuilderAccess, upload.single('image'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+    // Ensure the path matches the expected directory
+    res.json({ path: '/assets/moves/' + req.file.filename }); 
+});
+
 module.exports = router; 
