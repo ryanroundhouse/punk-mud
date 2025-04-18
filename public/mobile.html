@@ -1402,11 +1402,25 @@
                 } else if (data.type === 'combat') {
                     // Check if this is a death message
                     if (data.message && data.message.includes('*** YOU HAVE BEEN DEFEATED ***')) {
-                        // Clear any move effect overlay
-                        const moveOverlay = document.getElementById('moveImageOverlay');
-                        if (moveOverlay) {
+                        // Display the final mob attack image and move overlay
+                        if (data.image) {
+                            const nodeImage = document.getElementById("nodeImage");
+                            nodeImage.src = data.image;
+                            nodeImage.style.borderColor = "var(--neon-red)";
+                            nodeImage.style.boxShadow = "0 0 15px var(--neon-red)";
+                        }
+                        const moveOverlay = document.getElementById("moveImageOverlay");
+                        if (moveOverlay && data.moveImage) {
+                            moveOverlay.src = data.moveImage;
+                            moveOverlay.style.opacity = 0.8;
+                            moveOverlay.style.transition = "opacity 0.1s ease-in-out";
+                            setTimeout(() => {
+                                moveOverlay.style.opacity = 0;
+                                setTimeout(() => { moveOverlay.src = ""; }, 100);
+                            }, 500); // Keep overlay slightly longer on death
+                        } else if (moveOverlay) {
                             moveOverlay.style.opacity = 0;
-                            moveOverlay.src = '';
+                            moveOverlay.src = "";
                         }
 
                         // Show the death message
@@ -1428,16 +1442,31 @@
                         return; // Exit early to prevent double-processing
                     }
                     // Check if this is a victory message
-                    if (data.message && data.message.includes('Victory! You have defeated')) {
-                        // Clear any move effect overlay
-                        const moveOverlay = document.getElementById('moveImageOverlay');
-                        if (moveOverlay) {
+                    if (data.message && data.message.includes("Victory! You have defeated")) {
+                        // Display the mob image and move overlay from the final blow
+                        if (data.image) {
+                            const nodeImage = document.getElementById("nodeImage");
+                            nodeImage.src = data.image;
+                            // Keep the red border for defeated enemy
+                            nodeImage.style.borderColor = "var(--neon-red)";
+                            nodeImage.style.boxShadow = "0 0 15px var(--neon-red)";
+                        }
+                        const moveOverlay = document.getElementById("moveImageOverlay");
+                        if (moveOverlay && data.moveImage) {
+                            moveOverlay.src = data.moveImage;
+                            moveOverlay.style.opacity = 0.8;
+                            moveOverlay.style.transition = "opacity 0.1s ease-in-out";
+                            setTimeout(() => {
+                                moveOverlay.style.opacity = 0;
+                                setTimeout(() => { moveOverlay.src = ""; }, 100);
+                            }, 500); // Keep overlay slightly longer on victory
+                        } else if (moveOverlay) {
                             moveOverlay.style.opacity = 0;
-                            moveOverlay.src = '';
+                            moveOverlay.src = "";
                         }
 
                         // Show the victory message
-                        addConsoleMessage(data.message, 'combat');
+                        addConsoleMessage(data.message, "combat");
                         messageDisplayed = true;
                         
                         // Disable and hide combat controls during delay
@@ -1455,15 +1484,29 @@
                     }
                     // Check if this is a flee success message
                     if (data.message && data.message.includes('You successfully flee from combat!')) {
-                        // Clear any move effect overlay
-                        const moveOverlay = document.getElementById('moveImageOverlay');
-                        if (moveOverlay) {
+                        // Display the mob attack image and move overlay during flee attempt
+                        if (data.image) {
+                            const nodeImage = document.getElementById("nodeImage");
+                            nodeImage.src = data.image;
+                            nodeImage.style.borderColor = "var(--neon-red)";
+                            nodeImage.style.boxShadow = "0 0 15px var(--neon-red)";
+                        }
+                        const moveOverlay = document.getElementById("moveImageOverlay");
+                        if (moveOverlay && data.moveImage) {
+                            moveOverlay.src = data.moveImage;
+                            moveOverlay.style.opacity = 0.8;
+                            moveOverlay.style.transition = "opacity 0.1s ease-in-out";
+                            setTimeout(() => {
+                                moveOverlay.style.opacity = 0;
+                                setTimeout(() => { moveOverlay.src = ""; }, 100);
+                            }, 500);
+                        } else if (moveOverlay) {
                             moveOverlay.style.opacity = 0;
-                            moveOverlay.src = '';
+                            moveOverlay.src = "";
                         }
 
                         // Show the combat message first
-                        addConsoleMessage(data.message, 'combat');
+                        addConsoleMessage(data.message, "combat");
                         messageDisplayed = true;
                         
                         // Disable and hide combat controls during delay

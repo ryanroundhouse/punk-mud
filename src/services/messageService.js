@@ -36,13 +36,17 @@ class MessageService {
                 return false;
             }
             
-            socket.emit('console response', {
+            const data = {
                 type: 'combat',
                 message,
                 hint,
                 image,
                 moveImage
-            });
+            };
+            
+            this.logger.debug("Emitting console response (combat) with data:", data);
+            
+            socket.emit('console response', data);
             return true;
         }
         // Otherwise, use the standard method

@@ -586,6 +586,12 @@ class CombatService {
             const moveImageToSend = playerResult.move?.image || fallbackMoveImage;
 
             // Send the victory message first - Pass the correct images
+            this.logger.debug("Sending victory combat message with images", {
+                userId: user._id.toString(),
+                victoryMessage,
+                imageToSend,
+                moveImageToSend
+            });
             this.messageService.sendCombatMessage(
                 user._id.toString(), 
                 victoryMessage, 
