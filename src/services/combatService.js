@@ -718,6 +718,7 @@ class CombatService {
             let combatMessage = '';
             let imageToSend = mobInstance.image; // Default image
             let moveImageToSend = null; // Initialize moveImageToSend
+            const fallbackMoveImage = "/assets/moves/move-1744936855322-679154253.png"; // Define fallback
     
             if (playerResult.move) {
                 combatMessage += `You use ${playerResult.move.name}! ${playerResult.message}\n`;
@@ -725,7 +726,7 @@ class CombatService {
                 // If player hit, use hurtImage and set moveImageToSend
                 if (playerResult.damage > 0) {
                     imageToSend = mobInstance.hurtImage || mobInstance.image; // Use hurtImage if available, fallback to default
-                    moveImageToSend = playerResult.move.image; // Get the move image
+                    moveImageToSend = playerResult.move.image || fallbackMoveImage; // Use move image or fallback
                 }
                 
                 // Only show status after player moves

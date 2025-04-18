@@ -1478,11 +1478,11 @@
                     }
                     
                     // Handle move image overlay if provided
-                    const moveOverlay = document.getElementById('moveImageOverlay');
-                    if (moveOverlay && data.moveImage) {
-                        moveOverlay.src = data.moveImage;
+                    const moveOverlay = document.getElementById("moveImageOverlay");
+                    if (moveOverlay && data.moveImage) { // Check if moveOverlay exists AND data.moveImage is truthy
+                        moveOverlay.src = data.moveImage; // Use the provided move image
                         moveOverlay.style.opacity = 0.8; // Make it slightly transparent
-                        moveOverlay.style.transition = 'opacity 0.1s ease-in-out';
+                        moveOverlay.style.transition = "opacity 0.1s ease-in-out";
 
                         // Fade out after a short duration (e.g., 500ms)
                         setTimeout(() => {
@@ -1492,7 +1492,7 @@
                                 moveOverlay.src = '';
                             }, 100); // Adjust timing based on transition duration
                         }, 500);
-                    } else if (moveOverlay) {
+                    } else if (moveOverlay) { // Ensure overlay is hidden if no move image is sent or overlay doesn't exist initially
                         // Ensure overlay is hidden if no move image is sent
                         moveOverlay.style.opacity = 0;
                         moveOverlay.src = '';
