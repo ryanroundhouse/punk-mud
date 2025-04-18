@@ -3201,13 +3201,6 @@
                 }
             });
 
-            // Add WHO button to show users in the location
-            otherOptions.push({
-                name: 'WHO',
-                command: 'who',
-                action: showUsersInLocation
-            });
-
             // Add rest button if at a rest point
             if (currentNode && currentNode.isRestPoint) {
                 otherOptions.push({
@@ -3402,22 +3395,6 @@
             
             // Scroll to bottom
             chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        // Add this function before showOtherInterface
-        function showUsersInLocation() {
-            if (!currentNode || !currentNode.users || currentNode.users.length === 0) {
-                addConsoleMessage("No other players in this area.", "info");
-                return;
-            }
-            
-            // Create a message showing all users
-            let message = "Players in this area:\n";
-            currentNode.users.forEach(user => {
-                message += `- ${user.name}\n`;
-            });
-            
-            addConsoleMessage(message, "info");
         }
 
         // Add this function to handle adding a user to examine controls if they're currently displayed
