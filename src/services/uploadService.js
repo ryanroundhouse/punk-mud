@@ -18,6 +18,11 @@ function extractTypeFromPath(req, defaultType = 'misc') {
         return pathSegments[2] || defaultType;
     }
     
+    // Handle mob specific uploads with ID
+    if (pathSegments.length >= 3 && pathSegments[1] === 'upload' && pathSegments[2] === 'mob' && req.query.mobId) {
+        return 'mob'; // Keep type as 'mob' but rely on buildUploadPath for ID
+    }
+    
     // Original behavior for direct routes like /avatar
     return pathSegments[0] || defaultType;
 }
@@ -26,9 +31,20 @@ function extractTypeFromPath(req, defaultType = 'misc') {
  * Builds the upload directory path based on the type
  * @param {string} type - The content type (e.g., 'avatar', 'image')
  * @param {string} basePath - Base path for uploads
+ * @param {Object} req - Express request object
  * @returns {string} The full upload directory path
  */
-function buildUploadPath(type, basePath = path.join(__dirname, '../../public/assets')) {
+function buildUploadPath(type, basePath = path.join(__dirname, '../../public/assets'), req = null) {
+    // Special handling for mobs to include mobId
+    if (type === 'mob' && req && req.query.mobId) {
+        const mobId = req.query.mobId;
+        // Basic validation for mobId to prevent path traversal
+        if (!/^[a-f\d]{24}$/i.test(mobId)) { 
+            throw new Error('Invalid mob ID format for path creation');
+        }
+        return path.join(basePath, 'mobs', mobId);
+    }
+    // Default path structure for other types
     return path.join(basePath, `${type}s`);
 }
 
@@ -58,7 +74,8 @@ async function ensureDirectoryExists(dirPath, logger) {
 function generateFilename(type, originalFilename) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const ext = path.extname(originalFilename);
-    return `${type}-${uniqueSuffix}${ext}`;
+    // Keep filename simpler, path already includes type/id
+    return `${uniqueSuffix}${ext}`;
 }
 
 /**
@@ -94,7 +111,14 @@ function createStorage({
     return multer.diskStorage({
         destination: function(req, file, cb) {
             const type = extractType(req);
-            const uploadDir = buildPath(type);
+            // Pass req to buildUploadPath to access query parameters
+            let uploadDir;
+            try {
+                uploadDir = buildPath(type, undefined, req);
+            } catch (err) {
+                loggerInstance.error(`Error building upload path for type ${type}:`, err);
+                return cb(err); // Pass error to multer
+            }
             
             ensureDir(uploadDir, loggerInstance)
                 .then(() => cb(null, uploadDir))

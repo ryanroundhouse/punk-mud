@@ -32,7 +32,13 @@ router.post('/mob', verifyBuilderAccess, upload.single('image'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
-    res.json({ path: '/assets/mobs/' + req.file.filename });
+    const mobId = req.query.mobId;
+    if (!mobId) {
+        return res.status(400).json({ error: 'Mob ID is required for upload' });
+    }
+    // Construct the path including the mobId
+    const filePath = `/assets/mobs/${mobId}/${req.file.filename}`;
+    res.json({ path: filePath });
 });
 
 // Add the route for move images

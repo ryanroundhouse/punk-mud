@@ -831,7 +831,7 @@
                                 </div>
                                 <div class="image-upload-controls">
                                     <label for="imageUpload">Mob Image:</label>
-                                    <input type="file" id="imageUpload" accept="image/*">
+                                    <input type="file" id="imageUpload" accept="image/*" disabled>
                                     <input type="hidden" id="imagePath">
                                 </div>
                             </div>
@@ -844,7 +844,7 @@
                                 </div>
                                 <div class="image-upload-controls">
                                     <label for="hurtImageUpload">Mob Hurt Image:</label>
-                                    <input type="file" id="hurtImageUpload" accept="image/*">
+                                    <input type="file" id="hurtImageUpload" accept="image/*" disabled>
                                     <input type="hidden" id="hurtImagePath">
                                 </div>
                             </div>
@@ -982,6 +982,13 @@
             if (file) {
                 const formData = new FormData();
                 formData.append('image', file);
+                const mobId = document.getElementById('mobForm').dataset.mobId;
+
+                if (!mobId) {
+                    alert('Please save the mob before uploading an image.');
+                    imageUpload.value = ''; // Reset file input
+                    return;
+                }
                 
                 try {
                     const token = localStorage.getItem('token');
@@ -990,7 +997,8 @@
                         return;
                     }
 
-                    const response = await fetch('/api/upload/mob', {
+                    // Append mobId to the query string
+                    const response = await fetch(`/api/upload/mob?mobId=${mobId}`, {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${token}`
@@ -1035,6 +1043,13 @@
             if (file) {
                 const formData = new FormData();
                 formData.append('image', file);
+                const mobId = document.getElementById('mobForm').dataset.mobId;
+
+                if (!mobId) {
+                    alert('Please save the mob before uploading an image.');
+                    hurtImageUpload.value = ''; // Reset file input
+                    return;
+                }
 
                 try {
                     const token = localStorage.getItem('token');
@@ -1043,7 +1058,8 @@
                         return;
                     }
 
-                    const response = await fetch('/api/upload/mob', {
+                    // Append mobId to the query string
+                    const response = await fetch(`/api/upload/mob?mobId=${mobId}`, {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${token}`
@@ -1348,6 +1364,11 @@
                 }
 
                 alert('Mob saved successfully!');
+                // After saving, enable image uploads and set the mob ID
+                const savedData = await response.json();
+                document.getElementById('mobForm').dataset.mobId = savedData._id;
+                imageUpload.disabled = false;
+                hurtImageUpload.disabled = false;
                 await loadMobs();
             } catch (error) {
                 console.error('Error saving mob:', error);
@@ -1386,6 +1407,9 @@
         function loadMobData(mob) {
             document.getElementById('mobForm').dataset.mobId = mob._id;
             deleteMobBtn.classList.remove('hidden');
+            // Enable image uploads now that we have an ID
+            imageUpload.disabled = false;
+            hurtImageUpload.disabled = false;
             
             document.getElementById('mobName').value = mob.name;
             document.getElementById('mobIntent').value = mob.intent;
@@ -1491,6 +1515,13 @@
         const oldNewMobBtn = newMobBtn.onclick;
         newMobBtn.onclick = () => {
             oldNewMobBtn();
+            document.getElementById('mobForm').dataset.mobId = ''; // Clear mob ID
+            // Disable image uploads for new mob
+            imageUpload.disabled = true;
+            hurtImageUpload.disabled = true;
+            imageUpload.value = ''; // Reset file input
+            hurtImageUpload.value = ''; // Reset file input
+
             document.getElementById('movesList').innerHTML = '';
             document.getElementById('moveSelect').value = '';
             document.getElementById('usageChance').value = '100';
@@ -1504,7 +1535,6 @@
             hurtImagePreview.src = '';
             hurtImagePreview.style.display = 'none';
             document.getElementById('noHurtImageText').style.display = 'block';
-            hurtImageUpload.value = '';
         };
 
         // Delete mob
