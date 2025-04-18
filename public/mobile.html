@@ -1412,11 +1412,19 @@
                         // Show the death message
                         addConsoleMessage(data.message, 'combat');
                         messageDisplayed = true;
-                        showControlPanel('direction');
-                        // Small delay before requesting new location
+                        
+                        // Disable and hide combat controls during delay
+                        const combatControls = document.querySelector(".combat-controls");
+                        if (combatControls) {
+                            combatControls.querySelectorAll("button").forEach(btn => btn.disabled = true);
+                            combatControls.style.display = 'none'; // Hide the container
+                        }
+
+                        // Delay before switching controls and requesting new location
                         setTimeout(() => {
+                            showControlPanel('direction');
                             requestNodeData();
-                        }, 250);
+                        }, 1500); // Increased delay
                         return; // Exit early to prevent double-processing
                     }
                     // Check if this is a victory message
@@ -1431,11 +1439,18 @@
                         // Show the victory message
                         addConsoleMessage(data.message, 'combat');
                         messageDisplayed = true;
-                        showControlPanel('direction');
-                        // Small delay before requesting new location
+                        
+                        // Disable and hide combat controls during delay
+                        const combatControls = document.querySelector(".combat-controls");
+                        if (combatControls) {
+                            combatControls.style.display = 'none'; // Hide the container
+                        }
+
+                        // Delay before switching controls and requesting new location
                         setTimeout(() => {
+                            showControlPanel('direction');
                             requestNodeData();
-                        }, 250);
+                        }, 1500); // Increased delay
                         return; // Exit early to prevent double-processing
                     }
                     // Check if this is a flee success message
@@ -1450,11 +1465,19 @@
                         // Show the combat message first
                         addConsoleMessage(data.message, 'combat');
                         messageDisplayed = true;
-                        showControlPanel('direction');
-                        // Small delay before requesting new location
+                        
+                        // Disable and hide combat controls during delay
+                        const combatControls = document.querySelector(".combat-controls");
+                        if (combatControls) {
+                            combatControls.querySelectorAll("button").forEach(btn => btn.disabled = true);
+                            combatControls.style.display = 'none'; // Hide the container
+                        }
+
+                        // Delay before switching controls and requesting new location
                         setTimeout(() => {
+                            showControlPanel('direction');
                             requestNodeData();
-                        }, 250);
+                        }, 1500); // Increased delay
                         return; // Exit early to prevent double-processing
                     }
                     
@@ -1508,16 +1531,18 @@
                         messageDisplayed = true;
                     }
                     
-                    // Mark that we're no longer in combat
-                    if (currentNode) {
-                        currentNode.inCombat = false;
+                    // Disable and hide combat controls during delay
+                    const combatControls = document.querySelector(".combat-controls");
+                    if (combatControls) {
+                        combatControls.querySelectorAll("button").forEach(btn => btn.disabled = true);
+                        combatControls.style.display = 'none'; // Hide the container
                     }
-                    
-                    showControlPanel('direction');
-                    // Small delay before requesting new location
+
+                    // Delay before switching controls and requesting new location
                     setTimeout(() => {
+                        showControlPanel('direction');
                         requestNodeData();
-                    }, 250);
+                    }, 1500); // Increased delay
                     return; // Exit early to prevent double-processing
                 }
                 

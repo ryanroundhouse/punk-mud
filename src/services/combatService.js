@@ -579,8 +579,20 @@ class CombatService {
             // Add victory declaration
             victoryMessage += `\n\nVictory! You have defeated ${mobInstance.name}!`;
             
-            // Send the victory message first
-            this.messageService.sendCombatMessage(user._id.toString(), victoryMessage, null, mobInstance.image);
+            // Determine images for the final message
+            const imageToSend = mobInstance.hurtImage || mobInstance.image; // Use hurt image since the mob was just damaged
+            const fallbackMoveImage = "/assets/moves/move-1744936855322-679154253.png";
+            // Use the image from the final player move, if one exists
+            const moveImageToSend = playerResult.move?.image || fallbackMoveImage;
+
+            // Send the victory message first - Pass the correct images
+            this.messageService.sendCombatMessage(
+                user._id.toString(), 
+                victoryMessage, 
+                null, // helpText
+                imageToSend,      // Mob's image (preferably hurt)
+                moveImageToSend   // Player's move image
+            );
             
             this.logger.debug('Processing quest updates and XP', {
                 userId: user._id.toString(),
