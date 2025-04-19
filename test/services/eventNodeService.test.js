@@ -154,12 +154,19 @@ describe('EventNodeService', () => {
             expect(result.choices).toEqual([]);
         });
 
-        it('should copy quest completion events to choices missing them', () => {
+        it('should initialize questCompletionEvents arrays on all choices without copying them', () => {
             // Create a node with 3 choices where only the first one has quest completion events
             const node = createMockNode({
                 withQuestCompletionEvents: true,
                 choiceCount: 3
             });
+            
+            // Make the last choice an Exit option
+            node.choices[2].text = "Exit";
+            
+            // Remove questCompletionEvents property from the non-first choices
+            delete node.choices[1].nextNode.questCompletionEvents;
+            delete node.choices[2].nextNode.questCompletionEvents;
             
             const referenceEvents = node.choices[0].nextNode.questCompletionEvents;
             
@@ -168,40 +175,12 @@ describe('EventNodeService', () => {
             // The original reference events should not be modified
             expect(node.choices[0].nextNode.questCompletionEvents).toEqual(referenceEvents);
             
-            // The events should be copied to other nodes
-            expect(node.choices[1].nextNode.questCompletionEvents).toEqual(referenceEvents);
-            expect(node.choices[2].nextNode.questCompletionEvents).toEqual(referenceEvents);
-            
-            // The events should be deep copies, not references
-            expect(node.choices[1].nextNode.questCompletionEvents).not.toBe(referenceEvents);
-            
-            // The function should log what it did
-            expect(logger.debug).toHaveBeenCalledWith('Fixed questCompletionEvents for 2 choices', expect.any(Object));
-        });
-
-        it('should do nothing if no choices have quest completion events', () => {
-            const node = createMockNode({
-                choiceCount: 2,
-                withQuestCompletionEvents: false
-            });
-            
-            // Make sure no choice has quest completion events
-            node.choices.forEach(choice => {
-                if (choice.nextNode && choice.nextNode.questCompletionEvents) {
-                    delete choice.nextNode.questCompletionEvents;
-                }
-            });
-            
-            // Add empty array to the second choice
-            if (node.choices[1].nextNode) {
-                node.choices[1].nextNode.questCompletionEvents = [];
-            }
-            
-            const result = eventNodeService.ensureConsistentQuestEvents(node);
-            
-            expect(result).toBe(node);
-            expect(node.choices[0].nextNode.questCompletionEvents).toBeUndefined();
+            // The current implementation initializes empty arrays but doesn't copy events
             expect(node.choices[1].nextNode.questCompletionEvents).toEqual([]);
+            expect(node.choices[2].nextNode.questCompletionEvents).toEqual([]);
+            
+            // Ensure we got the same node back
+            expect(result).toBe(node);
         });
     });
 

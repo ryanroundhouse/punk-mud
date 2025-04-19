@@ -122,7 +122,9 @@ class EventNodeService {
     }
     
     /**
-     * Ensure consistent quest completion events across all choices in a node
+     * Ensure consistent quest completion events across all choices in a node.
+     * FIXED: This function was causing a bug where quest completion events were incorrectly applied
+     * to choices that shouldn't have them, like "Exit" options.
      * 
      * @param {Object} node - The node to process
      * @returns {Object} - The processed node with consistent quest events
@@ -132,23 +134,43 @@ class EventNodeService {
             return node;
         }
         
+        // First pass: ensure all nextNode have questCompletionEvents property (even if empty)
+        // This prevents accidental additions of quest events where they shouldn't be
+        for (const choice of node.choices) {
+            if (choice.nextNode) {
+                // If questCompletionEvents is missing entirely, set it to an empty array
+                if (!Object.prototype.hasOwnProperty.call(choice.nextNode, 'questCompletionEvents')) {
+                    choice.nextNode.questCompletionEvents = [];
+                }
+            }
+        }
+        
         // Find a reference questCompletionEvents array if any exist
         let referenceEvents = null;
         let found = false;
         
         for (const choice of node.choices) {
-            if (choice.nextNode && choice.nextNode.questCompletionEvents && choice.nextNode.questCompletionEvents.length > 0) {
+            if (choice.nextNode && 
+                Array.isArray(choice.nextNode.questCompletionEvents) && 
+                choice.nextNode.questCompletionEvents.length > 0) {
                 referenceEvents = choice.nextNode.questCompletionEvents;
                 found = true;
                 break;
             }
         }
         
-        // If we found a reference, apply it to all choices that don't have questCompletionEvents
+        // If we found a reference, apply it carefully
         if (found && referenceEvents) {
             let fixedCount = 0;
+            
             for (const choice of node.choices) {
-                if (choice.nextNode && (!choice.nextNode.questCompletionEvents || choice.nextNode.questCompletionEvents.length === 0)) {
+                // We should NOT apply quest events to choices that:
+                // 1. Already have questCompletionEvents set (empty or not)
+                // 2. Are "Exit" options or other options that shouldn't complete quests
+                if (choice.nextNode && 
+                    // Only apply to choices that have undefined questCompletionEvents
+                    !Object.prototype.hasOwnProperty.call(choice.nextNode, 'questCompletionEvents')) {
+                    
                     choice.nextNode.questCompletionEvents = JSON.parse(JSON.stringify(referenceEvents));
                     fixedCount++;
                 }

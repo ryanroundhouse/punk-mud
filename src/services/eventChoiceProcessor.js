@@ -442,22 +442,38 @@ class EventChoiceProcessor {
   }
   
   /**
-   * Handle quest-related events for a choice
+   * Process quest events from a choice node
    * 
-   * @param {Object} choice - The selected choice
+   * @param {Object} choice - The choice with quest events
    * @param {Object} user - User object
    * @param {string} userId - User ID
    * @param {string} actorId - Actor ID
    * @param {boolean} isStoryEvent - Whether this is a story event
-   * @returns {Object} - Updated user object after quest processing
+   * @returns {Promise<Object>} - Updated user object
    */
   async handleQuestEvents(choice, user, userId, actorId, isStoryEvent) {
     let updatedUser = user;
 
     try {
       const { nextNode } = choice;
-      // Process quest completion events if they exist
-      if (nextNode && nextNode.questCompletionEvents && nextNode.questCompletionEvents.length > 0) {
+      
+      // SAFETY CHECK: Check for Exit choices by text and prevent quest completions
+      if (choice.text && choice.text.toLowerCase().includes("exit") && 
+          (!nextNode.questCompletionEvents || nextNode.questCompletionEvents.length === 0)) {
+        this.logger.debug('Skipping quest processing for Exit option', {
+          userId,
+          choiceText: choice.text
+        });
+        return updatedUser;
+      }
+      
+      // FIXED: Process quest completion events if they exist AND they're not empty
+      // This prevents an empty array from triggering quest completions
+      if (nextNode && 
+          nextNode.questCompletionEvents && 
+          Array.isArray(nextNode.questCompletionEvents) && 
+          nextNode.questCompletionEvents.length > 0) {
+        
         this.logger.debug(`Processing quest completion events: ${nextNode.questCompletionEvents.join(', ')}`);
         
         this.logger.debug('User state before quest completion processing:', {
@@ -486,6 +502,14 @@ class EventChoiceProcessor {
           activeQuests: updatedUser.quests?.filter(q => !q.completed)?.length || 0,
           completedQuests: updatedUser.quests?.filter(q => q.completed)?.length || 0,
           questIds: updatedUser.quests?.map(q => ({ id: q.questId, completed: q.completed }))
+        });
+      } else {
+        // Add explicit log when skipping quest processing
+        this.logger.debug('Skipping quest completion processing - no valid quest events', {
+          userId,
+          hasQuestCompletionEvents: !!nextNode?.questCompletionEvents,
+          isArray: Array.isArray(nextNode?.questCompletionEvents),
+          length: nextNode?.questCompletionEvents?.length || 0
         });
       }
 
@@ -555,6 +579,21 @@ class EventChoiceProcessor {
         hasActivateQuest: !!clonedChoice.nextNode?.activateQuestId,
         hasMobId: !!clonedChoice.mobId
       });
+
+      // Safety check: If this is an Exit option, ensure it doesn't have quest completion events
+      if (clonedChoice.text && clonedChoice.text.toLowerCase().includes("exit") && 
+          clonedChoice.nextNode && clonedChoice.nextNode.questCompletionEvents && 
+          clonedChoice.nextNode.questCompletionEvents.length > 0) {
+        
+        this.logger.warn('Exit option incorrectly has quest completion events - clearing', {
+          userId,
+          choiceText: clonedChoice.text,
+          questCompletionEvents: clonedChoice.nextNode.questCompletionEvents
+        });
+        
+        // Clear the quest completion events for this Exit option
+        clonedChoice.nextNode.questCompletionEvents = [];
+      }
 
       // Check if this choice has a mobId for combat
       if (clonedChoice.mobId) {
