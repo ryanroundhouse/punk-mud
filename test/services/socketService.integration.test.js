@@ -3,6 +3,9 @@ jest.mock('../../src/config/redis', () => {
     const mockSubscriber = {
         subscribe: jest.fn().mockImplementation((channel, callback) => {
             // Store the callback for testing
+            if (!mockSubscriber.channels) {
+                mockSubscriber.channels = {};
+            }
             mockSubscriber.channels[channel] = callback;
             return Promise.resolve();
         }),
@@ -11,7 +14,8 @@ jest.mock('../../src/config/redis', () => {
     };
 
     return {
-        getSubscriber: jest.fn().mockReturnValue(mockSubscriber)
+        getSubscriber: jest.fn().mockReturnValue(mockSubscriber),
+        mockSubscriber // Export for direct access in tests
     };
 });
 
@@ -23,21 +27,22 @@ jest.mock('../../src/config/logger', () => ({
     warn: jest.fn()
 }));
 
-const { getSubscriber } = require('../../src/config/redis');
+const { getSubscriber, mockSubscriber } = require('../../src/config/redis');
 const logger = require('../../src/config/logger');
 const stateService = require('../../src/services/stateService');
 const { SocketService } = require('../../src/services/socketService');
 
 describe('SocketService Integration', () => {
     let socketService;
-    let mockSubscriber;
     
     beforeEach(() => {
         // Reset mocks
         jest.clearAllMocks();
         
-        // Get the mock subscriber
-        mockSubscriber = getSubscriber();
+        // Clear static subscriptions before each test
+        SocketService.activeSubscriptions.clear();
+        
+        // Reset mockSubscriber
         mockSubscriber.channels = {};
         
         // Create a new instance with real stateService but mocked Redis
@@ -85,10 +90,17 @@ describe('SocketService Integration', () => {
         // Act - subscribe and then simulate a message
         await socketService.subscribeToNodeChat(nodeAddress);
         
-        // Simulate Redis publishing a message
+        // Verify the channel was registered
         const channel = `node:${nodeAddress}:chat`;
-        const messageCallback = mockSubscriber.channels[channel];
-        messageCallback(JSON.stringify(mockMessage));
+        expect(mockSubscriber.channels[channel]).toBeDefined();
+        expect(typeof mockSubscriber.channels[channel]).toBe('function');
+        
+        // Simulate Redis publishing a message
+        if (mockSubscriber.channels[channel]) {
+            mockSubscriber.channels[channel](JSON.stringify(mockMessage));
+        } else {
+            throw new Error('Channel callback not properly registered');
+        }
         
         // Assert
         expect(getUsersInNodeSpy).toHaveBeenCalledWith(nodeAddress);
