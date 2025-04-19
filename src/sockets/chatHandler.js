@@ -20,6 +20,13 @@ async function handleChat(socket, message) {
             throw new Error('User not found or missing required data');
         }
 
+        logger.debug('Processing chat message from user:', {
+            userId: user._id,
+            username: user.avatarName,
+            nodeAddress: user.currentNode,
+            socketId: socket.id
+        });
+
         const chatMessage = {
             username: user.avatarName,
             message: message,
@@ -33,9 +40,19 @@ async function handleChat(socket, message) {
                 command: 'chat',
                 target: targetName
             });
+            logger.debug('Redirected to chat command:', {
+                userId: user._id,
+                username: user.avatarName,
+                target: targetName
+            });
             return;
         } else {
             // Also publish to global chat
+            logger.debug('Publishing to global chat channel:', {
+                username: user.avatarName,
+                messageLength: message.length,
+                messagePreview: message.substring(0, 30) + (message.length > 30 ? '...' : '')
+            });
             await publishGlobalChatMessage(chatMessage);
         }
 

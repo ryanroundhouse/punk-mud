@@ -18,10 +18,16 @@ async function publishChatMessage(nodeAddress, message) {
 async function publishGlobalChatMessage(message) {
     try {
         const redisClient = getClient();
+        logger.debug('Publishing global chat message:', {
+            channel: 'global:chat',
+            message,
+            timestamp: new Date().toISOString()
+        });
         await redisClient.publish(
             'global:chat',
             JSON.stringify(message)
         );
+        logger.info(`Published global chat message from ${message.username}`);
     } catch (error) {
         logger.error('Error publishing global chat message:', error);
         throw error;

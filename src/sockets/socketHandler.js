@@ -11,6 +11,10 @@ const userService = require('../services/userService');
 const nodeService = require('../services/nodeService');
 
 function socketHandler(io) {
+    // Clear static subscriptions on server restart
+    logger.info('Socket handler initializing - clearing existing subscriptions');
+    socketService.SocketService.activeSubscriptions.clear();
+    
     // Start session cleanup
     socketService.startSessionCleanup();
 
@@ -58,12 +62,37 @@ function socketHandler(io) {
                 // Check if this is a session restoration
                 const isRestoring = socket.handshake.auth.socketId && socket.sessionData;
                 
+                logger.debug('User connected to node:', {
+                    userId: socket.user.userId,
+                    username: user.avatarName,
+                    nodeAddress: user.currentNode,
+                    socketId: socket.id,
+                    isRestoringSession: isRestoring
+                });
+                
                 // Use the combined method that also updates usernames
                 await stateService.addUserToNodeAndUpdateUsernames(socket.user.userId, user.currentNode);
+                
+                // List all users in the node after adding this user
+                const nodeUsers = stateService.getUsersInNode(user.currentNode);
+                logger.debug('Current users in node after connection:', {
+                    nodeAddress: user.currentNode,
+                    userCount: nodeUsers ? nodeUsers.size : 0,
+                    users: nodeUsers ? Array.from(nodeUsers) : []
+                });
+                
                 // Subscribe to node's chat channel
                 await socketService.subscribeToNodeChat(user.currentNode);
                 // Subscribe to global chat channel
                 await socketService.subscribeToGlobalChat();
+                
+                logger.debug('Socket subscriptions status:', {
+                    socketId: socket.id,
+                    userId: socket.user.userId,
+                    username: user.avatarName,
+                    globalChatSubscribed: socketService.subscribedNodes.has('global:chat'),
+                    nodeChatSubscribed: socketService.isSubscribed(user.currentNode)
+                });
                 
                 // Only send connection message if this is not a session restoration
                 if (!isRestoring) {

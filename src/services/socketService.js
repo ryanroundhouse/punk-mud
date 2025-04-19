@@ -21,6 +21,9 @@ class SocketService {
         this.socketSessions = new Map(); // Store socket sessions
     }
 
+    // Static property to track active subscriptions across all instances
+    static activeSubscriptions = new Set();
+
     /**
      * Store socket session data
      * @param {string} socketId - The socket ID
@@ -97,9 +100,21 @@ class SocketService {
     async subscribeToNodeChat(nodeAddress) {
         const channel = `node:${nodeAddress}:chat`;
         
-        // Only subscribe if we haven't already
-        if (!this.subscribedNodes.has(channel)) {
+        // Log current subscription state
+        this.logger.debug('Node chat subscription check:', {
+            nodeAddress,
+            channel,
+            instanceSubscribed: this.subscribedNodes.has(channel),
+            globalSubscribed: SocketService.activeSubscriptions.has(channel),
+            instanceSubscriptions: Array.from(this.subscribedNodes),
+            globalSubscriptions: Array.from(SocketService.activeSubscriptions)
+        });
+        
+        // Only subscribe if we haven't already - check both instance and class level subscriptions
+        if (!this.subscribedNodes.has(channel) && !SocketService.activeSubscriptions.has(channel)) {
             const subscriber = this.getSubscriber();
+            
+            this.logger.debug(`Subscribing to chat channel for node ${nodeAddress}`);
             
             await subscriber.subscribe(channel, (message) => {
                 try {
@@ -120,7 +135,15 @@ class SocketService {
             });
 
             this.subscribedNodes.add(channel);
+            SocketService.activeSubscriptions.add(channel);
             this.logger.info(`Subscribed to chat channel for node ${nodeAddress}`);
+        } else {
+            // If we're already globally subscribed but not locally, update local tracking
+            if (SocketService.activeSubscriptions.has(channel) && !this.subscribedNodes.has(channel)) {
+                this.subscribedNodes.add(channel);
+                this.logger.debug(`Updated local subscription tracking for node ${nodeAddress}`);
+            }
+            this.logger.debug(`Already subscribed to chat channel for node ${nodeAddress}`);
         }
     }
 
@@ -135,9 +158,13 @@ class SocketService {
         const nodeUsers = this.stateService.getUsersInNode(nodeAddress);
         if (!nodeUsers || nodeUsers.size === 0) {
             const subscriber = this.getSubscriber();
+            this.logger.debug(`Unsubscribing from node chat channel: ${channel}`);
             await subscriber.unsubscribe(channel);
             this.subscribedNodes.delete(channel);
+            SocketService.activeSubscriptions.delete(channel);
             this.logger.info(`Unsubscribed from chat channel for node ${nodeAddress}`);
+        } else {
+            this.logger.debug(`Not unsubscribing from node ${nodeAddress} chat - ${nodeUsers.size} users still present`);
         }
     }
 
@@ -148,26 +175,61 @@ class SocketService {
     async subscribeToGlobalChat() {
         const channel = 'global:chat';
         
-        // Only subscribe if we haven't already
-        if (!this.subscribedNodes.has(channel)) {
+        // Log current subscription state
+        this.logger.debug('Global chat subscription check:', {
+            instanceSubscribed: this.subscribedNodes.has(channel),
+            globalSubscribed: SocketService.activeSubscriptions.has(channel),
+            instanceSubscriptions: Array.from(this.subscribedNodes),
+            globalSubscriptions: Array.from(SocketService.activeSubscriptions)
+        });
+        
+        // Only subscribe if we haven't already - check both instance and class level subscriptions
+        if (!this.subscribedNodes.has(channel) && !SocketService.activeSubscriptions.has(channel)) {
             const subscriber = this.getSubscriber();
+            
+            this.logger.debug('Subscribing to global chat channel');
             
             await subscriber.subscribe(channel, (message) => {
                 try {
                     const chatMessage = JSON.parse(message);
+                    // Log the received message
+                    this.logger.debug('Received global chat message:', {
+                        message: chatMessage,
+                        channel
+                    });
+                    
+                    // Track how many clients we're sending to
+                    let emittedCount = 0;
+                    
                     // Emit to all connected clients using the stateService clients Map
                     for (const [userId, userSocket] of this.stateService.clients) {
                         if (userSocket) {
                             userSocket.emit('global chat', chatMessage);
+                            emittedCount++;
+                            this.logger.debug('Emitted global chat message to user:', {
+                                userId,
+                                socketId: userSocket.id,
+                                messageFrom: chatMessage.username
+                            });
                         }
                     }
+                    
+                    this.logger.info(`Global chat message from ${chatMessage.username} emitted to ${emittedCount} clients`);
                 } catch (error) {
                     this.logger.error('Error broadcasting global chat message:', error);
                 }
             });
 
             this.subscribedNodes.add(channel);
+            SocketService.activeSubscriptions.add(channel);
             this.logger.info('Subscribed to global chat channel');
+        } else {
+            // If we're already globally subscribed but not locally, update local tracking
+            if (SocketService.activeSubscriptions.has(channel) && !this.subscribedNodes.has(channel)) {
+                this.subscribedNodes.add(channel);
+                this.logger.debug('Updated local subscription tracking for global chat');
+            }
+            this.logger.debug('Already subscribed to global chat channel');
         }
     }
 
@@ -177,10 +239,17 @@ class SocketService {
      */
     async unsubscribeFromGlobalChat() {
         const channel = 'global:chat';
-        const subscriber = this.getSubscriber();
-        await subscriber.unsubscribe(channel);
-        this.subscribedNodes.delete(channel);
-        this.logger.info('Unsubscribed from global chat channel');
+        // Only unsubscribe if there are no active clients
+        if (this.stateService.clients.size === 0) {
+            const subscriber = this.getSubscriber();
+            this.logger.debug(`Unsubscribing from global chat channel: ${channel}`);
+            await subscriber.unsubscribe(channel);
+            this.subscribedNodes.delete(channel);
+            SocketService.activeSubscriptions.delete(channel);
+            this.logger.info('Unsubscribed from global chat channel');
+        } else {
+            this.logger.debug(`Not unsubscribing from global chat - ${this.stateService.clients.size} clients still active`);
+        }
     }
 
     /**
@@ -226,6 +295,33 @@ class SocketService {
                 userCount: nodeUsers?.size,
                 users: nodeUsers ? Array.from(nodeUsers) : []
             });
+            
+            // Broadcast disconnection message to users in the node
+            if (nodeUsers && nodeUsers.size > 0) {
+                nodeUsers.forEach(receiverId => {
+                    const socket = this.stateService.getClient(receiverId);
+                    if (socket) {
+                        socket.emit('system message', {
+                            username: 'SYSTEM',
+                            message: `${username} has disconnected.`,
+                            timestamp: new Date().toISOString()
+                        });
+                        this.logger.debug('Sent disconnect notification to user:', {
+                            fromUser: username,
+                            toUserId: receiverId
+                        });
+                    } else {
+                        this.logger.warn('Failed to find socket for user in node:', {
+                            nodeAddress,
+                            userId: receiverId
+                        });
+                    }
+                });
+            } else {
+                this.logger.debug('No users left in node to notify about disconnect', {
+                    nodeAddress
+                });
+            }
         } catch (error) {
             this.logger.error('Error handling user disconnection:', error);
         }
