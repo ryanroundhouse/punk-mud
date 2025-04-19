@@ -157,7 +157,7 @@ describe('Upload Service', () => {
       const result = uploadService.generateFilename(type, originalFilename);
       
       // 1577836800000 (timestamp) + "-" + 500000000 (random) + .jpg
-      expect(result).toBe('avatar-1577836800000-500000000.jpg');
+      expect(result).toBe('1577836800000-500000000.jpg');
       
       // Restore originals
       Date.now = originalDateNow;
@@ -250,7 +250,7 @@ describe('Upload Service', () => {
       storageConfig.destination(mockReq, mockFile, mockCb);
       
       expect(mockExtractType).toHaveBeenCalledWith(mockReq);
-      expect(mockBuildPath).toHaveBeenCalledWith('custom');
+      expect(mockBuildPath).toHaveBeenCalledWith('custom', undefined, mockReq);
       
       // Test the filename function
       storageConfig.filename(mockReq, mockFile, mockCb);

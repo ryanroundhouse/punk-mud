@@ -187,7 +187,8 @@ describe('NodeService Integration Tests', () => {
     
     // Mock systemMessageService
     mockSystemMessageService = {
-      publishSystemMessage: jest.fn()
+      publishSystemMessage: jest.fn(),
+      publishEventSystemMessage: jest.fn()
     };
     
     // Create a controlled random generator for testing

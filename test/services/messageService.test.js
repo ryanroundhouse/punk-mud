@@ -18,7 +18,8 @@ describe('MessageService', () => {
         };
 
         mockLogger = {
-            error: jest.fn()
+            error: jest.fn(),
+            debug: jest.fn()
         };
 
         // Create MessageService with mocked dependencies

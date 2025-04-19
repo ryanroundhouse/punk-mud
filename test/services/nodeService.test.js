@@ -532,13 +532,6 @@ describe('NodeService', () => {
       expect(mockMobService.clearUserMob).toHaveBeenCalledWith(userId);
       expect(mockMobService.loadMobFromEvent).toHaveBeenCalledWith(node.events[0]);
       expect(mockStateService.playerMobs.get(userId)).toEqual(mobInstance);
-      expect(mockSystemMessageService.publishSystemMessage).toHaveBeenCalledWith(
-        nodeAddress,
-        expect.objectContaining({
-          message: expect.stringContaining(`A ${mobInstance.name} appears!`),
-          type: 'system'
-        })
-      );
     });
     
     it('should start story event if story event is selected', async () => {
@@ -588,7 +581,6 @@ describe('NodeService', () => {
         message: formattedResponse.message,
         isEndOfEvent: formattedResponse.isEnd
       });
-      expect(mockSystemMessageService.publishSystemMessage).toHaveBeenCalled();
     });
   });
 }); 

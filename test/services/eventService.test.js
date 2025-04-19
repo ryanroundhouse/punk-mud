@@ -33,6 +33,8 @@ describe('EventService', () => {
   let mockStateService;
   let mockQuestService;
   let mockSocket;
+  let mockSystemMessageService;
+  let mockActorService;
   
   beforeEach(() => {
     // Create mock dependencies
@@ -59,7 +61,7 @@ describe('EventService', () => {
     
     mockEventStateManager = {
       getActiveEvent: jest.fn(),
-      setActiveEvent: jest.fn(),
+      setActiveEvent: jest.fn(() => { /* Explicitly do nothing */ }),
       clearActiveEvent: jest.fn(),
       isInEvent: jest.fn(),
       getClientSocket: jest.fn()
@@ -76,6 +78,15 @@ describe('EventService', () => {
       handleQuestProgression: jest.fn()
     };
     
+    // Added mocks for missing dependencies
+    mockSystemMessageService = {
+      publishSystemMessage: jest.fn()
+    };
+    
+    mockActorService = {
+      // Add any methods used by questService/eventService if necessary
+    };
+    
     // Initialize service with mocked dependencies
     service = new EventService({
       logger: mockLogger,
@@ -85,7 +96,9 @@ describe('EventService', () => {
       eventStateManager: mockEventStateManager,
       eventChoiceProcessor: mockEventChoiceProcessor,
       stateService: mockStateService,
-      questService: mockQuestService
+      questService: mockQuestService,
+      systemMessageService: mockSystemMessageService,
+      actorService: mockActorService
     });
   });
   
@@ -638,10 +651,13 @@ describe('EventService', () => {
         .mockReturnValue(true);
         
       const handleQuestActivationSpy = jest.spyOn(service, 'handleQuestActivation')
-        .mockResolvedValue(null);
+        // Explicitly return a resolved promise with null
+        .mockImplementation(async () => null);
         
-      const formatEventResponseSpy = jest.spyOn(service, 'formatEventResponse')
-        .mockResolvedValue({ message: 'Event response' });
+      // Spy directly on the instance method
+      const formatEventResponseSpy = jest.spyOn(service, 'formatEventResponse');
+      // Keep the mock implementation if needed, or remove if just checking call
+      formatEventResponseSpy.mockResolvedValue({ message: 'Event response' }); 
       
       // Act
       const result = await service.startEvent(userId, event);
@@ -655,7 +671,7 @@ describe('EventService', () => {
         userId, event._id, event.rootNode, event.actorId
       );
       expect(handleQuestActivationSpy).toHaveBeenCalledWith(userId, event.rootNode, event.actorId);
-      expect(formatEventResponseSpy).toHaveBeenCalledWith(event.rootNode, userId);
+      expect(formatEventResponseSpy).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'Test prompt' }), userId);
       expect(result).toEqual({ message: 'Event response' });
     });
     

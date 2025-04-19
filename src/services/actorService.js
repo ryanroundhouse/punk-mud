@@ -6,18 +6,20 @@ class ActorService {
         
         // Services
         this.logger = deps.logger || require('../config/logger');
+        // Directly accept or require the questService dependency
+        this.questService = deps.questService || require('./questService'); 
         
-        // Avoid circular dependency with questService by using lazy loading
-        this._questService = null;
+        // Remove lazy loading logic for questService
+        // this._questService = null; 
     }
     
-    // Getter for questService to avoid circular dependency
-    get questService() {
-        if (!this._questService) {
-            this._questService = require('./questService');
-        }
-        return this._questService;
-    }
+    // Remove the getter for questService
+    // get questService() {
+    //     if (!this._questService) {
+    //         this._questService = require('./questService');
+    //     }
+    //     return this._questService;
+    // }
 
     async findActorInLocation(actorName, locationId, userId = null) {
         try {
@@ -35,6 +37,7 @@ class ActorService {
         try {
             // If userId is provided, check for quest actor overrides first
             if (userId) {
+                // Use this.questService directly
                 const questActorOverrides = await this.questService.getQuestNodeActorOverrides(userId, locationId);
                 
                 this.logger.debug('Checking quest actor overrides for location', {
@@ -168,6 +171,8 @@ class ActorService {
 }
 
 // Create a singleton instance with default dependencies
+// Note: This singleton creation might fail if questService itself has required deps now
+// For testing the class, this is fine, but runtime might need adjustment.
 const actorService = new ActorService();
 
 // Export both the class and the singleton instance

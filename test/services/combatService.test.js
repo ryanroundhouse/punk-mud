@@ -105,7 +105,8 @@ const createMockDependencies = () => {
       sendConsoleResponse: jest.fn()
     },
     // Create mock publishSystemMessage function
-    publishSystemMessage: jest.fn()
+    publishCombatSystemMessage: jest.fn(),
+    publishUserMoveSystemMessage: jest.fn()
   };
 };
 
@@ -801,13 +802,19 @@ describe('CombatService', () => {
       expect(combatMessage[1]).toContain('engage in combat with Test Mob');
       expect(typeof combatMessage[2]).toBe('string');
       
-      // Should announce to the room using publishSystemMessage instead of sendConsoleResponse
-      expect(mockDeps.publishSystemMessage).toHaveBeenCalledWith(
+      // Spy on the internal method BEFORE calling the command
+      const publishSpy = jest.spyOn(combatService, 'publishCombatSystemMessage');
+      
+      // Call the command that should trigger the internal method
+      await combatService.handleFightCommand(user, 'Test Mob');
+      
+      // Check if the spy was called correctly
+      expect(publishSpy).toHaveBeenCalledWith(
         'node1',
         expect.objectContaining({
-          message: expect.stringContaining('engages in combat with Test Mob'),
-          type: 'system'
-        })
+          message: expect.stringContaining('engages in combat with Test Mob')
+        }),
+        user // Ensure the user object is passed
       );
     });
   });
@@ -1054,54 +1061,51 @@ describe('CombatService', () => {
       const user = createTestUser();
       const mob = createTestMob();
       const currentNode = {
+        _id: 'node1', // Ensure node has an ID for system message verification
         exits: [{ direction: 'north', target: 'node2' }]
       };
       const targetNode = { _id: 'node2' };
-      
+
       // Set up successful flee (random value < 0.5)
       combatService.setMockRandomValues([0.4, 0.1]); // First for flee success, second for exit selection
-      
-      // Set up node data
+
+      // Mock dependencies for the flee logic
+      mockDeps.stateService.userCombatStates.get.mockReturnValueOnce({ mobInstanceId: 'mob1' }); // User is in combat
+      mockDeps.stateService.playerMobs.get.mockReturnValueOnce(mob); // Target mob exists
       mockDeps.nodeService.getNodeByAddress.mockResolvedValueOnce(currentNode);
       mockDeps.nodeService.getNodeByDirection.mockResolvedValueOnce(targetNode);
-      
-      // Mock mob's attack result
-      const mockMobMove = { name: 'Slash', delay: 1 };
-      const mockMob = {
-        ...mob,
-        moves: [mockMobMove]
-      };
-      mockDeps.stateService.playerMobs.get.mockReturnValueOnce(mockMob);
-      
-      // Mock the calculateAttackResult for mob's attack
+
+      // Mock calculateAttackResult to return a result even if mobMove is missing
       const mockAttackResult = { success: true, effects: [], damage: 5, message: 'The attack hits!' };
-      jest.spyOn(combatService, 'calculateAttackResult').mockReturnValueOnce(mockAttackResult);
-      
+      jest.spyOn(combatService, 'calculateAttackResult').mockReturnValue(mockAttackResult);
+
+      // Call the command
       await combatService.handleFleeCommand(user);
-      
-      // Should clear combat state
+
+      // Verify outcomes:
+      // 1. Combat state is cleared for the user
       expect(mockDeps.stateService.clearUserCombatState).toHaveBeenCalledWith('user1');
-      expect(mockDeps.mobService.clearUserMob).toHaveBeenCalledWith('user1');
-      
-      // Should move player to new node
+
+      // 2. User is moved to the chosen exit node
       expect(mockDeps.userService.moveUserToNode).toHaveBeenCalledWith(
         'user1',
         'north',
         targetNode
       );
-      
-      // Should send success message
+
+      // 3. User receives a success message
       const fleeMessage = mockDeps.messageService.sendCombatMessage.mock.calls[0];
       expect(fleeMessage[0]).toBe('user1');
       expect(fleeMessage[1]).toContain('You successfully flee from combat!');
-      
-      // Should announce to the room
-      expect(mockDeps.publishSystemMessage).toHaveBeenCalledWith(
-        'node1',
-        expect.stringContaining('flees from combat with Test Mob')
+
+      // 4. A system message is published to the original node
+      expect(mockDeps.publishCombatSystemMessage).toHaveBeenCalledWith(
+        'node1', // The ID of the node the user fled FROM
+        expect.objectContaining({
+          message: expect.stringContaining(`${user.avatarName} flees from combat with ${mob.name}`)
+        }),
+        user // Exclude the user who fled (pass the full user object as per implementation)
       );
-      
-      // Test doesn't need to check clearCombatDelay since it's not called in the implementation
     });
 
     it('should handle failed flee attempt', async () => {
