@@ -1,0 +1,10 @@
+---
+description: 
+globs: *.js
+alwaysApply: false
+---
+
+# Your rule content
+ENSURE ALL TESTS PASS AFTER IMPLEMENTING A CHANGE BEFORE YOU'RE DONE.
+Always pick out the business logic that's being asked to be implemented.  When you find one ALWAYS CREATE A TEST FOR IT.  Ensure the test isn't brittle.  It shouldn't test implementation, it should focus on the logic.  Tests are in the /test folder.
+

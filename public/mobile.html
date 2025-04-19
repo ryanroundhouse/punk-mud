@@ -580,6 +580,11 @@
             width: 100%;
             position: relative;
             background: rgba(10, 10, 15, 0.95);
+            display: flex; /* Added */
+            flex-direction: column; /* Added */
+            max-width: 600px; /* Added for consistency */
+            margin-left: auto; /* Added for centering */
+            margin-right: auto; /* Added for centering */
         }
 
         .chat-header {
@@ -2681,6 +2686,12 @@
                 document.querySelector('.mobile-container').style.display = 'none';
                 document.querySelector('.chat-container').style.display = 'flex';
                 
+                // Hide the scroll indicator when switching to chat
+                const moreContentIndicator = document.querySelector('.more-content-indicator');
+                if (moreContentIndicator) {
+                    moreContentIndicator.style.display = 'none';
+                }
+                
                 // Load chat history from localStorage
                 loadChatHistory();
                 
@@ -2692,6 +2703,11 @@
             document.getElementById('chatBackButton').addEventListener('click', function() {
                 document.querySelector('.chat-container').style.display = 'none';
                 document.querySelector('.mobile-container').style.display = 'flex';
+                
+                // Update scroll indicator when returning to main view
+                if (window.updateScrollIndicator) {
+                    setTimeout(window.updateScrollIndicator, 100); // Delay to allow layout update
+                }
             });
             
             // Chat send button
