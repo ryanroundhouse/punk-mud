@@ -209,6 +209,36 @@ class EventChoiceProcessor {
       choiceText: choice.text
     });
 
+    // Check if user has enough energy
+    if (user.stats.currentEnergy < 1) {
+        this.logger.warn('User attempted combat with insufficient energy', { userId, energy: user.stats.currentEnergy });
+        this.messageService.sendErrorMessage(userId, "You're too tired to face this challenge right now. Rest and recover first.");
+        // Clear any potential active event state
+        this.eventStateManager.clearActiveEvent(userId);
+        return {
+            message: choice.text + "\n\nYou feel too exhausted to proceed.",
+            isEnd: true
+        };
+    }
+
+    // Deduct energy before initiating combat
+    user.stats.currentEnergy -= 1;
+    try {
+        await this.User.findByIdAndUpdate(userId, {
+            'stats.currentEnergy': user.stats.currentEnergy
+        });
+        this.logger.debug('Deducted 1 energy for combat initiation', { userId, newEnergy: user.stats.currentEnergy });
+    } catch (dbError) {
+        this.logger.error('Failed to update user energy in database', { userId, error: dbError.message, stack: dbError.stack });
+        // Don't stop combat, but log the error
+    }
+    
+    // Send status update after energy deduction
+    this.messageService.sendPlayerStatusMessage(
+        userId,
+        `HP: ${user.stats.currentHitpoints}/${user.stats.hitpoints} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
+    );
+
     // Clear the active event since we're transitioning to combat
     this.eventStateManager.clearActiveEvent(userId);
 

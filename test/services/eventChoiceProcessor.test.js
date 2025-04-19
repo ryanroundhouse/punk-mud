@@ -17,7 +17,8 @@ describe('EventChoiceProcessor', () => {
     // Create mock dependencies
     mockLogger = {
       debug: jest.fn(),
-      error: jest.fn()
+      error: jest.fn(),
+      warn: jest.fn()
     };
     
     // Mock user data
@@ -41,11 +42,16 @@ describe('EventChoiceProcessor', () => {
     // Fix User mock - proper findById method
     mockUser = function() {};
     mockUser.findById = jest.fn().mockResolvedValue(mockUserData);
+    mockUser.findByIdAndUpdate = jest.fn().mockResolvedValue(mockUserData);
     
     mockEventNodeService = {
       cloneNode: jest.fn(node => JSON.parse(JSON.stringify(node))),
       validateNodeStructure: jest.fn(node => node),
-      ensureConsistentQuestEvents: jest.fn(node => node)
+      ensureConsistentQuestEvents: jest.fn(node => node),
+      sendErrorMessage: jest.fn(),
+      sendCombatMessage: jest.fn(),
+      sendConsoleResponse: jest.fn(),
+      sendPlayerStatusMessage: jest.fn()
     };
     
     mockEventStateManager = {
@@ -59,7 +65,8 @@ describe('EventChoiceProcessor', () => {
       sendSuccessMessage: jest.fn(),
       sendErrorMessage: jest.fn(),
       sendCombatMessage: jest.fn(),
-      sendConsoleResponse: jest.fn()
+      sendConsoleResponse: jest.fn(),
+      sendPlayerStatusMessage: jest.fn()
     };
     
     mockQuestService = {
@@ -313,16 +320,91 @@ describe('EventChoiceProcessor', () => {
       mockMobService.loadMobFromEvent.mockResolvedValue(mockMobInstance);
     });
     
-    it('should clear active event when initiating combat', async () => {
+    it('should deduct 1 energy point and update user status', async () => {
+      // Ensure user has energy
+      mockUserData.stats.currentEnergy = 5;
+      mockUserData.stats.currentHitpoints = 50;
+      mockUserData.stats.hitpoints = 100;
+      mockUserData.stats.energy = 10;
+      
+      // Reset the mock before the call
+      mockUser.findByIdAndUpdate.mockClear();
+      mockMessageService.sendPlayerStatusMessage.mockClear();
+
       await processor.handleCombatChoice(combatChoice, mockUserData, 'user123');
       
+      // Check if energy was deducted
+      expect(mockUser.findByIdAndUpdate).toHaveBeenCalledWith('user123', {
+        'stats.currentEnergy': 4 // 5 - 1
+      });
+      
+      // Check if status message was sent with updated energy
+      expect(mockMessageService.sendPlayerStatusMessage).toHaveBeenCalledWith(
+        'user123',
+        `HP: 50/100 | Energy: 4/10`
+      );
+    });
+    
+    it('should prevent combat and send error if user has insufficient energy', async () => {
+      // Set energy to 0
+      mockUserData.stats.currentEnergy = 0;
+      
+      // Reset mocks
+      mockUser.findByIdAndUpdate.mockClear();
+      mockMessageService.sendErrorMessage.mockClear();
+      mockEventStateManager.clearActiveEvent.mockClear();
+
+      const result = await processor.handleCombatChoice(combatChoice, mockUserData, 'user123');
+      
+      // Check that update was NOT called
+      expect(mockUser.findByIdAndUpdate).not.toHaveBeenCalled();
+      
+      // Check that error message was sent
+      expect(mockMessageService.sendErrorMessage).toHaveBeenCalledWith(
+        'user123',
+        "You're too tired to face this challenge right now. Rest and recover first."
+      );
+      
+      // Check that active event was cleared
       expect(mockEventStateManager.clearActiveEvent).toHaveBeenCalledWith('user123');
+      
+      // Check the return value indicates failure
+      expect(result.message).toContain('You feel too exhausted to proceed.');
+      expect(result.isEnd).toBe(true);
+      expect(mockCombatService.processCombatUntilInput).not.toHaveBeenCalled(); // Ensure combat didn't start
+    });
+
+    it('should clear active event when initiating combat', async () => {
+      // Ensure user has energy for this test case
+      mockUserData.stats.currentEnergy = 1;
+      
+      // Clear the mock before the call
+      mockEventStateManager.clearActiveEvent.mockClear();
+      
+      // Capture the result
+      const result = await processor.handleCombatChoice(combatChoice, mockUserData, 'user123');
+      
+      expect(mockEventStateManager.clearActiveEvent).toHaveBeenCalledWith('user123');
+      
+      // These checks belong in the test for successful combat initiation, 
+      // not just clearing the event state.
+      // expect(result.isEnd).toBe(true); 
+      // expect(result.combatInitiated).toBe(true); 
     });
     
     it('should load the mob from the event', async () => {
-      await processor.handleCombatChoice(combatChoice, mockUserData, 'user123');
+      // Ensure user has energy
+      mockUserData.stats.currentEnergy = 1;
+      
+      // Capture the result
+      const result = await processor.handleCombatChoice(combatChoice, mockUserData, 'user123');
       
       expect(mockMobService.loadMobFromEvent).toHaveBeenCalledWith({ mobId: 'mob-123' });
+      
+      // Add checks for successful combat initiation result
+      expect(result.message).toBeNull(); // Successful combat initiation doesn't return a direct message
+      expect(result.isEnd).toBe(true); // Combat ends the event flow
+      expect(result.combatInitiated).toBe(true); // Combat should be marked as initiated
     });
     
     it('should handle failure to load mob', async () => {
