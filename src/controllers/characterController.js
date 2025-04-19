@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const logger = require('../config/logger');
 
@@ -165,9 +166,162 @@ async function updateCharacter(req, res) {
     }
 }
 
+async function getCharacterQuests(req, res) {
+    try {
+        const user = await User.findById(req.user.userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // If no quests, return empty arrays
+        if (!user.quests || user.quests.length === 0) {
+            return res.json({
+                active: [],
+                completed: []
+            });
+        }
+
+        // Get all questIds to fetch
+        const questIds = user.quests.map(q => q.questId);
+        logger.debug('Fetching quest details for IDs:', questIds);
+        
+        // Fetch all quest details from Quest collection
+        const Quest = mongoose.model('Quest');
+        const questDetails = await Quest.find({ _id: { $in: questIds } })
+            .populate('events.mobId'); // Populate mob references for kill events
+        
+        // Create lookup table for quest details by ID
+        const questLookup = {};
+        questDetails.forEach(quest => {
+            questLookup[quest._id.toString()] = quest;
+        });
+
+        // Function to find event by ID in a quest
+        const findEventById = (quest, eventId) => {
+            if (!quest || !quest.events || !eventId) return null;
+            return quest.events.find(e => e._id.toString() === eventId);
+        };
+
+        // Format active and completed quests with event hints
+        const result = {
+            active: [],
+            completed: []
+        };
+
+        // Process active quests
+        for (const userQuest of user.quests.filter(q => !q.completed)) {
+            const questDetail = questLookup[userQuest.questId];
+            if (!questDetail) continue;
+
+            // Find the current event
+            const currentEvent = findEventById(questDetail, userQuest.currentEventId);
+            if (!currentEvent) continue;
+
+            // Get choice events and their hints
+            const choiceHints = [];
+            if (currentEvent.choices && currentEvent.choices.length > 0) {
+                for (const choice of currentEvent.choices) {
+                    const nextEventId = choice.nextEventId.toString();
+                    const nextEvent = findEventById(questDetail, nextEventId);
+                    
+                    if (nextEvent) {
+                        // Get the hint from the next event
+                        let hintText = nextEvent.hint || '';
+                        
+                        // If it's a kill event and hint contains [Quantity], replace with remaining count
+                        if (nextEvent.eventType === 'kill' && hintText.includes('[Quantity]')) {
+                            // Find kill progress for this event if available
+                            const killProgress = userQuest.killProgress?.find(kp => kp.eventId === nextEventId);
+                            const remaining = killProgress ? killProgress.remaining : nextEvent.quantity;
+                            hintText = hintText.replace('[Quantity]', remaining);
+                        }
+                        // If no hint is available, generate one based on event type
+                        else if (!hintText) {
+                            if (nextEvent.eventType === 'kill' && nextEvent.mobId) {
+                                const mobName = nextEvent.mobId.name || 'enemies';
+                                
+                                // Check if we have kill progress info for this event
+                                const killProgress = userQuest.killProgress?.find(kp => kp.eventId === nextEventId);
+                                const remaining = killProgress ? killProgress.remaining : nextEvent.quantity;
+                                
+                                hintText = `Defeat ${remaining} ${mobName}.`;
+                            } else if (nextEvent.eventType === 'chat') {
+                                hintText = 'Speak with someone.';
+                            } else if (nextEvent.eventType === 'stage') {
+                                hintText = 'Complete the current objective.';
+                            }
+                        }
+                        
+                        if (hintText) {
+                            choiceHints.push({
+                                eventId: nextEventId,
+                                hint: hintText
+                            });
+                        }
+                    }
+                }
+            }
+
+            result.active.push({
+                questId: userQuest.questId,
+                title: questDetail.title || 'Unknown Quest',
+                journalDescription: questDetail.journalDescription || 'No description available',
+                currentEventId: userQuest.currentEventId,
+                choiceHints: choiceHints,
+                progress: userQuest.progress || 0
+            });
+        }
+
+        // Process completed quests
+        for (const userQuest of user.quests.filter(q => q.completed)) {
+            const questDetail = questLookup[userQuest.questId];
+            if (!questDetail) continue;
+
+            // Get hints for all completed events
+            const completedHints = [];
+            if (userQuest.completedEventIds && userQuest.completedEventIds.length > 0) {
+                for (const eventId of userQuest.completedEventIds) {
+                    const event = findEventById(questDetail, eventId);
+                    if (event && event.hint) {
+                        completedHints.push({
+                            eventId: eventId,
+                            hint: event.hint
+                        });
+                    }
+                }
+            }
+            
+            // Add the current event hint at the end of the list (for completed quests)
+            if (userQuest.currentEventId) {
+                const currentEvent = findEventById(questDetail, userQuest.currentEventId);
+                if (currentEvent && currentEvent.hint) {
+                    completedHints.push({
+                        eventId: userQuest.currentEventId,
+                        hint: currentEvent.hint
+                    });
+                }
+            }
+
+            result.completed.push({
+                questId: userQuest.questId,
+                title: questDetail.title || 'Unknown Quest',
+                journalDescription: questDetail.journalDescription || 'No description available',
+                completedHints: completedHints,
+                dateCompleted: userQuest.completedAt
+            });
+        }
+
+        res.json(result);
+    } catch (error) {
+        logger.error('Error fetching character quests:', error);
+        res.status(500).json({ error: 'Error fetching character quests' });
+    }
+}
+
 module.exports = {
     registerAvatar,
     getCharacterData,
     getCharacterByUsername,
-    updateCharacter
+    updateCharacter,
+    getCharacterQuests
 }; 

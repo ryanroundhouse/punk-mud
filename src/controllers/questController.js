@@ -243,6 +243,30 @@ async function getQuestById(req, res) {
             return res.status(404).json({ error: 'Quest not found' });
         }
         
+        // Log detailed event information for debugging
+        logger.debug(`Found quest with ID ${req.params.id}`, {
+            title: quest.title,
+            eventCount: quest.events.length
+        });
+        
+        quest.events.forEach((event, index) => {
+            logger.debug(`Quest event ${index}:`, {
+                eventId: event._id.toString(),
+                eventType: event.eventType,
+                hint: event.hint,
+                hasChoices: !!(event.choices && event.choices.length > 0),
+                choicesCount: event.choices?.length || 0
+            });
+            
+            if (event.choices && event.choices.length > 0) {
+                event.choices.forEach((choice, choiceIdx) => {
+                    logger.debug(`Event ${index} choice ${choiceIdx}:`, {
+                        nextEventId: choice.nextEventId.toString()
+                    });
+                });
+            }
+        });
+        
         res.json(quest);
     } catch (error) {
         logger.error('Error fetching quest:', error);
@@ -263,9 +287,63 @@ async function deleteQuest(req, res) {
     }
 }
 
+// Debug endpoint - remove or secure this in production
+async function debugQuestEvent(req, res) {
+    try {
+        const questId = "67c3bcf433daf315c377e64d"; // Hard-coded for debugging
+        const targetEventId = "67c3bd0c1d6de245b2120000"; // Hard-coded for debugging
+        
+        logger.debug('Debugging specific quest event', { questId, targetEventId });
+        
+        const quest = await Quest.findById(questId);
+        if (!quest) {
+            return res.status(404).json({ error: 'Quest not found' });
+        }
+        
+        // Find the specific event
+        let targetEvent = null;
+        quest.events.forEach(event => {
+            if (event._id.toString() === targetEventId) {
+                targetEvent = event;
+                logger.debug('Found target event', {
+                    eventId: event._id.toString(),
+                    eventType: event.eventType,
+                    hint: event.hint,
+                    allFields: Object.keys(event._doc || event)
+                });
+                
+                // Log all fields in the event
+                Object.keys(event._doc || event).forEach(key => {
+                    logger.debug(`Event field: ${key}`, { 
+                        value: typeof event[key] === 'object' ? 
+                              JSON.stringify(event[key]) : 
+                              event[key] 
+                    });
+                });
+            }
+        });
+        
+        if (!targetEvent) {
+            logger.debug('Target event not found. All events:', 
+                quest.events.map(e => e._id.toString()));
+            return res.status(404).json({ error: 'Event not found' });
+        }
+        
+        res.json({ 
+            questId,
+            targetEventId,
+            event: targetEvent 
+        });
+    } catch (error) {
+        logger.error('Error in debug endpoint:', error);
+        res.status(500).json({ error: 'Error in debug endpoint' });
+    }
+}
+
 module.exports = {
     getQuests,
     getQuestById,
     createOrUpdateQuest,
-    deleteQuest
+    deleteQuest,
+    debugQuestEvent
 }; 

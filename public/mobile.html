@@ -3206,7 +3206,11 @@
             // Add quests button
             otherOptions.push({
                 name: 'QUESTS',
-                command: 'quests'
+                command: 'quests',
+                action: () => {
+                    // Navigate to quests page
+                    window.location.href = '/quests.html';
+                }
             });
 
             // Add character button to view your character

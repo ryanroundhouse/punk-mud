@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PUNK MUD - Quests</title>
+    <link rel="icon" type="image/x-icon" href="/assets/art/favicon.ico">
+    <style>
+        :root {
+            --neon-pink: #ff2e88;
+            --neon-blue: #00fff9;
+            --dark-bg: #0a0a0f;
+            --terminal-green: #00ff00;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--dark-bg);
+            font-family: 'Courier New', monospace;
+            color: var(--terminal-green);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-image: 
+                linear-gradient(45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1f 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1f 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            overflow-x: hidden;
+            touch-action: manipulation;
+            flex-direction: column;
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            width: 95%;
+            height: 90vh;
+            gap: 1rem;
+        }
+
+        @media (min-width: 768px) {
+            .game-container {
+                flex-direction: row;
+            }
+        }
+
+        .main-panel {
+            flex: 1;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 1rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px var(--neon-pink),
+                       0 0 40px rgba(255, 46, 136, 0.3);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 45vh;
+        }
+
+        .quests-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding: 0;
+            background: transparent;
+            border: none;
+            max-height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .quests-header {
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            border-radius: 5px;
+            padding-bottom: 0rem;
+        }
+
+        .quests-title {
+            color: var(--neon-pink);
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .quests-tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--neon-blue);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab-button {
+            background: transparent;
+            border: none;
+            color: var(--neon-blue);
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            transition: all 0.3s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .tab-button.active {
+            color: var(--neon-pink);
+            border-bottom: 2px solid var(--neon-pink);
+        }
+
+        .tab-button:hover,
+        .tab-button:active {
+            color: var(--neon-pink);
+        }
+
+        .tab-content {
+            display: block;
+        }
+
+        .tab-content.hidden {
+            display: none;
+        }
+
+        .quest-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .quest-item {
+            background: rgba(0, 255, 249, 0.1);
+            border-radius: 5px;
+            padding: 1rem;
+            border-left: 4px solid var(--neon-pink);
+            transition: all 0.3s ease;
+        }
+
+        .quest-item:hover {
+            box-shadow: 0 0 10px var(--neon-blue);
+            background: rgba(0, 255, 249, 0.15);
+        }
+
+        .quest-title {
+            color: var(--neon-pink);
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+
+        .quest-description {
+            color: var(--terminal-green);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .quest-choices {
+            margin-top: 0.5rem;
+        }
+
+        .quest-choice {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            border-radius: 3px;
+            color: var(--neon-blue);
+        }
+
+        .quest-hint {
+            background: rgba(255, 46, 136, 0.1);
+            border-left: 2px solid var(--neon-pink);
+            padding: 0.5rem;
+            margin: 0.5rem 0;
+            color: var(--neon-pink);
+            font-style: italic;
+        }
+
+        .quest-hint.completed {
+            background: rgba(0, 255, 249, 0.1);
+            border-left: 2px solid var(--neon-blue);
+            color: var(--neon-blue);
+        }
+
+        .quest-hints {
+            margin: 0.8rem 0;
+        }
+
+        .no-quests {
+            text-align: center;
+            color: var(--neon-blue);
+            font-style: italic;
+            padding: 2rem;
+        }
+
+        .return-button-container {
+            width: 95%;
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .return-button {
+            display: flex;
+            background: transparent;
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            z-index: 10;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .return-button:hover,
+        .return-button:active {
+            background: var(--neon-pink);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        .loading {
+            text-align: center;
+            color: var(--neon-blue);
+            padding: 2rem;
+        }
+
+        .completed-indicator {
+            float: right;
+            color: var(--terminal-green);
+            font-size: 0.8rem;
+            padding: 0.2rem 0.5rem;
+            background: rgba(0, 255, 0, 0.2);
+            border-radius: 3px;
+        }
+
+        /* Progress bar styling */
+        .quest-progress {
+            height: 5px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            margin-top: 0.5rem;
+            overflow: hidden;
+        }
+
+        .quest-progress-bar {
+            height: 100%;
+            background: var(--neon-pink);
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="return-button-container">
+        <button class="return-button" onclick="window.location.href='/mobile.html'">Return to Game</button>
+    </div>
+    <div class="game-container">
+        <div class="main-panel">
+            <div class="quests-container">
+                <div class="quests-header">
+                    <div class="quests-title">Quests</div>
+                </div>
+
+                <div class="quests-tabs">
+                    <button class="tab-button active" data-tab="active">Active Quests</button>
+                    <button class="tab-button" data-tab="completed">Completed Quests</button>
+                </div>
+                
+                <div class="tab-content" id="activeQuestsTab">
+                    <div class="quest-list" id="activeQuestsList">
+                        <div class="loading">Loading active quests...</div>
+                    </div>
+                </div>
+
+                <div class="tab-content hidden" id="completedQuestsTab">
+                    <div class="quest-list" id="completedQuestsList">
+                        <div class="loading">Loading completed quests...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUsername = '';
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+        // Prevent text selection on double-tap for iOS devices
+        document.addEventListener('touchstart', function(event) {
+            if (event.touches.length > 1) {
+                event.preventDefault();
+            }
+        }, { passive: false });
+
+        // Prevent zoom on double tap
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function(event) {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, { passive: false });
+
+        // Handle orientation changes
+        window.addEventListener('orientationchange', function() {
+            // Small delay to let the browser adjust
+            setTimeout(function() {
+                // Adjust layout for new orientation if needed
+                const vh = window.innerHeight * 0.01;
+                document.documentElement.style.setProperty('--vh', `${vh}px`);
+            }, 200);
+        });
+
+        // Tab switching functionality
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+                
+                button.classList.add('active');
+                document.getElementById(`${button.dataset.tab}QuestsTab`).classList.remove('hidden');
+            });
+        });
+
+        // Update the window.onload function
+        window.onload = async () => {
+            // Set initial viewport height variable for mobile
+            if (isMobile) {
+                const vh = window.innerHeight * 0.01;
+                document.documentElement.style.setProperty('--vh', `${vh}px`);
+            }
+            
+            const token = localStorage.getItem('token');
+            if (!token) {
+                // Try to get token from URL if not in localStorage (this is just a fallback)
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlToken = urlParams.get('token');
+                if (urlToken) {
+                    localStorage.setItem('token', urlToken);
+                } else {
+                    window.location.href = '/';
+                    return;
+                }
+            }
+
+            try {
+                const response = await fetch('/api/auth/verify-token', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                const data = await response.json();
+                currentUsername = data.user.avatarName;
+                
+                // Load quest data
+                await loadQuestData();
+            } catch (error) {
+                console.error('Authentication error:', error);
+                window.location.href = '/';
+            }
+        };
+
+        async function loadQuestData() {
+            try {
+                console.log('Fetching quest data from API...');
+                // Fetch user quests data from the correct endpoint
+                const response = await fetch('/api/character/quests', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    console.error('API response not OK:', response.status, response.statusText);
+                    throw new Error('Failed to load quest data');
+                }
+                
+                const questData = await response.json();
+                console.log('Full quest data received:', JSON.stringify(questData, null, 2));
+                console.log('Active quests:', questData.active);
+                console.log('Completed quests:', questData.completed);
+                
+                // Render active quests
+                console.log('Rendering active quests:', questData.active?.length || 0, 'found');
+                renderQuestList(questData.active || [], 'activeQuestsList', false);
+                
+                // Render completed quests
+                console.log('Rendering completed quests:', questData.completed?.length || 0, 'found');
+                renderQuestList(questData.completed || [], 'completedQuestsList', true);
+            } catch (error) {
+                console.error('Error loading quest data:', error);
+                document.getElementById('activeQuestsList').innerHTML = '<div class="no-quests">Error loading quests. Please try again later.</div>';
+                document.getElementById('completedQuestsList').innerHTML = '<div class="no-quests">Error loading quests. Please try again later.</div>';
+            }
+        }
+
+        function renderQuestList(quests, elementId, isCompleted) {
+            console.log(`Rendering quest list for ${elementId}:`, quests);
+            const questListElement = document.getElementById(elementId);
+            
+            if (quests.length === 0) {
+                console.log(`No ${isCompleted ? 'completed' : 'active'} quests found.`);
+                questListElement.innerHTML = `<div class="no-quests">No ${isCompleted ? 'completed' : 'active'} quests found.</div>`;
+                return;
+            }
+            
+            questListElement.innerHTML = '';
+            
+            quests.forEach((quest, index) => {
+                console.log(`Rendering quest ${index}:`, quest);
+                console.log(`Quest ${index} title:`, quest.title);
+                console.log(`Quest ${index} description:`, quest.journalDescription);
+                
+                const questElement = document.createElement('div');
+                questElement.className = 'quest-item';
+                
+                // Debug properties in detail
+                const questProps = Object.keys(quest);
+                console.log(`Quest ${index} properties:`, questProps);
+                questProps.forEach(prop => {
+                    console.log(`Quest ${index} ${prop}:`, quest[prop]);
+                });
+                
+                let choicesHtml = '';
+                if (quest.currentChoices && quest.currentChoices.length > 0) {
+                    console.log(`Quest ${index} has ${quest.currentChoices.length} choices:`, quest.currentChoices);
+                    choicesHtml = '<div class="quest-choices">';
+                    quest.currentChoices.forEach((choice, choiceIndex) => {
+                        console.log(`Choice ${choiceIndex}:`, choice);
+                        console.log(`Choice ${choiceIndex} text:`, choice.text);
+                        choicesHtml += `<div class="quest-choice">${choice.text || 'Unknown choice'}</div>`;
+                    });
+                    choicesHtml += '</div>';
+                } else {
+                    console.log(`Quest ${index} has no choices.`);
+                }
+                
+                let progressHtml = '';
+                if (quest.progress !== undefined && !isCompleted) {
+                    console.log(`Quest ${index} progress: ${quest.progress}%`);
+                    progressHtml = `
+                        <div class="quest-progress">
+                            <div class="quest-progress-bar" style="width: ${quest.progress}%"></div>
+                        </div>
+                    `;
+                }
+                
+                // Use safe fallbacks for undefined values
+                const titleText = quest.title || 'Untitled Quest';
+                const descriptionText = quest.journalDescription || 'No description available';
+                
+                let hintHtml = '';
+                if (!isCompleted && quest.choiceHints && quest.choiceHints.length > 0) {
+                    console.log(`Quest ${index} has ${quest.choiceHints.length} choice hints:`, quest.choiceHints);
+                    hintHtml = '<div class="quest-hints">';
+                    quest.choiceHints.forEach((hintObj, hintIndex) => {
+                        console.log(`Choice hint ${hintIndex}:`, hintObj.hint);
+                        hintHtml += `<div class="quest-hint">${hintObj.hint}</div>`;
+                    });
+                    hintHtml += '</div>';
+                } else if (isCompleted && quest.completedHints && quest.completedHints.length > 0) {
+                    console.log(`Quest ${index} has ${quest.completedHints.length} completed hints:`, quest.completedHints);
+                    hintHtml = '<div class="quest-hints">';
+                    quest.completedHints.forEach((hintObj, hintIndex) => {
+                        console.log(`Completed hint ${hintIndex}:`, hintObj.hint);
+                        hintHtml += `<div class="quest-hint completed">${hintObj.hint}</div>`;
+                    });
+                    hintHtml += '</div>';
+                } else {
+                    console.log(`Quest ${index} has no hints.`);
+                }
+                
+                questElement.innerHTML = `
+                    <div class="quest-title">
+                        ${titleText}
+                        ${isCompleted ? '<span class="completed-indicator">Completed</span>' : ''}
+                    </div>
+                    <div class="quest-description">${descriptionText}</div>
+                    ${hintHtml}
+                    ${choicesHtml}
+                    ${progressHtml}
+                `;
+                
+                questListElement.appendChild(questElement);
+                console.log(`Quest ${index} rendered to DOM.`);
+            });
+        }
+    </script>
+</body>
+</html> 
