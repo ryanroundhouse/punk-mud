@@ -12,6 +12,7 @@ describe('ActorService', () => {
     // Mock data and dependencies
     let mockDeps;
     let actorService;
+    let mockQuestService;
 
     // Sample mock data
     const mockActors = [
@@ -65,12 +66,16 @@ describe('ActorService', () => {
         mockDeps.Actor.findById = jest.fn();
         mockDeps.User.findById = jest.fn();
 
-        // Assign a *new instance* of the *mocked* QuestService to mockDeps.
-        // jest.mock replaces the QuestService export with a mock constructor.
-        mockDeps.questService = new QuestService();
+        // Create a mock instance of QuestService
+        mockQuestService = new QuestService();
+        mockQuestService.getQuestNodeActorOverrides = jest.fn();
+        mockQuestService.handleQuestProgression = jest.fn();
 
         // Create the service instance with mocked dependencies
         actorService = new ActorService(mockDeps);
+
+        // Replace the getter for questService to return our mock
+        jest.spyOn(actorService, 'questService', 'get').mockReturnValue(mockQuestService);
     });
 
     afterEach(() => {
@@ -131,12 +136,12 @@ describe('ActorService', () => {
             expect(result[0].name).toBe('Actor One');
             expect(result[1].name).toBe('Actor Two');
             expect(mockDeps.Actor.find).toHaveBeenCalledWith({ location: 'location123' });
-            expect(mockDeps.questService.getQuestNodeActorOverrides).not.toHaveBeenCalled();
+            expect(mockQuestService.getQuestNodeActorOverrides).not.toHaveBeenCalled();
         });
 
         it('should check for quest actor overrides when userId is provided', async () => {
             // Setup
-            mockDeps.questService.getQuestNodeActorOverrides.mockResolvedValueOnce([]);
+            mockQuestService.getQuestNodeActorOverrides.mockResolvedValueOnce([]);
             mockDeps.Actor.find.mockResolvedValueOnce(mockActors.filter(a => a.location === 'location123'));
             
             // Execute
@@ -144,13 +149,13 @@ describe('ActorService', () => {
             
             // Verify
             expect(result).toHaveLength(2);
-            expect(mockDeps.questService.getQuestNodeActorOverrides).toHaveBeenCalledWith('507f191e810c19729de860ea', 'location123');
+            expect(mockQuestService.getQuestNodeActorOverrides).toHaveBeenCalledWith('507f191e810c19729de860ea', 'location123');
             expect(mockDeps.Actor.find).toHaveBeenCalledWith({ location: 'location123' });
         });
 
         it('should return quest actor overrides when available', async () => {
             // Setup
-            mockDeps.questService.getQuestNodeActorOverrides.mockResolvedValueOnce(['actor3']);
+            mockQuestService.getQuestNodeActorOverrides.mockResolvedValueOnce(['actor3']);
             mockDeps.Actor.find.mockImplementation((query) => {
                 if (query._id && query._id.$in && query._id.$in.includes('actor3')) {
                     return Promise.resolve([mockActors[2]]);
@@ -165,7 +170,7 @@ describe('ActorService', () => {
             expect(result).toHaveLength(1);
             expect(result[0].name).toBe('Actor Three');
             expect(mockDeps.Actor.find).toHaveBeenCalledWith({ _id: { $in: ['actor3'] } });
-            expect(mockDeps.questService.getQuestNodeActorOverrides).toHaveBeenCalledWith('507f191e810c19729de860ea', 'location123');
+            expect(mockQuestService.getQuestNodeActorOverrides).toHaveBeenCalledWith('507f191e810c19729de860ea', 'location123');
         });
 
         it('should handle errors gracefully and return empty array', async () => {
@@ -178,7 +183,7 @@ describe('ActorService', () => {
             // Verify
             expect(result).toEqual([]);
             expect(mockDeps.logger.error).toHaveBeenCalled();
-            expect(mockDeps.questService.getQuestNodeActorOverrides).not.toHaveBeenCalled();
+            expect(mockQuestService.getQuestNodeActorOverrides).not.toHaveBeenCalled();
         });
     });
 
@@ -200,7 +205,7 @@ describe('ActorService', () => {
             // Verify
             expect(result.message).toBe('Hello 2');
             expect(result.nextIndex).toBe(1);
-            expect(mockDeps.questService.handleQuestProgression).not.toHaveBeenCalled();
+            expect(mockQuestService.handleQuestProgression).not.toHaveBeenCalled();
         });
 
         it('should handle quest completion events in chat messages', async () => {
@@ -217,7 +222,7 @@ describe('ActorService', () => {
             });
             
             mockDeps.User.findById.mockResolvedValueOnce(mockUser);
-            mockDeps.questService.handleQuestProgression.mockResolvedValueOnce({ 
+            mockQuestService.handleQuestProgression.mockResolvedValueOnce({ 
                 success: true, 
                 updates: ['quest1'] 
             });
@@ -229,7 +234,7 @@ describe('ActorService', () => {
             expect(result.message).toBe('Quest message');
             expect(result.nextIndex).toBe(0);
             expect(mockDeps.User.findById).toHaveBeenCalledWith('507f191e810c19729de860ea');
-            expect(mockDeps.questService.handleQuestProgression).toHaveBeenCalledWith(
+            expect(mockQuestService.handleQuestProgression).toHaveBeenCalledWith(
                 mockUser,
                 'actor1',
                 ['event1', 'event2'],
@@ -254,7 +259,7 @@ describe('ActorService', () => {
             // Verify - only check the fields we care about
             expect(result.message).toBe('Hello 3');
             expect(result.nextIndex).toBe(0);
-            expect(mockDeps.questService.handleQuestProgression).not.toHaveBeenCalled();
+            expect(mockQuestService.handleQuestProgression).not.toHaveBeenCalled();
         });
 
         it('should handle errors gracefully', async () => {
@@ -276,7 +281,7 @@ describe('ActorService', () => {
             await expect(actorService.getActorChatMessage(actor, 'chat_actor1_507f191e810c19729de860ea', 0))
                 .rejects.toThrow('Database error');
             expect(mockDeps.logger.error).toHaveBeenCalled();
-            expect(mockDeps.questService.handleQuestProgression).not.toHaveBeenCalled();
+            expect(mockQuestService.handleQuestProgression).not.toHaveBeenCalled();
         });
     });
 

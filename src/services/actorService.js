@@ -6,20 +6,18 @@ class ActorService {
         
         // Services
         this.logger = deps.logger || require('../config/logger');
-        // Directly accept or require the questService dependency
-        this.questService = deps.questService || require('./questService'); 
         
-        // Remove lazy loading logic for questService
-        // this._questService = null; 
+        // Use lazy loading for questService to avoid circular dependencies
+        this._questService = null;
     }
     
-    // Remove the getter for questService
-    // get questService() {
-    //     if (!this._questService) {
-    //         this._questService = require('./questService');
-    //     }
-    //     return this._questService;
-    // }
+    // Lazy loader for questService to avoid circular dependencies
+    get questService() {
+        if (!this._questService) {
+            this._questService = require('./questService');
+        }
+        return this._questService;
+    }
 
     async findActorInLocation(actorName, locationId, userId = null) {
         try {
@@ -108,7 +106,8 @@ class ActorService {
 
             const nextIndex = (currentIndex + 1) % sortedMessages.length;
             
-            if (message.questCompletionEvents && message.questCompletionEvents.length > 0) {
+            // Check if message exists before trying to access its properties
+            if (message && message.questCompletionEvents && message.questCompletionEvents.length > 0) {
                 this.logger.debug('Chat message has quest completion events:', {
                     actorId: actor._id,
                     actorName: actor.name,
@@ -137,6 +136,20 @@ class ActorService {
                         actorId: actor._id
                     });
                 }
+            }
+
+            // Handle case when no messages exist
+            if (!message) {
+                this.logger.debug('No chat messages found for actor', {
+                    actorId: actor._id,
+                    actorName: actor.name
+                });
+                
+                return {
+                    message: "This character has no dialogue available.",
+                    nextIndex: 0,
+                    image: actor.image
+                };
             }
 
             const result = {
@@ -171,8 +184,6 @@ class ActorService {
 }
 
 // Create a singleton instance with default dependencies
-// Note: This singleton creation might fail if questService itself has required deps now
-// For testing the class, this is fine, but runtime might need adjustment.
 const actorService = new ActorService();
 
 // Export both the class and the singleton instance
