@@ -32,6 +32,8 @@
             background-size: 20px 20px;
             background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
             overflow: hidden;
+            box-sizing: border-box; /* Add box-sizing */
+            padding-top: calc(var(--vh, 1vh) * 3); /* Add padding for status bar */
         }
 
         .status-bar {
@@ -45,8 +47,8 @@
             justify-content: space-between;
             align-items: center;
             z-index: 100;
-            height: 3dvh;
-            height: calc(var(--vh, 1vh) * 3);
+            height: 1dvh;
+            /* height: calc(var(--vh, 1vh) * 3); */
             max-width: 600px;
             margin: 0 auto;
         }
@@ -56,6 +58,8 @@
             align-items: center;
             gap: 0.5rem;
             flex: 1;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .health-label {
@@ -258,12 +262,11 @@
         .mobile-container {
             display: flex;
             flex-direction: column;
-            height: 97dvh;
-            height: calc(var(--vh, 1vh) * 97);
+            /* Adjust height to fill remaining space */
+            height: calc(var(--vh, 1vh) * 100 - var(--vh, 1vh) * 3);
             width: 100%;
             position: relative;
-            margin-top: 3dvh;
-            margin-top: calc(var(--vh, 1vh) * 3);
+            /* Remove margin-top */
             max-width: 600px;
             margin-left: auto;
             margin-right: auto;
@@ -273,7 +276,8 @@
             display: flex;
             flex-direction: column;
             flex: none;
-            height: 60%;
+            height: 60%; /* Revert height to 60% of parent */
+            margin-top: 0; /* Ensure no margin */
             overflow-y: auto;
         }
 
@@ -570,17 +574,11 @@
 
         /* Chat container styles */
         .chat-container {
-            display: flex;
-            flex-direction: column;
-            height: 97dvh;
-            height: calc(var(--vh, 1vh) * 97);
+            /* Adjust height to fill remaining space */
+            height: calc(var(--vh, 1vh) * 100 - var(--vh, 1vh) * 3);
+            margin-top: 0; /* Ensure no margin */
             width: 100%;
             position: relative;
-            margin-top: 3dvh;
-            margin-top: calc(var(--vh, 1vh) * 3);
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
             background: rgba(10, 10, 15, 0.95);
         }
 
@@ -774,13 +772,17 @@
         }
 
         @supports (height: 1dvh) {
+            body {
+                padding-top: 3dvh; /* Add padding for status bar */
+            }
             .status-bar {
-                height: 3dvh;
+                height: 1dvh;
             }
             .mobile-container,
             .chat-container {
-                height: 97dvh;
-                margin-top: 3dvh;
+                /* Adjust height to fill remaining space */
+                height: calc(100dvh - 3dvh);
+                margin-top: 0; /* Remove margin-top */
             }
         }
 
