@@ -137,6 +137,7 @@
             box-shadow: 0 0 10px var(--neon-pink);
             display: none;
             text-transform: uppercase;
+            pointer-events: none;
         }
 
         .map-controls {
@@ -672,38 +673,54 @@
                 ctx.restore();
             }
 
+            // Determine if this is the selected node
+            const isSelected = selectedNode && node.address === selectedNode.address;
+            
+            // Use a larger radius for selected nodes
+            const nodeRadius = isSelected ? NODE_RADIUS * 1.3 : NODE_RADIUS;
+
             // Draw the main node circle
             ctx.beginPath();
-            ctx.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI * 2);
+            ctx.arc(node.x, node.y, nodeRadius, 0, Math.PI * 2);
             
             // Set node color based on type
-            if (selectedNode && node.address === selectedNode.address) {
+            if (isSelected) {
                 // Selected node gets a special pink highlight
                 ctx.fillStyle = getComputedStyle(document.documentElement)
                     .getPropertyValue('--neon-pink').trim();
                 ctx.strokeStyle = ctx.fillStyle;
+                
+                // Add a pulsing outer glow for the selected node
+                const time = Date.now() / 1000;
+                const alpha = (Math.sin(time * 3) + 1) / 2;
+                
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = ctx.strokeStyle;
+                ctx.lineWidth = 3;
             } else if (node.isRestPoint) {
                 ctx.fillStyle = getComputedStyle(document.documentElement)
                     .getPropertyValue('--terminal-green').trim();
                 ctx.strokeStyle = ctx.fillStyle;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = ctx.strokeStyle;
+                ctx.lineWidth = 1;
             } else {
                 ctx.fillStyle = getComputedStyle(document.documentElement)
                     .getPropertyValue('--neon-blue').trim();
                 ctx.strokeStyle = ctx.fillStyle;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = ctx.strokeStyle;
+                ctx.lineWidth = 1;
             }
-            
-            // Add glow effect
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = ctx.strokeStyle;
             
             ctx.fill();
             ctx.stroke();
-
+            
             // Draw pulsing ring for current node
             if (currentNode && node.address === currentNode.address) {
                 const time = Date.now() / 1000;
                 const alpha = (Math.sin(time * 3) + 1) / 2;
-                const ringRadius = NODE_RADIUS * 1.5;
+                const ringRadius = nodeRadius * 1.5;
                 
                 ctx.beginPath();
                 ctx.arc(node.x, node.y, ringRadius, 0, Math.PI * 2);
@@ -808,6 +825,8 @@
 
         // Function to select a node and display its name
         function selectNode(node) {
+            if (!node) return;
+            
             // If same node is clicked again, deselect it
             if (selectedNode && selectedNode.address === node.address) {
                 selectedNode = null;
@@ -820,6 +839,20 @@
             const display = document.getElementById('selectedNodeDisplay');
             display.textContent = node.name;
             display.style.display = 'block';
+            
+            // Center the display
+            const displayRect = display.getBoundingClientRect();
+            const containerRect = canvas.parentElement.getBoundingClientRect();
+            
+            // Position the display nicely in the view
+            display.style.left = 'auto';  // Reset left position
+            display.style.right = '1rem';
+            display.style.bottom = '1rem';
+            
+            // Temporarily apply a stronger highlight animation
+            display.style.animation = 'none';
+            void display.offsetWidth; // Trigger reflow to restart animation
+            display.style.animation = 'pulse 1s ease-in-out 2';
         }
 
         function handleWheel(e) {
@@ -836,13 +869,37 @@
             drawMap();
         }
 
+        // Function to find which node is under a specific point
+        function findNodeAtPoint(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const x = (clientX - rect.left - canvas.width / 2 - offsetX) / currentScale;
+            const y = (clientY - rect.top - canvas.height / 2 - offsetY) / currentScale;
+            
+            // Find node at this point
+            return nodes.find(node => {
+                if (!('x' in node) || !('y' in node)) return false;
+                const dx = node.x - x;
+                const dy = node.y - y;
+                return Math.sqrt(dx * dx + dy * dy) <= NODE_RADIUS;
+            });
+        }
+
         // Touch handling functions for mobile
         function handleTouchStart(e) {
             if (e.touches.length === 1) {
                 e.preventDefault();
+                const touch = e.touches[0];
+                
+                // Check if touch is on a node
+                const touchedNode = findNodeAtPoint(touch.clientX, touch.clientY);
+                
+                // Set as hovered node so it can be selected on touchend
+                hoveredNode = touchedNode;
+                
+                // Start drag tracking
                 isDragging = true;
-                startX = e.touches[0].clientX - offsetX;
-                startY = e.touches[0].clientY - offsetY;
+                startX = touch.clientX - offsetX;
+                startY = touch.clientY - offsetY;
                 dragStartTime = Date.now();
                 hasMoved = false;
             } else if (e.touches.length === 2) {
@@ -857,29 +914,33 @@
         function handleTouchMove(e) {
             if (e.touches.length === 1 && isDragging) {
                 e.preventDefault();
-                offsetX = e.touches[0].clientX - startX;
-                offsetY = e.touches[0].clientY - startY;
-                hasMoved = true;
-                drawMap();
-                
-                // Update tooltip for touch
                 const touch = e.touches[0];
-                const rect = canvas.getBoundingClientRect();
-                const x = (touch.clientX - rect.left - canvas.width / 2 - offsetX) / currentScale;
-                const y = (touch.clientY - rect.top - canvas.height / 2 - offsetY) / currentScale;
                 
-                hoveredNode = nodes.find(node => {
-                    const dx = node.x - x;
-                    const dy = node.y - y;
-                    return Math.sqrt(dx * dx + dy * dy) <= NODE_RADIUS;
-                });
+                // Calculate movement distance to determine if this is a drag
+                const moveX = touch.clientX - startX - offsetX;
+                const moveY = touch.clientY - startY - offsetY;
+                const moveDistance = Math.sqrt(moveX * moveX + moveY * moveY);
                 
+                // If moved more than a few pixels, it's a drag, not a tap
+                if (moveDistance > 5) {
+                    hasMoved = true;
+                    
+                    // Update the canvas position
+                    offsetX = touch.clientX - startX;
+                    offsetY = touch.clientY - startY;
+                    drawMap();
+                }
+                
+                // Find node at current position for hover effect
+                const touchedNode = findNodeAtPoint(touch.clientX, touch.clientY);
+                
+                // Update tooltip for touch if needed
                 const tooltip = document.getElementById('nodeTooltip');
-                if (hoveredNode) {
+                if (touchedNode) {
                     tooltip.style.display = 'block';
                     tooltip.style.left = `${touch.pageX - tooltip.offsetWidth - 5}px`;
                     tooltip.style.top = `${touch.pageY - tooltip.offsetHeight - 45}px`;
-                    tooltip.textContent = hoveredNode.name;
+                    tooltip.textContent = touchedNode.name;
                 } else {
                     tooltip.style.display = 'none';
                 }
@@ -901,19 +962,35 @@
         }
 
         function handleTouchEnd(e) {
-            if (e.touches.length === 0) {
-                // Check if this was a tap (short touch without much movement)
+            // Handle node selection on tap
+            if (!hasMoved && isDragging) {
                 const touchDuration = Date.now() - dragStartTime;
-                if (touchDuration < 200 && !hasMoved && hoveredNode) {
-                    selectNode(hoveredNode);
+                if (touchDuration < 300) {
+                    // This was a tap
+                    if (e.changedTouches.length > 0) {
+                        const touch = e.changedTouches[0];
+                        const touchedNode = findNodeAtPoint(touch.clientX, touch.clientY);
+                        
+                        if (touchedNode) {
+                            selectNode(touchedNode);
+                        }
+                    } else if (hoveredNode) {
+                        // Fallback to hoveredNode if changedTouches is not available
+                        selectNode(hoveredNode);
+                    }
                 }
-                
+            }
+            
+            if (e.touches.length === 0) {
                 isDragging = false;
                 pinchStartDistance = 0;
                 hasMoved = false;
             } else if (e.touches.length === 1) {
                 pinchStartDistance = 0;
             }
+            
+            // Hide tooltip
+            document.getElementById('nodeTooltip').style.display = 'none';
         }
 
         function updateMatchingNodes() {
