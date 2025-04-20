@@ -463,5 +463,69 @@ describe('Character Controller', () => {
             const response = jsonStub.mock.calls[0][0];
             expect(response.active[0].choiceHints[0].hint).toBe('Kill 2 cyber drunks behind Neon Ramen Haven.');
         });
+
+        it('should replace [Quantity] token in completed quest hints with original quantity', async () => {
+            // Use valid 24-character hex strings for ObjectIds
+            const event1Id = '507f1f77bcf86cd799439055';
+            const killEventId = '507f1f77bcf86cd799439066';
+            const finalEventId = '507f1f77bcf86cd799439077';
+            
+            // Mock the events for the quest
+            const mockQuestEvents = [
+                {
+                    _id: event1Id,
+                    eventType: 'stage',
+                    hint: 'First completed event',
+                    isStart: true
+                },
+                {
+                    _id: killEventId,
+                    eventType: 'kill',
+                    hint: 'Kill [Quantity] cyber drunks behind Neon Ramen Haven.',
+                    mobId: { name: 'Cyber Thug' },
+                    quantity: 3,
+                    isEnd: false
+                },
+                {
+                    _id: finalEventId,
+                    eventType: 'chat',
+                    hint: 'Talk to Cyber Chef',
+                    isEnd: true
+                }
+            ];
+            
+            // Mock user with a completed quest - no need for killProgress since quest is completed
+            const mockUser = {
+                _id: 'user123',
+                quests: [
+                    {
+                        questId: 'completedquest',
+                        currentEventId: finalEventId,
+                        completed: true,
+                        completedEventIds: [event1Id, killEventId],
+                        completedAt: new Date('2023-01-15')
+                    }
+                ]
+            };
+            
+            // Mock quest document from the database
+            const mockQuest = {
+                _id: 'completedquest',
+                title: 'No Room for Slop',
+                journalDescription: 'Rowdy drunks are stinking up the alley behind Neon Ramen Haven',
+                events: mockQuestEvents
+            };
+            
+            User.findById.mockResolvedValue(mockUser);
+            questModel.populate.mockResolvedValueOnce([mockQuest]);
+            
+            await getCharacterQuests(req, res);
+            
+            // Get response from the jsonStub mock function
+            const response = jsonStub.mock.calls[0][0];
+            
+            // Verify [Quantity] was replaced with the original quantity (3) from the event
+            expect(response.completed[0].completedHints[1].hint).toBe('Kill 3 cyber drunks behind Neon Ramen Haven.');
+        });
     });
 }); 

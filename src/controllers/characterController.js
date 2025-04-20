@@ -283,9 +283,17 @@ async function getCharacterQuests(req, res) {
                 for (const eventId of userQuest.completedEventIds) {
                     const event = findEventById(questDetail, eventId);
                     if (event && event.hint) {
+                        let hintText = event.hint;
+                        
+                        // If it's a kill event and hint contains [Quantity], replace with the original quantity
+                        if (event.eventType === 'kill' && hintText.includes('[Quantity]')) {
+                            // For completed quests, use the original quantity from the event
+                            hintText = hintText.replace('[Quantity]', event.quantity || 1);
+                        }
+                        
                         completedHints.push({
                             eventId: eventId,
-                            hint: event.hint
+                            hint: hintText
                         });
                     }
                 }
@@ -295,9 +303,17 @@ async function getCharacterQuests(req, res) {
             if (userQuest.currentEventId) {
                 const currentEvent = findEventById(questDetail, userQuest.currentEventId);
                 if (currentEvent && currentEvent.hint) {
+                    let hintText = currentEvent.hint;
+                    
+                    // Also handle [Quantity] token in the current event hint
+                    if (currentEvent.eventType === 'kill' && hintText.includes('[Quantity]')) {
+                        // For completed quests, use the original quantity from the event
+                        hintText = hintText.replace('[Quantity]', currentEvent.quantity || 1);
+                    }
+                    
                     completedHints.push({
                         eventId: userQuest.currentEventId,
-                        hint: currentEvent.hint
+                        hint: hintText
                     });
                 }
             }
