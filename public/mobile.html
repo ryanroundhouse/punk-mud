@@ -3231,6 +3231,16 @@
                 });
             }
             
+            // Add map button
+            otherOptions.push({
+                name: 'MAP',
+                command: 'map',
+                action: () => {
+                    // Navigate to map page
+                    window.location.href = '/map.html';
+                }
+            });
+            
             // Add back button
             otherOptions.push({
                 name: '« BACK',

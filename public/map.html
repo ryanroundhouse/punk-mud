@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PUNK MUD - Map</title>
     <link rel="icon" type="image/x-icon" href="/assets/art/favicon.ico">
     <style>
@@ -21,6 +21,7 @@
             font-family: 'Courier New', monospace;
             color: var(--terminal-green);
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             background-image: 
@@ -30,6 +31,8 @@
                 linear-gradient(-45deg, transparent 75%, #1a1a1f 75%);
             background-size: 20px 20px;
             background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            overflow-x: hidden;
+            touch-action: manipulation;
         }
 
         .map-container {
@@ -43,6 +46,9 @@
             padding: 1rem;
             display: flex;
             flex-direction: column;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .map-header {
@@ -73,9 +79,11 @@
             text-transform: uppercase;
             letter-spacing: 1px;
             transition: all 0.3s ease;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        .return-button:hover {
+        .return-button:hover, 
+        .return-button:active {
             background: var(--neon-pink);
             color: var(--dark-bg);
             box-shadow: 0 0 10px var(--neon-pink);
@@ -88,6 +96,7 @@
             margin: 1rem;
             border: 1px solid var(--neon-blue);
             border-radius: 5px;
+            -webkit-overflow-scrolling: touch;
         }
 
         #mapCanvas {
@@ -95,6 +104,7 @@
             top: 0;
             left: 0;
             cursor: move;
+            touch-action: none;
         }
 
         .node-tooltip {
@@ -109,6 +119,24 @@
             z-index: 1000;
             font-size: 0.9rem;
             white-space: nowrap;
+        }
+
+        .selected-node-display {
+            position: absolute;
+            background: rgba(10, 10, 15, 0.95);
+            color: var(--neon-pink);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            border: 1px solid var(--neon-pink);
+            z-index: 1000;
+            font-size: 1.1rem;
+            font-weight: bold;
+            white-space: nowrap;
+            bottom: 1rem;
+            right: 1rem;
+            box-shadow: 0 0 10px var(--neon-pink);
+            display: none;
+            text-transform: uppercase;
         }
 
         .map-controls {
@@ -130,9 +158,11 @@
             font-size: 0.9rem;
             cursor: pointer;
             transition: all 0.3s ease;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        .control-button:hover {
+        .control-button:hover,
+        .control-button:active {
             background: var(--neon-blue);
             color: var(--dark-bg);
             box-shadow: 0 0 10px var(--neon-blue);
@@ -185,6 +215,7 @@
             font-size: 0.9rem;
             width: 200px;
             transition: all 0.3s ease;
+            -webkit-appearance: none;
         }
 
         .search-input:focus {
@@ -197,13 +228,44 @@
             50% { transform: scale(1.2); opacity: 1; }
             100% { transform: scale(1); opacity: 0.8; }
         }
+
+        /* Mobile-specific styles */
+        @media (max-width: 768px) {
+            .map-controls {
+                top: auto;
+                bottom: 1rem;
+                right: 1rem;
+            }
+            
+            .search-input {
+                width: 150px;
+            }
+            
+            .legend {
+                max-width: 150px;
+                font-size: 0.8rem;
+            }
+            
+            .map-canvas-container {
+                margin: 0.5rem;
+            }
+            
+            .map-title {
+                font-size: 1.2rem;
+            }
+            
+            .return-button {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.8rem;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="map-container">
         <div class="map-header">
             <div class="map-title">World Map</div>
-            <button class="return-button" onclick="window.location.href='/game.html'">Return to Game</button>
+            <button class="return-button" onclick="window.location.href='/mobile.html'">Return to Game</button>
         </div>
         
         <div class="map-canvas-container">
@@ -214,6 +276,7 @@
                 <input type="text" id="nodeSearch" placeholder="Search nodes..." class="search-input">
             </div>
             <canvas id="mapCanvas"></canvas>
+            <div class="selected-node-display" id="selectedNodeDisplay"></div>
             <div class="node-tooltip" id="nodeTooltip"></div>
         </div>
 
@@ -243,14 +306,54 @@
         let startX, startY;
         let offsetX = 0, offsetY = 0;
         let hoveredNode = null;
+        let selectedNode = null;
         let animationFrameId = null;
         let searchTerm = '';
         let matchingNodes = [];
+        let isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        let lastTouchEnd = 0;
+        let pinchStartDistance = 0;
+        let currentScale = 1;
+        let dragStartTime = 0;
+        let hasMoved = false;
 
         const NODE_RADIUS = 20;
         const NODE_SPACING = 150;
 
+        // Prevent text selection on double-tap for iOS devices
+        document.addEventListener('touchstart', function(event) {
+            if (event.touches.length > 1) {
+                event.preventDefault();
+            }
+        }, { passive: false });
+
+        // Prevent zoom on double tap
+        document.addEventListener('touchend', function(event) {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, { passive: false });
+
+        // Handle orientation changes
+        window.addEventListener('orientationchange', function() {
+            // Small delay to let the browser adjust
+            setTimeout(function() {
+                // Adjust layout for new orientation if needed
+                const vh = window.innerHeight * 0.01;
+                document.documentElement.style.setProperty('--vh', `${vh}px`);
+                resizeCanvas();
+            }, 200);
+        });
+
         window.onload = async () => {
+            // Set initial viewport height variable for mobile
+            if (isMobile) {
+                const vh = window.innerHeight * 0.01;
+                document.documentElement.style.setProperty('--vh', `${vh}px`);
+            }
+            
             const token = localStorage.getItem('token');
             if (!token) {
                 window.location.href = '/';
@@ -481,12 +584,19 @@
         function drawMap() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
+            // Check if selected node is still valid
+            if (selectedNode && !nodes.find(n => n.address === selectedNode.address)) {
+                selectedNode = null;
+                document.getElementById('selectedNodeDisplay').style.display = 'none';
+            }
+            
             console.log('Drawing map with', nodes.length, 'nodes');
             console.log('Nodes with positions:', nodes.filter(node => 'x' in node && 'y' in node).length);
             
             // Apply transformations
             ctx.save();
             ctx.translate(canvas.width / 2 + offsetX, canvas.height / 2 + offsetY);
+            ctx.scale(currentScale, currentScale);
             
             // Draw connections first
             nodes.forEach(node => {
@@ -567,7 +677,12 @@
             ctx.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI * 2);
             
             // Set node color based on type
-            if (node.isRestPoint) {
+            if (selectedNode && node.address === selectedNode.address) {
+                // Selected node gets a special pink highlight
+                ctx.fillStyle = getComputedStyle(document.documentElement)
+                    .getPropertyValue('--neon-pink').trim();
+                ctx.strokeStyle = ctx.fillStyle;
+            } else if (node.isRestPoint) {
                 ctx.fillStyle = getComputedStyle(document.documentElement)
                     .getPropertyValue('--terminal-green').trim();
                 ctx.strokeStyle = ctx.fillStyle;
@@ -622,9 +737,15 @@
             canvas.addEventListener('touchmove', handleTouchMove);
             canvas.addEventListener('touchend', handleTouchEnd);
             
+            // Add mouse wheel for zoom
+            canvas.addEventListener('wheel', handleWheel);
+            
             document.getElementById('resetView').addEventListener('click', () => {
                 offsetX = 0;
                 offsetY = 0;
+                currentScale = 1;
+                selectedNode = null;
+                document.getElementById('selectedNodeDisplay').style.display = 'none';
                 drawMap();
             });
 
@@ -638,12 +759,13 @@
             isDragging = true;
             startX = e.clientX - offsetX;
             startY = e.clientY - offsetY;
+            dragStartTime = Date.now();
         }
 
         function handleMouseMove(e) {
             const rect = canvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left - canvas.width / 2 - offsetX);
-            const y = (e.clientY - rect.top - canvas.height / 2 - offsetY);
+            const x = (e.clientX - rect.left - canvas.width / 2 - offsetX) / currentScale;
+            const y = (e.clientY - rect.top - canvas.height / 2 - offsetY) / currentScale;
             
             // Check for node hover
             hoveredNode = nodes.find(node => {
@@ -667,36 +789,131 @@
                 offsetX = e.clientX - startX;
                 offsetY = e.clientY - startY;
                 drawMap();
+                hasMoved = true;
             }
         }
 
-        function endDrag() {
+        function endDrag(e) {
             isDragging = false;
+            
+            // Check if this was a click (short drag with minimal movement)
+            const dragDuration = Date.now() - dragStartTime;
+            if (dragDuration < 200 && !hasMoved && hoveredNode) {
+                selectNode(hoveredNode);
+            }
+            
+            // Reset move tracking
+            hasMoved = false;
         }
 
-        // Add these new touch handling functions
+        // Function to select a node and display its name
+        function selectNode(node) {
+            // If same node is clicked again, deselect it
+            if (selectedNode && selectedNode.address === node.address) {
+                selectedNode = null;
+                document.getElementById('selectedNodeDisplay').style.display = 'none';
+                return;
+            }
+            
+            // Select the node and show its name
+            selectedNode = node;
+            const display = document.getElementById('selectedNodeDisplay');
+            display.textContent = node.name;
+            display.style.display = 'block';
+        }
+
+        function handleWheel(e) {
+            e.preventDefault();
+            
+            const zoomIntensity = 0.1;
+            const wheel = e.deltaY < 0 ? 1 : -1;
+            const zoom = Math.exp(wheel * zoomIntensity);
+            
+            // Update scale with limits
+            currentScale *= zoom;
+            currentScale = Math.max(0.5, Math.min(currentScale, 5.0)); // Limit zoom between 0.5x and 5x
+            
+            drawMap();
+        }
+
+        // Touch handling functions for mobile
         function handleTouchStart(e) {
-            if (e.touches.length === 2) {
+            if (e.touches.length === 1) {
                 e.preventDefault();
                 isDragging = true;
-                const touch1 = e.touches[0];
-                startX = touch1.clientX - offsetX;
-                startY = touch1.clientY - offsetY;
+                startX = e.touches[0].clientX - offsetX;
+                startY = e.touches[0].clientY - offsetY;
+                dragStartTime = Date.now();
+                hasMoved = false;
+            } else if (e.touches.length === 2) {
+                // Pinch to zoom
+                e.preventDefault();
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                pinchStartDistance = Math.sqrt(dx * dx + dy * dy);
             }
         }
 
         function handleTouchMove(e) {
-            if (e.touches.length === 2 && isDragging) {
+            if (e.touches.length === 1 && isDragging) {
                 e.preventDefault();
-                const touch1 = e.touches[0];
-                offsetX = touch1.clientX - startX;
-                offsetY = touch1.clientY - startY;
+                offsetX = e.touches[0].clientX - startX;
+                offsetY = e.touches[0].clientY - startY;
+                hasMoved = true;
                 drawMap();
+                
+                // Update tooltip for touch
+                const touch = e.touches[0];
+                const rect = canvas.getBoundingClientRect();
+                const x = (touch.clientX - rect.left - canvas.width / 2 - offsetX) / currentScale;
+                const y = (touch.clientY - rect.top - canvas.height / 2 - offsetY) / currentScale;
+                
+                hoveredNode = nodes.find(node => {
+                    const dx = node.x - x;
+                    const dy = node.y - y;
+                    return Math.sqrt(dx * dx + dy * dy) <= NODE_RADIUS;
+                });
+                
+                const tooltip = document.getElementById('nodeTooltip');
+                if (hoveredNode) {
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = `${touch.pageX - tooltip.offsetWidth - 5}px`;
+                    tooltip.style.top = `${touch.pageY - tooltip.offsetHeight - 45}px`;
+                    tooltip.textContent = hoveredNode.name;
+                } else {
+                    tooltip.style.display = 'none';
+                }
+            } else if (e.touches.length === 2) {
+                // Handle pinch zoom
+                e.preventDefault();
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const pinchDistance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (pinchStartDistance > 0) {
+                    const zoomFactor = pinchDistance / pinchStartDistance;
+                    currentScale *= zoomFactor;
+                    currentScale = Math.max(0.5, Math.min(currentScale, 5.0)); // Limit zoom between 0.5x and 5x
+                    pinchStartDistance = pinchDistance;
+                    drawMap();
+                }
             }
         }
 
         function handleTouchEnd(e) {
-            isDragging = false;
+            if (e.touches.length === 0) {
+                // Check if this was a tap (short touch without much movement)
+                const touchDuration = Date.now() - dragStartTime;
+                if (touchDuration < 200 && !hasMoved && hoveredNode) {
+                    selectNode(hoveredNode);
+                }
+                
+                isDragging = false;
+                pinchStartDistance = 0;
+                hasMoved = false;
+            } else if (e.touches.length === 1) {
+                pinchStartDistance = 0;
+            }
         }
 
         function updateMatchingNodes() {
