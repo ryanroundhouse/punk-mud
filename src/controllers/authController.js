@@ -32,8 +32,7 @@ async function login(req, res) {
             { email },
             { 
                 email,
-                authCode: { code: authCode, expiresAt },
-                moves: ['67e5ee92505d5890de625149']  // Set default move explicitly
+                authCode: { code: authCode, expiresAt }
             },
             { upsert: true }
         );
