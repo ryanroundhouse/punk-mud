@@ -870,8 +870,8 @@
             const nodeScreenX = rect.left + canvas.width / 2 + offsetX + selectedNode.x * currentScale;
             const nodeScreenY = rect.top + canvas.height / 2 + offsetY + selectedNode.y * currentScale;
             
-            // Position the label below the node (NODE_RADIUS is scaled by currentScale)
-            const labelY = nodeScreenY + (NODE_RADIUS * 1.5 * currentScale);
+            // Position the label closer to the node (only 0.75× the radius instead of 1.5×)
+            const labelY = nodeScreenY + (NODE_RADIUS * 0.75 * currentScale);
             
             // Set the position
             display.style.left = `${nodeScreenX}px`;
