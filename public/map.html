@@ -132,12 +132,12 @@
             font-size: 1.1rem;
             font-weight: bold;
             white-space: nowrap;
-            bottom: 1rem;
-            right: 1rem;
             box-shadow: 0 0 10px var(--neon-pink);
             display: none;
             text-transform: uppercase;
             pointer-events: none;
+            text-align: center;
+            transform: translateX(-50%); /* Center horizontally relative to position */
         }
 
         .map-controls {
@@ -345,6 +345,11 @@
                 const vh = window.innerHeight * 0.01;
                 document.documentElement.style.setProperty('--vh', `${vh}px`);
                 resizeCanvas();
+                
+                // Make sure selected node label is positioned correctly after orientation change
+                if (selectedNode) {
+                    updateSelectedNodeDisplayPosition();
+                }
             }, 200);
         });
 
@@ -389,6 +394,11 @@
             canvas.width = container.clientWidth;
             canvas.height = container.clientHeight;
             drawMap();
+            
+            // Make sure selected node label is positioned correctly after resize
+            if (selectedNode) {
+                updateSelectedNodeDisplayPosition();
+            }
         }
 
         async function loadNodes() {
@@ -623,6 +633,11 @@
             });
             
             ctx.restore();
+            
+            // Update the position of the selected node display
+            if (selectedNode) {
+                updateSelectedNodeDisplayPosition();
+            }
 
             // Request next frame
             animationFrameId = requestAnimationFrame(drawMap);
@@ -840,19 +855,27 @@
             display.textContent = node.name;
             display.style.display = 'block';
             
-            // Center the display
-            const displayRect = display.getBoundingClientRect();
-            const containerRect = canvas.parentElement.getBoundingClientRect();
+            // Position the display will be updated during drawMap
+            updateSelectedNodeDisplayPosition();
+        }
+        
+        // Function to update the selected node display position
+        function updateSelectedNodeDisplayPosition() {
+            if (!selectedNode || !document.getElementById('selectedNodeDisplay')) return;
             
-            // Position the display nicely in the view
-            display.style.left = 'auto';  // Reset left position
-            display.style.right = '1rem';
-            display.style.bottom = '1rem';
+            const display = document.getElementById('selectedNodeDisplay');
+            const rect = canvas.getBoundingClientRect();
             
-            // Temporarily apply a stronger highlight animation
-            display.style.animation = 'none';
-            void display.offsetWidth; // Trigger reflow to restart animation
-            display.style.animation = 'pulse 1s ease-in-out 2';
+            // Calculate the screen position of the node
+            const nodeScreenX = rect.left + canvas.width / 2 + offsetX + selectedNode.x * currentScale;
+            const nodeScreenY = rect.top + canvas.height / 2 + offsetY + selectedNode.y * currentScale;
+            
+            // Position the label below the node (NODE_RADIUS is scaled by currentScale)
+            const labelY = nodeScreenY + (NODE_RADIUS * 1.5 * currentScale);
+            
+            // Set the position
+            display.style.left = `${nodeScreenX}px`;
+            display.style.top = `${labelY}px`;
         }
 
         function handleWheel(e) {
