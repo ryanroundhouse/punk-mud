@@ -55,6 +55,7 @@ describe('EventService', () => {
     
     mockEventNodeService = {
       validateNodeStructure: jest.fn(node => node),
+      ensureConsistentQuestEvents: jest.fn(),
       loadNodeFromDatabase: jest.fn()
     };
     
@@ -643,6 +644,9 @@ describe('EventService', () => {
       
       mockUser.findById.mockResolvedValue(user);
       
+      // We no longer validate node structure, just ensure consistent quest events
+      mockEventNodeService.ensureConsistentQuestEvents.mockReturnValue(event.rootNode);
+      
       const passesNodeRestrictionsSpy = jest.spyOn(service, 'passesNodeRestrictions')
         .mockReturnValue(true);
         
@@ -659,6 +663,8 @@ describe('EventService', () => {
       const result = await service.startEvent(userId, event);
       
       // Assert
+      // validateNodeStructure was removed, so we don't test for it
+      expect(mockEventNodeService.ensureConsistentQuestEvents).toHaveBeenCalledWith(event.rootNode);
       expect(mockUser.findById).toHaveBeenCalledWith(userId);
       expect(passesNodeRestrictionsSpy).toHaveBeenCalledWith(event.rootNode, user);
       expect(mockEventStateManager.setActiveEvent).toHaveBeenCalledWith(
@@ -682,6 +688,8 @@ describe('EventService', () => {
       };
       
       mockUser.findById.mockResolvedValue(null);
+      // We no longer validate node structure
+      mockEventNodeService.ensureConsistentQuestEvents.mockReturnValue(event.rootNode);
       
       // Act
       const result = await service.startEvent(userId, event);
@@ -714,6 +722,8 @@ describe('EventService', () => {
       };
       
       mockUser.findById.mockResolvedValue(user);
+      // We no longer validate node structure
+      mockEventNodeService.ensureConsistentQuestEvents.mockReturnValue(event.rootNode);
       
       const passesNodeRestrictionsSpy = jest.spyOn(service, 'passesNodeRestrictions')
         .mockReturnValue(false);
@@ -735,6 +745,11 @@ describe('EventService', () => {
         title: 'Event 1',
         rootNode: {}
       };
+      
+      // Changed from validateNodeStructure to ensureConsistentQuestEvents
+      mockEventNodeService.ensureConsistentQuestEvents.mockImplementation(() => {
+        throw new Error('Test error');
+      });
       
       // Act
       const result = await service.startEvent(userId, event);

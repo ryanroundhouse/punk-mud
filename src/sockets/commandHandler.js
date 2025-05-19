@@ -953,6 +953,7 @@ async function handleFightCommand(user, target) {
 async function handleGetNodeData(socket, data = {}) {
     try {
         const userId = socket.user.userId;
+        logger.debug('[COMMAND_HANDLER_TRACE] handleGetNodeData: Starting', { userId, requestData: data });
         let node;
         
         // Get node data - either specified address or user's current location
@@ -1015,26 +1016,81 @@ async function handleGetNodeData(socket, data = {}) {
         // Check if user is in an event
         const inEvent = data.inEvent || stateService.isInStoryEvent(userId);
         
+        logger.debug('[COMMAND_HANDLER_TRACE] handleGetNodeData: Determined event status', { userId, inEvent, requestedInEvent: data.inEvent });
+
         // Add event data if user is in an event
         let eventMessage = null;
         let eventChoices = null;
+        let eventRawNode = null; // For logging raw event node
+        let eventFormattedResponse = null; // For logging formatted response
+
         if (inEvent) {
-            const activeEvent = stateService.getActiveEvent(userId);
-            if (activeEvent && activeEvent.currentNode) {
-                const eventResponse = await eventService.formatEventResponse(
-                    activeEvent.currentNode,
-                    userId
+            const activeEventState = stateService.getActiveEvent(userId);
+            logger.debug('[COMMAND_HANDLER_TRACE] handleGetNodeData: Active event state retrieved', { userId, activeEventState });
+
+            if (activeEventState && activeEventState.eventId && activeEventState.currentNodeId) {
+                // Load the current node for the event from DB to ensure it's fresh
+                const currentNodeObject = await eventService.eventNodeService.loadNodeFromDatabase(
+                    activeEventState.eventId,
+                    activeEventState.currentNodeId
                 );
-                
-                // Extract only the narrative part before "Responses:"
-                const fullMessage = eventResponse.message;
-                const responsesIndex = fullMessage.indexOf("\n\nResponses:");
-                eventMessage = responsesIndex !== -1 
-                    ? fullMessage.substring(0, responsesIndex) 
-                    : fullMessage;
+                eventRawNode = currentNodeObject; // Log the raw node
+                logger.debug('[COMMAND_HANDLER_TRACE] handleGetNodeData: Loaded current event node from DB', {
+                    userId,
+                    eventId: activeEventState.eventId,
+                    currentNodeId: activeEventState.currentNodeId,
+                    nodePrompt: currentNodeObject?.prompt?.substring(0,50) + '...',
+                    nodeChoicesCount: currentNodeObject?.choices?.length
+                });
+
+                if (currentNodeObject) {
+                    const eventResponse = await eventService.eventChoiceProcessor.formatEventResponse(
+                        currentNodeObject, // Use the fresh node from DB
+                        userId
+                    );
+                    eventFormattedResponse = eventResponse; // Log the formatted response
+                    logger.debug('[COMMAND_HANDLER_TRACE] handleGetNodeData: Formatted event response', {
+                        userId,
+                        messageLength: eventResponse?.message?.length,
+                        hasChoices: eventResponse?.hasChoices,
+                        isEnd: eventResponse?.isEnd
+                    });
                     
-                // Extract just the text field from each choice
-                eventChoices = (activeEvent.currentNode.choices || []).map(choice => choice.text);
+                    // Extract only the narrative part before "Responses:"
+                    const fullMessage = eventResponse.message;
+                    const responsesIndex = fullMessage.indexOf("\n\nResponses:");
+                    eventMessage = responsesIndex !== -1 
+                        ? fullMessage.substring(0, responsesIndex) 
+                        : fullMessage;
+                        
+                    // eventChoices should be derived from the validChoices within formatEventResponse logic,
+                    // but formatEventResponse itself only returns the full text message including numbered choices.
+                    // For the client, we usually send the list of choice *texts*.
+                    // We need to ensure `eventResponse.choices` (if it existed directly) or reconstruct from message if needed.
+                    // Let's assume the client parses choices from the message if `eventResponse.hasChoices` is true.
+                    // For `nodeData.eventChoices` we need an array of strings.
+
+                    if (eventResponse.hasChoices && currentNodeObject.choices) {
+                         // Re-filter choices here for the `eventChoices` array for the client,
+                         // mirroring the logic in formatEventResponse for consistency.
+                        const freshUser = await userService.getUser(userId); // Re-fetch user for up-to-date state
+                        const validChoicesForClient = eventService.eventChoiceProcessor.filterChoicesByRestrictions(currentNodeObject.choices, freshUser);
+                        eventChoices = validChoicesForClient.map(({choice}) => choice.text);
+                    } else {
+                        eventChoices = []; // Ensure it's an array
+                    }
+                    logger.debug('[COMMAND_HANDLER_TRACE] handleGetNodeData: Extracted event message and choices for client', {
+                        userId,
+                        eventMessagePreview: eventMessage?.substring(0,50) + '...',
+                        eventChoicesCount: eventChoices?.length,
+                        eventChoicesPreview: eventChoices?.slice(0,2)
+                    });
+
+                } else {
+                    logger.warn('[COMMAND_HANDLER_TRACE] handleGetNodeData: Current event node was null after DB load', { userId, eventId: activeEventState.eventId, currentNodeId: activeEventState.currentNodeId });
+                }
+            } else {
+                logger.warn('[COMMAND_HANDLER_TRACE] handleGetNodeData: User in event, but activeEventState is invalid or missing currentNodeId', { userId, activeEventState });
             }
         }
         
@@ -1090,6 +1146,15 @@ async function handleGetNodeData(socket, data = {}) {
                 moves: allMoves
             });
         }
+        
+        logger.debug('[COMMAND_HANDLER_TRACE] handleGetNodeData: Final nodeData prepared for client', {
+            userId,
+            nodeName: nodeData.name,
+            inEvent: nodeData.inEvent,
+            eventMessagePreview: nodeData.eventMessage?.substring(0,50) + '...',
+            eventChoicesCount: nodeData.eventChoices?.length,
+            eventChoicesPreview: nodeData.eventChoices?.slice(0,2) // Log first 2 choices
+        });
         
         // Emit the combined data
         socket.emit('node data', nodeData);

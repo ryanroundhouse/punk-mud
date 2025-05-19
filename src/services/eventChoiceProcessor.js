@@ -69,15 +69,11 @@ class EventChoiceProcessor {
    * @returns {Array} - Filtered array of choices with original indices
    */
   filterChoicesByRestrictions(choices, user) {
-    this.logger.debug('Filtering choices by restrictions', {
+    this.logger.debug('[EVENT_CHOICE_PROCESSOR_TRACE] filterChoicesByRestrictions: Starting filter', {
       userId: user._id.toString(),
-      totalChoices: choices.length,
-      userQuests: user.quests?.map(q => ({
-        questId: q.questId,
-        currentEventId: q.currentEventId,
-        completed: q.completed,
-        completedEventIds: q.completedEventIds
-      }))
+      initialChoicesCount: choices.length,
+      userClass: user.class?.name,
+      userQuestIds: user.quests?.map(q => q.questId.toString())
     });
     
     // Get the user's completed quest event IDs and current event IDs
@@ -107,19 +103,34 @@ class EventChoiceProcessor {
     return choices
       .map((choice, index) => ({ choice, originalIndex: index }))
       .filter(({ choice }) => {
+        const choiceText = choice.text?.substring(0, 30) + (choice.text?.length > 30 ? '...' : '');
+        // Check quest activation restriction
+        if (choice.nextNode?.activateQuestId) {
+          const questToActivate = choice.nextNode.activateQuestId.toString();
+          const hasQuest = user.quests?.some(userQuest => 
+            userQuest.questId.toString() === questToActivate
+          );
+          if (hasQuest) {
+            this.logger.debug('[EVENT_CHOICE_PROCESSOR_TRACE] filterChoicesByRestrictions: Filtering out choice due to already having quest to activate', { userId: user._id.toString(), choiceText, activateQuestId: questToActivate });
+            return false;
+          }
+        }
+        
         // Check blockIfQuestEventIds - if user has completed or is on any of these events, block the choice
         if (choice.nextNode?.blockIfQuestEventIds && choice.nextNode.blockIfQuestEventIds.length > 0) {
-          const hasBlockingEvent = choice.nextNode.blockIfQuestEventIds.some(eventId => 
-            userCompletedQuestEventIds.includes(eventId) || userCurrentQuestEventIds.includes(eventId)
+          const blockingEvents = choice.nextNode.blockIfQuestEventIds.map(id => id.toString());
+          const hasBlockingEvent = blockingEvents.some(eventId => 
+            userCompletedQuestEventIds.map(id => id.toString()).includes(eventId) || 
+            userCurrentQuestEventIds.map(id => id.toString()).includes(eventId)
           );
           
           if (hasBlockingEvent) {
-            this.logger.debug('[CHOICE FILTER] Excluded by blockIfQuestEventIds', {
-              userId: user._id.toString(),
-              choiceText: choice.text,
-              blockIfQuestEventIds: choice.nextNode.blockIfQuestEventIds,
-              userCompletedEventIds: userCompletedQuestEventIds,
-              userCurrentEventIds: userCurrentQuestEventIds
+            this.logger.debug('[EVENT_CHOICE_PROCESSOR_TRACE] filterChoicesByRestrictions: Filtering out choice due to blockIfQuestEventIds', { 
+              userId: user._id.toString(), 
+              choiceText, 
+              blockIfQuestEventIds: blockingEvents,
+              userCompletedEventsThatBlock: userCompletedQuestEventIds.map(id => id.toString()).filter(id => blockingEvents.includes(id)),
+              userCurrentEventsThatBlock: userCurrentQuestEventIds.map(id => id.toString()).filter(id => blockingEvents.includes(id))
             });
             return false;
           }
@@ -128,31 +139,18 @@ class EventChoiceProcessor {
         // Check node restrictions
         if (choice.nextNode?.restrictions?.length > 0) {
           for (const restriction of choice.nextNode.restrictions) {
-            // 'noClass' restriction - only show if user has no class
             if (restriction === 'noClass' && user.class) {
-              this.logger.debug('[CHOICE FILTER] Excluded by noClass restriction', {
-                userId: user._id.toString(),
-                choiceText: choice.text,
-                userClass: user.class
-              });
+              this.logger.debug('[EVENT_CHOICE_PROCESSOR_TRACE] filterChoicesByRestrictions: Filtering out choice due to noClass restriction (user has class)', { userId: user._id.toString(), choiceText, userClass: user.class.name });
               return false;
             }
-            // 'enforcerOnly' restriction - only show if user is enforcer class
             if (restriction === 'enforcerOnly' && (!user.class || user.class.name !== 'Enforcer')) {
-              this.logger.debug('[CHOICE FILTER] Excluded by enforcerOnly restriction', {
-                userId: user._id.toString(),
-                choiceText: choice.text,
-                userClass: user.class
-              });
+              this.logger.debug('[EVENT_CHOICE_PROCESSOR_TRACE] filterChoicesByRestrictions: Filtering out choice due to enforcerOnly restriction', { userId: user._id.toString(), choiceText, userClass: user.class?.name });
               return false;
             }
+            // Add logging for any other unhandled known restrictions if necessary
           }
         }
-
-        this.logger.debug('[CHOICE FILTER] Included', {
-          userId: user._id.toString(),
-          choiceText: choice.text
-        });
+        this.logger.debug('[EVENT_CHOICE_PROCESSOR_TRACE] filterChoicesByRestrictions: Keeping choice', { userId: user._id.toString(), choiceText });
         return true;
       });
   }
@@ -486,7 +484,7 @@ class EventChoiceProcessor {
         hasNextNodeQCE: choice.nextNode && Array.isArray(choice.nextNode.questCompletionEvents),
         nextNodeQCELength: choice.nextNode && choice.nextNode.questCompletionEvents ? choice.nextNode.questCompletionEvents.length : undefined
       });
-
+      
       // SAFETY CHECK: Check for Exit choices by text and prevent quest completions
       if (
         choice.text &&
@@ -499,7 +497,7 @@ class EventChoiceProcessor {
         });
         return updatedUser;
       }
-
+      
       // Process quest completion events if they exist AND they're not empty
       if (questCompletionEvents.length > 0) {
         this.logger.debug(`Processing quest completion events: ${questCompletionEvents.join(', ')}`);
@@ -577,213 +575,153 @@ class EventChoiceProcessor {
   /**
    * Execute a selected choice and handle all side effects
    * 
-   * @param {Object} choice - The selected choice
+   * @param {Object} selectedChoice - The selected choice
    * @param {Object} user - User object
    * @param {string} userId - User ID
-   * @param {Object} activeEvent - The active event
+   * @param {Object} activeEventState - The active event state (contains IDs)
    * @returns {Object} - Result of choice execution
    */
-  async executeChoice(choice, user, userId, activeEvent) {
+  async executeChoice(selectedChoice, user, userId, activeEventState) {
     try {
-      // DEBUG LOGGING: Print the selected choice and its nextNode questCompletionEvents before cloning
-      this.logger.debug('[DEBUG] executeChoice: Before clone', {
-        choiceText: choice.text,
-        hasChoiceQCE: Array.isArray(choice.questCompletionEvents),
-        choiceQCELength: choice.questCompletionEvents ? choice.questCompletionEvents.length : undefined,
-        choiceQCE: choice.questCompletionEvents,
-        hasNextNodeQCE: choice.nextNode && Array.isArray(choice.nextNode.questCompletionEvents),
-        nextNodeQCELength: choice.nextNode && choice.nextNode.questCompletionEvents ? choice.nextNode.questCompletionEvents.length : undefined,
-        nextNodeQCE: choice.nextNode && choice.nextNode.questCompletionEvents
+      // selectedChoice is from a fresh DB load, so it doesn't need cloning initially.
+      // If selectedChoice or its sub-objects are modified (e.g. skill check prompt changes),
+      // and those modifications shouldn't affect the DB representation for future loads,
+      // then specific deep copies might be needed before modification.
+      this.logger.debug('[DEBUG] executeChoice: Starting with choice from DB', {
+        choiceText: selectedChoice.text,
+        hasChoiceQCE: Array.isArray(selectedChoice.questCompletionEvents),
+        choiceQCELength: selectedChoice.questCompletionEvents ? selectedChoice.questCompletionEvents.length : undefined,
+        hasNextNodeQCE: selectedChoice.nextNode && Array.isArray(selectedChoice.nextNode.questCompletionEvents),
+        nextNodeQCELength: selectedChoice.nextNode && selectedChoice.nextNode.questCompletionEvents ? selectedChoice.nextNode.questCompletionEvents.length : undefined,
       });
-      // Use eventNodeService to clone the selected choice
-      let clonedChoice = this.eventNodeService.cloneNode(choice);
-      // DEBUG LOGGING: Print the cloned choice and its nextNode questCompletionEvents after cloning
-      this.logger.debug('[DEBUG] executeChoice: After clone', {
-        choiceText: clonedChoice.text,
-        hasChoiceQCE: Array.isArray(clonedChoice.questCompletionEvents),
-        choiceQCELength: clonedChoice.questCompletionEvents ? clonedChoice.questCompletionEvents.length : undefined,
-        choiceQCE: clonedChoice.questCompletionEvents,
-        hasNextNodeQCE: clonedChoice.nextNode && Array.isArray(clonedChoice.nextNode.questCompletionEvents),
-        nextNodeQCELength: clonedChoice.nextNode && clonedChoice.nextNode.questCompletionEvents ? clonedChoice.nextNode.questCompletionEvents.length : undefined,
-        nextNodeQCE: clonedChoice.nextNode && clonedChoice.nextNode.questCompletionEvents
-      });
-      
-      // Add logging
+
       this.logger.debug('Selected choice details:', {
         userId,
-        text: clonedChoice.text,
-        hasNextNode: !!clonedChoice.nextNode,
-        nextNodeId: clonedChoice.nextNode?._id?.toString(),
-        nextNodeHasChoices: clonedChoice.nextNode?.choices?.length > 0,
-        questCompletionEvents: clonedChoice.nextNode?.questCompletionEvents || [],
-        hasActivateQuest: !!clonedChoice.nextNode?.activateQuestId,
-        hasMobId: !!clonedChoice.mobId
+        text: selectedChoice.text,
+        hasNextNode: !!selectedChoice.nextNode,
+        nextNodeId: selectedChoice.nextNode?._id?.toString(),
+        nextNodeHasChoices: selectedChoice.nextNode?.choices?.length > 0,
+        questCompletionEventsOnChoice: selectedChoice.questCompletionEvents || [],
+        questCompletionEventsOnNextNode: selectedChoice.nextNode?.questCompletionEvents || [],
+        hasActivateQuest: !!selectedChoice.nextNode?.activateQuestId,
+        hasMobId: !!selectedChoice.mobId
       });
 
-      // Safety check: If this is an Exit option, ensure it doesn't have quest completion events
-      if (clonedChoice.text && clonedChoice.text.toLowerCase().includes("exit") && 
-          clonedChoice.nextNode && clonedChoice.nextNode.questCompletionEvents && 
-          clonedChoice.nextNode.questCompletionEvents.length > 0) {
-        
-        this.logger.warn('Exit option incorrectly has quest completion events - clearing', {
+      // Safety check for Exit options (remains important)
+      if (selectedChoice.text && selectedChoice.text.toLowerCase().includes("exit") && 
+          selectedChoice.nextNode && selectedChoice.nextNode.questCompletionEvents && 
+          selectedChoice.nextNode.questCompletionEvents.length > 0) {
+        this.logger.warn('Exit option incorrectly has quest completion events - clearing on loaded node', {
           userId,
-          choiceText: clonedChoice.text,
-          questCompletionEvents: clonedChoice.nextNode.questCompletionEvents
+          choiceText: selectedChoice.text,
+          questCompletionEvents: selectedChoice.nextNode.questCompletionEvents
         });
-        
-        // Clear the quest completion events for this Exit option
-        clonedChoice.nextNode.questCompletionEvents = [];
+        selectedChoice.nextNode.questCompletionEvents = []; // Modify the loaded version
       }
 
-      // Check if this choice has a mobId for combat
-      if (clonedChoice.mobId) {
-        return await this.handleCombatChoice(clonedChoice, user, userId);
+      if (selectedChoice.mobId) {
+        return await this.handleCombatChoice(selectedChoice, user, userId);
       }
       
-      // Check if this choice has a teleportToNode for location teleportation
       let teleportAction = null;
-      if (clonedChoice.teleportToNode) {
+      if (selectedChoice.teleportToNode) {
         this.logger.debug('Teleport choice selected', {
           userId,
-          teleportToNode: clonedChoice.teleportToNode,
-          choiceText: clonedChoice.text
+          teleportToNode: selectedChoice.teleportToNode,
+          choiceText: selectedChoice.text
         });
-        
-        // Store the teleport information to return to the caller
         teleportAction = {
-          targetNode: clonedChoice.teleportToNode
+          targetNode: selectedChoice.teleportToNode
         };
       }
 
-      // Check if this choice has a skill check
-      if (clonedChoice.skillCheckStat && clonedChoice.skillCheckTargetNumber) {
-        const skillCheckResult = await this.handleSkillCheck(clonedChoice, user, userId);
-        
+      let choiceToProcess = selectedChoice; // Use this for potential modifications by skill checks
+      if (choiceToProcess.skillCheckStat && choiceToProcess.skillCheckTargetNumber) {
+        // Skill check might modify choiceToProcess.nextNode or its prompt.
+        // A deep copy of choiceToProcess might be warranted here if these changes are complex
+        // and shouldn't leak, but for now, we assume direct modification is okay for this flow.
+        const skillCheckResult = await this.handleSkillCheck(choiceToProcess, user, userId);
         if (!skillCheckResult.shouldContinue) {
           return skillCheckResult;
         }
-        
-        // Update the choice with any modifications from the skill check
-        clonedChoice = skillCheckResult.updatedChoice;
+        choiceToProcess = skillCheckResult.updatedChoice;
       }
 
-      // Validate the next node structure
-      if (clonedChoice.nextNode) {
-        // Ensure node has a choices array
-        if (!clonedChoice.nextNode.choices) {
-          clonedChoice.nextNode.choices = [];
-        }
+      if (choiceToProcess.nextNode && !choiceToProcess.nextNode.choices) {
+        choiceToProcess.nextNode.choices = [];
       }
 
-      // Process quest events
       this.logger.debug('Before handling quest events:', {
         userId,
-        choiceText: clonedChoice.text?.substring(0, 30) + '...',
-        hasNextNode: !!clonedChoice.nextNode,
-        questCompletionEvents: clonedChoice.nextNode?.questCompletionEvents || [],
-        hasActivateQuest: !!clonedChoice.nextNode?.activateQuestId,
-        userVersion: user.__v,
-        userQuestCount: user.quests?.length || 0
+        choiceText: choiceToProcess.text?.substring(0, 30) + '...',
+        hasNextNode: !!choiceToProcess.nextNode,
+        qceOnChoice: choiceToProcess.questCompletionEvents,
+        qceOnNextNode: choiceToProcess.nextNode?.questCompletionEvents,
+        hasActivateQuest: !!choiceToProcess.nextNode?.activateQuestId,
+        userVersion: user.__v
       });
       
       user = await this.handleQuestEvents(
-        clonedChoice, 
+        choiceToProcess, 
         user, 
         userId, 
-        activeEvent.actorId, 
-        activeEvent.isStoryEvent
+        activeEventState.actorId, 
+        activeEventState.isStoryEvent
       );
       
       this.logger.debug('After handling quest events:', {
         userId,
         userVersion: user.__v,
-        userQuestCount: user.quests?.length || 0,
         activeQuests: user.quests?.filter(q => !q.completed)?.length || 0,
         completedQuests: user.quests?.filter(q => q.completed)?.length || 0
       });
 
-      // Check if we've reached the end of a branch
-      if (!clonedChoice.nextNode) {
+      if (!choiceToProcess.nextNode) {
         this.logger.debug('End of event branch reached', {
           userId,
-          isStoryEvent: activeEvent.isStoryEvent
+          isStoryEvent: activeEventState.isStoryEvent
         });
         this.eventStateManager.clearActiveEvent(userId);
         return {
-          message: clonedChoice.text,
+          message: choiceToProcess.text,
           isEnd: true
         };
       }
 
-      // Update event state
-      this.logger.debug('Updating event state with next node', {
-        userId,
-        isStoryEvent: activeEvent.isStoryEvent,
-        nextNodeId: clonedChoice.nextNode._id?.toString(),
-        nextNodePrompt: clonedChoice.nextNode.prompt?.substring(0, 30) + '...',
-        nextNodeChoices: clonedChoice.nextNode.choices?.length || 0
-      });
+      const nextNodeToDisplay = choiceToProcess.nextNode; // This is the node object for the next step
+      const nextNodeIdToStore = nextNodeToDisplay._id.toString();
 
-      // Ensure consistent questCompletionEvents before storing
-      // REMOVED: clonedChoice.nextNode = this.eventNodeService.ensureConsistentQuestEvents(clonedChoice.nextNode);
+      this.logger.debug('Updating event state with next node ID', {
+        userId,
+        isStoryEvent: activeEventState.isStoryEvent,
+        nextNodeId: nextNodeIdToStore,
+        nextNodePrompt: nextNodeToDisplay.prompt?.substring(0, 30) + '...',
+        nextNodeChoices: nextNodeToDisplay.choices?.length || 0
+      });
       
-      // Update the active event state
       this.eventStateManager.setActiveEvent(
         userId, 
-        activeEvent.eventId, 
-        clonedChoice.nextNode,
-        activeEvent.actorId,
-        activeEvent.isStoryEvent
+        activeEventState.eventId, 
+        nextNodeIdToStore, // Store the ID of the next node
+        activeEventState.actorId,
+        activeEventState.isStoryEvent
       );
 
-      // Format and return response to display to the user
-      const formatEventResponse = async (node, userId) => {
-        let response = node.prompt + '\n\n';
-        
-        if (node.choices && node.choices.length > 0) {
-          // Get user data to check quests and class
-          const user = await this.User.findById(userId);
-          
-          // Filter choices based on restrictions and quests
-          const validChoices = this.filterChoicesByRestrictions(node.choices, user);
-
-          if (validChoices.length > 0) {
-            response += 'Responses:\n';
-            validChoices.forEach(({ choice }, index) => {
-              response += `${index + 1}. ${choice.text}\n`;
-            });
-          }
-
-          return {
-            message: response.trim(),
-            hasChoices: validChoices.length > 0,
-            isEnd: validChoices.length === 0
-          };
-        }
-
-        return {
-          message: response.trim(),
-          hasChoices: false,
-          isEnd: true
-        };
-      };
-      
-      // Format the response for the client
-      const response = await formatEventResponse(clonedChoice.nextNode, userId);
+      // Format response using the nextNodeToDisplay object
+      const response = await this.formatEventResponse(nextNodeToDisplay, userId);
       
       this.logger.debug('Formatted response:', {
         userId,
         message: response.message,
         hasChoices: response.hasChoices,
         isEnd: response.isEnd,
-        isStoryEvent: activeEvent.isStoryEvent
+        isStoryEvent: activeEventState.isStoryEvent
       });
 
-      // Clear event state if there are no more choices
       if (!response.hasChoices) {
         this.logger.debug('No more choices available, ending event', {
           userId,
-          isStoryEvent: activeEvent.isStoryEvent
+          isStoryEvent: activeEventState.isStoryEvent
         });
         this.eventStateManager.clearActiveEvent(userId);
       }
@@ -802,83 +740,165 @@ class EventChoiceProcessor {
   }
   
   /**
-   * Process a user input for an active event
+   * Formats the event node prompt and choices into a user-readable message.
+   * Moved from EventService.
+   * @param {Object} node - The event node to format (must be fully populated with choices)
+   * @param {string} userId - The ID of the user for whom to format the response
+   * @returns {Promise<Object>} - Object containing message and isEnd status
+   */
+  async formatEventResponse(node, userId) {
+    logger.debug('[EVENT_CHOICE_PROCESSOR_TRACE] formatEventResponse called with node:', {
+      userId,
+      nodeId: node?._id?.toString(),
+      nodePrompt: node?.prompt,
+      hasChoices: Array.isArray(node?.choices),
+      choicesCount: node?.choices?.length,
+      // Log choice text and any restrictions if present
+      choicesDetails: node?.choices?.map(c => ({
+        text: c.text,
+        nextNodeId: c.nextNode?._id?.toString(),
+        requiredQuestId: c.requiredQuestId,
+        requiredQuestEventId: c.requiredQuestEventId,
+        requiredClass: c.requiredClass,
+        isExit: c.isExit
+      }))
+    });
+
+    if (!node || !node.prompt) {
+        this.logger.warn('formatEventResponse called with null or undefined node', { userId });
+        return {
+            message: 'An unexpected error occurred, or the event path is undefined.',
+            hasChoices: false,
+            isEnd: true
+        };
+    }
+
+    let responseText = node.prompt ? node.prompt + '\n\n' : 'What do you do?\n\n';
+    let hasChoices = false;
+
+    if (node.choices && node.choices.length > 0) {
+        // Get fresh user data to check quests and class for choice filtering
+        const user = await this.User.findById(userId);
+        if (!user) {
+            this.logger.error('formatEventResponse: User not found for filtering choices', { userId });
+            // Proceed without filtering, or return error - for now, proceed but log
+            // This case should ideally not happen if userId is valid
+        }
+        
+        // Use this.filterChoicesByRestrictions (now part of EventChoiceProcessor)
+        const validChoices = user ? this.filterChoicesByRestrictions(node.choices, user) : node.choices.map((choice, index) => ({ choice, originalIndex: index }));
+
+        if (validChoices.length > 0) {
+            responseText += 'Responses:\n';
+            validChoices.forEach(({ choice }, index) => {
+                responseText += `${index + 1}. ${choice.text}\n`;
+            });
+            hasChoices = true;
+        }
+    }
+
+    return {
+        message: responseText.trim(),
+        hasChoices: hasChoices,
+        isEnd: !hasChoices // Event ends if there are no (valid) choices
+    };
+  }
+
+  /**
+   * Process a user input for an active event. 
+   * activeEventState contains { eventId, currentNodeId, actorId, nodeHistory, isStoryEvent }
    * 
    * @param {string} userId - User ID
-   * @param {Object} activeEvent - The active event
+   * @param {Object} activeEventState - The active event state (contains IDs)
    * @param {string} input - User input
    * @returns {Object} - Result of processing the input
    */
-  async processEventChoice(userId, activeEvent, input) {
+  async processEventChoice(userId, activeEventState, input) {
     try {
-      this.logger.debug('processEventChoice called:', {
+      this.logger.debug('processEventChoice called with activeEventState (IDs):', {
         userId,
         input,
-        activeEvent: {
-          eventId: activeEvent.eventId,
-          hasCurrentNode: !!activeEvent.currentNode,
-          actorId: activeEvent.actorId,
-          isStoryEvent: activeEvent.isStoryEvent
-        }
+        activeEventState
       });
 
-      const currentNode = activeEvent.currentNode;
+      if (!activeEventState || !activeEventState.eventId || !activeEventState.currentNodeId) {
+        this.logger.error('Invalid activeEventState provided to processEventChoice', { userId, activeEventState });
+        this.eventStateManager.clearActiveEvent(userId); // Clear potentially corrupt state
+        return null;
+      }
 
-      // Ensure the node has consistent quest completion events
-      // REMOVED: this.eventNodeService.ensureConsistentQuestEvents(currentNode);
+      // Load the fresh current node from the database using IDs from activeEventState
+      const freshCurrentNode = await this.eventNodeService.loadNodeFromDatabase(
+        activeEventState.eventId,
+        activeEventState.currentNodeId
+      );
 
-      // If no choices available, end event and allow new one to start
-      if (!currentNode.choices || currentNode.choices.length === 0) {
-        this.logger.debug('No choices available, ending event', {
-          userId,
-          isStoryEvent: activeEvent.isStoryEvent
+      if (!freshCurrentNode) {
+        this.logger.error('Failed to load freshCurrentNode from database in processEventChoice', {
+          eventId: activeEventState.eventId,
+          currentNodeId: activeEventState.currentNodeId,
+          userId
         });
         this.eventStateManager.clearActiveEvent(userId);
         return null;
       }
+      
+      // Note: ensureConsistentQuestEvents is no longer called here as freshCurrentNode is from DB.
 
-      // If we get a non-numeric input in an event with choices, 
-      // return an error message instead of clearing the event
-      if (isNaN(parseInt(input)) && currentNode.choices.length > 0) {
-        this.logger.debug('Non-numeric input received, prompting for valid choice', {
+      if (!freshCurrentNode.choices || freshCurrentNode.choices.length === 0) {
+        this.logger.debug('No choices available on freshCurrentNode, ending event', {
           userId,
-          input,
-          isStoryEvent: activeEvent.isStoryEvent
+          isStoryEvent: activeEventState.isStoryEvent
         });
+        this.eventStateManager.clearActiveEvent(userId);
+        // If the node itself has a prompt, display it before ending.
+        // Otherwise, it might have been an action node without further interaction.
         return {
-          error: true,
-          message: `Please enter a number between 1 and ${currentNode.choices.length} to choose your response.`
+            message: freshCurrentNode.prompt || 'The event concludes.',
+            isEnd: true,
+            hasChoices: false
         };
       }
 
-      // Get user data to check quests
-      let user = await this.User.findById(userId);
-      
-      // Filter choices first
-      const validChoices = this.filterChoicesByRestrictions(currentNode.choices, user);
-
-      this.logger.debug('Filtered choices:', {
-        userId,
-        totalChoices: currentNode.choices.length,
-        validChoices: validChoices.length,
-        isStoryEvent: activeEvent.isStoryEvent
-      });
-
-      // End event if no valid choices remain
-      if (validChoices.length === 0) {
-        this.logger.debug('No valid choices available after filtering, ending event', {
+      if (isNaN(parseInt(input)) && freshCurrentNode.choices.length > 0) {
+        this.logger.debug('Non-numeric input received, prompting for valid choice', {
           userId,
-          isStoryEvent: activeEvent.isStoryEvent
+          input,
+          isStoryEvent: activeEventState.isStoryEvent
         });
-        this.eventStateManager.clearActiveEvent(userId);
-        return null;
+        return {
+          error: true,
+          message: `Please enter a number between 1 and ${freshCurrentNode.choices.length} to choose your response.`
+        };
       }
 
-      // Validate the user's input
+      let user = await this.User.findById(userId);
+      const validChoices = this.filterChoicesByRestrictions(freshCurrentNode.choices, user);
+
+      this.logger.debug('Filtered choices from freshCurrentNode:', {
+        userId,
+        totalChoices: freshCurrentNode.choices.length,
+        validChoices: validChoices.length,
+        isStoryEvent: activeEventState.isStoryEvent
+      });
+
+      if (validChoices.length === 0) {
+        this.logger.debug('No valid choices available after filtering freshCurrentNode, ending event', {
+          userId,
+          isStoryEvent: activeEventState.isStoryEvent
+        });
+        this.eventStateManager.clearActiveEvent(userId);
+        return {
+            message: freshCurrentNode.prompt || 'No further actions available.',
+            isEnd: true,
+            hasChoices: false
+        };
+      }
+
       const validationResult = this.validateChoiceInput(
         input, 
         validChoices, 
-        activeEvent.isStoryEvent
+        activeEventState.isStoryEvent
       );
       
       if (validationResult.error) {
@@ -888,15 +908,16 @@ class EventChoiceProcessor {
         };
       }
 
-      // Execute the selected choice
+      // Pass activeEventState (with IDs) to executeChoice
       return await this.executeChoice(
         validationResult.selectedChoice, 
         user, 
         userId, 
-        activeEvent
+        activeEventState 
       );
     } catch (error) {
       this.logger.error('Error processing event choice:', error);
+      this.eventStateManager.clearActiveEvent(userId); // Attempt to clear state on error
       return null;
     }
   }

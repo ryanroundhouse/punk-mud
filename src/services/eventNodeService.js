@@ -98,6 +98,9 @@ class EventNodeService {
                 return null;
             }
             
+            // Only ensure consistent quest events, ID generation is now handled by the system
+            this.ensureConsistentQuestEvents(node);
+            
             return node;
         } catch (error) {
             logger.error('Error loading node from database:', { 
@@ -129,6 +132,42 @@ class EventNodeService {
         });
         return JSON.parse(JSON.stringify(node));
     }
+    
+    /**
+     * Ensure consistent quest completion events across all choices in a node.
+     * FIXED: This function was causing a bug where quest completion events were incorrectly applied
+     * to choices that shouldn't have them, like "Exit" options.
+     * 
+     * @param {Object} node - The node to process
+     * @returns {Object} - The processed node with consistent quest events
+     */
+    ensureConsistentQuestEvents(node) {
+        if (!node || !node.choices || node.choices.length === 0) {
+            return node;
+        }
+        
+        // Ensure all nextNode have questCompletionEvents property, initialized to [] if missing.
+        for (const choice of node.choices) {
+            if (choice.nextNode) {
+                // If questCompletionEvents is missing entirely, set it to an empty array.
+                // Do not overwrite if it exists, even if it's already an empty array.
+                if (!Object.prototype.hasOwnProperty.call(choice.nextNode, 'questCompletionEvents')) {
+                    choice.nextNode.questCompletionEvents = [];
+                    logger.debug('Initialized missing questCompletionEvents for choice.nextNode', {
+                        nodeId: node._id ? node._id.toString() : 'unknown',
+                        choiceText: choice.text, // Assuming choice has a 'text' field for logging
+                        nextNodeId: choice.nextNode._id ? choice.nextNode._id.toString() : 'unknown'
+                    });
+                }
+            }
+        }
+        
+        // All previous logic for finding a "referenceEvents" and copying it has been removed.
+        // The function now only ensures the property exists and is an array.
+        
+        return node;
+    }
 }
 
+module.exports = new EventNodeService(); 
 module.exports = new EventNodeService(); 

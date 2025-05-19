@@ -315,45 +315,63 @@ class NodeService {
                         const hasEnoughEnergy = await this.handleStoryEventEnergy(userId, storyEvent);
                         
                         if (hasEnoughEnergy) {
-                            logger.debug(`Starting story event ${storyEvent._id} (${storyEvent.title}) for user ${userId}`);
-                            
-                            // Set the story event as active
-                            this.stateService.setActiveEvent(
+                            logger.debug('[NODE_EVENT_TRACE] Starting story event', {
                                 userId,
-                                storyEvent._id,
-                                storyEvent.rootNode,
-                                null, // No actor for story events
-                                true // Mark as story event
+                                eventId: storyEvent._id.toString(),
+                                eventTitle: storyEvent.title,
+                                rootNodeId: storyEvent.rootNode?._id?.toString(),
+                                requiresEnergy: storyEvent.requiresEnergy,
+                                timestamp: new Date().toISOString()
+                            });
+                            // Ensure IDs are passed as strings
+                            this.stateService.setActiveEvent(
+                                userId, 
+                                storyEvent._id.toString(), 
+                                storyEvent.rootNode._id.toString(),
+                                null, // actorId for story events is usually null unless specifically set
+                                true
                             );
-                            result.storyEvent = storyEvent;
 
-                            // Get the user data for the system message
-                            const user = await this.User.findById(userId);
+                            // Publish system message about the story event
+                            if (this.systemMessageService && typeof this.systemMessageService.publishEventSystemMessage === 'function') {
+                                try {
+                                    const userForMessage = await this.User.findById(userId);
+                                    if (userForMessage && userForMessage.currentNode) {
+                                        await this.systemMessageService.publishEventSystemMessage(
+                                            userForMessage.currentNode, // Use the user's current node from DB
+                                            {
+                                                message: `${userForMessage.avatarName || 'Someone'} has encountered something interesting.`
+                                            },
+                                            userForMessage,
+                                            'environment', // actorName for story events
+                                            storyEvent.title // eventTitle
+                                        );
+                                    }
+                                } catch (err) {
+                                    logger.error('Error publishing system message for story event start:', err);
+                                }
+                            }
                             
-                            if (user) {
-                                // Publish event system message for the story event
-                                await this.systemMessageService.publishEventSystemMessage(
-                                    nodeAddress,
-                                    {
-                                        message: `${user.avatarName} has encountered something interesting.`
-                                    },
-                                    user,
-                                    'environment', // Use 'environment' as the actor for story events
-                                    storyEvent.title
-                                );
-                            }
-
-                            // Get the socket for this user to send initial prompt
-                            const socket = this.stateService.getClient(userId);
-                            if (socket) {
-                                // Format and send initial story prompt
-                                const formattedResponse = await this.eventService.formatEventResponse(storyEvent.rootNode, userId);
-                                socket.emit('console response', {
-                                    type: 'event',
-                                    message: formattedResponse.message,
-                                    isEndOfEvent: formattedResponse.isEnd
-                                });
-                            }
+                            // Format the initial response for the story event
+                            logger.debug('[NODE_EVENT_TRACE] Formatting event response in getNodeEvent. Root node details:', {
+                                userId,
+                                eventId: storyEvent._id.toString(),
+                                rootNodeId: storyEvent.rootNode?._id?.toString(),
+                                prompt: storyEvent.rootNode?.prompt,
+                                choicesCount: storyEvent.rootNode?.choices?.length,
+                                choices: storyEvent.rootNode?.choices?.map(c => ({ text: c.text, nextNodeId: c.nextNode?._id?.toString() }))
+                            });
+                            const storyEventFormatted = await this.eventService.eventChoiceProcessor.formatEventResponse(storyEvent.rootNode, userId);
+                            logger.debug('[NODE_EVENT_TRACE] Formatted story event in getNodeEvent:', {
+                                userId,
+                                eventId: storyEvent._id.toString(),
+                                formattedMessageLength: storyEventFormatted?.message?.length,
+                                // Avoid logging the full message if it's too long, just confirm its presence
+                                hasFormattedMessage: !!storyEventFormatted?.message,
+                                hasChoicesInFormatted: Array.isArray(storyEventFormatted?.choices) && storyEventFormatted.choices.length > 0,
+                                choiceCountInFormatted: storyEventFormatted?.choices?.length
+                            });
+                            result.storyEvent = storyEventFormatted;
                         }
                     }
                 }
@@ -404,10 +422,10 @@ class NodeService {
         // Check quest requirement
         if (exit.requiredQuestId) {
             const hasRequiredQuest = userQuestInfo.activeQuestIds && 
-                userQuestInfo.activeQuestIds.some(id => id && exit.requiredQuestId && id.toString() === exit.requiredQuestId.toString());
+                userQuestInfo.activeQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
             
             const hasCompletedQuest = userQuestInfo.completedQuestIds && 
-                userQuestInfo.completedQuestIds.some(id => id && exit.requiredQuestId && id.toString() === exit.requiredQuestId.toString());
+                userQuestInfo.completedQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
             
             if (!hasRequiredQuest && !hasCompletedQuest) {
                 logger.debug('Exit not accessible - missing required quest', {
@@ -425,16 +443,16 @@ class NodeService {
                 questDetails: userQuestInfo.quests?.map(q => ({
                     questId: q.questId,
                     currentEventId: q.currentEventId,
-                    currentEventMatches: q.currentEventId && exit.requiredQuestEventId && q.currentEventId.toString() === exit.requiredQuestEventId.toString(),
+                    currentEventMatches: q.currentEventId?.toString() === exit.requiredQuestEventId.toString(),
                     completedEventIds: q.completedEventIds,
-                    hasCompletedEvent: q.completedEventIds?.some(id => id && exit.requiredQuestEventId && id.toString() === exit.requiredQuestEventId.toString())
+                    hasCompletedEvent: q.completedEventIds?.some(id => id.toString() === exit.requiredQuestEventId.toString())
                 }))
             });
 
             // Check if the event is either completed or is the current event in any quest
             const hasRequiredQuestEvent = userQuestInfo.quests && userQuestInfo.quests.some(quest => {
-                const isCurrentEvent = quest.currentEventId && exit.requiredQuestEventId && quest.currentEventId.toString() === exit.requiredQuestEventId.toString();
-                const isCompletedEvent = quest.completedEventIds && quest.completedEventIds.some(id => id && exit.requiredQuestEventId && id.toString() === exit.requiredQuestEventId.toString());
+                const isCurrentEvent = quest.currentEventId && quest.currentEventId.toString() === exit.requiredQuestEventId.toString();
+                const isCompletedEvent = quest.completedEventIds && quest.completedEventIds.some(id => id.toString() === exit.requiredQuestEventId.toString());
                 
                 logger.debug('Quest event check details', {
                     questId: quest.questId,

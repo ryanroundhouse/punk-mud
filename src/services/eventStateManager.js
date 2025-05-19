@@ -32,6 +32,7 @@ class EventStateManager {
             exists: this.activeEvents.has(userId) 
         });
         
+        // Returns an object like: { userId, eventId, currentNodeId, actorId, isStoryEvent, nodeHistory }
         return this.activeEvents.get(userId) || null;
     }
 
@@ -40,42 +41,32 @@ class EventStateManager {
      * 
      * @param {string} userId - The ID of the user
      * @param {string} eventId - The ID of the event
-     * @param {Object} node - The current node in the event tree
+     * @param {string} currentNodeId - The ID of the current node in the event tree
      * @param {string} actorId - The ID of the actor associated with the event
      * @param {boolean} isStoryEvent - Whether this is a story event
      * @returns {Object} - The active event state that was set
      */
-    setActiveEvent(userId, eventId, node, actorId, isStoryEvent = false) {
-        logger.debug('Setting active event', { 
+    setActiveEvent(userId, eventId, currentNodeId, actorId, isStoryEvent = false) {
+        logger.debug('Setting active event with IDs', { 
             userId, 
             eventId,
+            currentNodeId,
             isStoryEvent
         });
         
-        // Create a deep clone of the current node to avoid reference issues
-        let clonedNode = JSON.parse(JSON.stringify(node));
-        
-        // Ensure the node has an ID
-        if (!clonedNode._id) {
-            clonedNode._id = `generated_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`;
-        }
-        
-        // Get the existing event state to track history
         const existingEvent = this.activeEvents.get(userId);
         let nodeHistory = [];
         
-        // If we already have an event for this user, track the history
         if (existingEvent && existingEvent.eventId === eventId) {
-            // Preserve existing history or initialize it
             nodeHistory = existingEvent.nodeHistory || [];
-            
-            // Add the current node to history if it's not already the last item
-            const lastHistoryNode = nodeHistory.length > 0 ? nodeHistory[nodeHistory.length - 1] : null;
-            if (!lastHistoryNode || lastHistoryNode.nodeId !== existingEvent.currentNode._id?.toString()) {
+            // Add the *previous* currentNodeId to history if it's different from the new one
+            // and it's not already the last item.
+            const lastHistoryNodeId = nodeHistory.length > 0 ? nodeHistory[nodeHistory.length - 1].nodeId : null;
+            if (existingEvent.currentNodeId && existingEvent.currentNodeId !== currentNodeId && existingEvent.currentNodeId !== lastHistoryNodeId) {
                 nodeHistory.push({
-                    nodeId: existingEvent.currentNode._id?.toString(),
-                    prompt: existingEvent.currentNode.prompt?.substring(0, 50) + '...',
-                    timestamp: Date.now()
+                    nodeId: existingEvent.currentNodeId,
+                    // We don't have the prompt here anymore, which is fine for ID-based history
+                    timestamp: Date.now() 
                 });
             }
         }
@@ -83,10 +74,10 @@ class EventStateManager {
         const eventState = {
             userId,
             eventId,
-            currentNode: clonedNode,
+            currentNodeId, // Store the ID
             actorId,
             isStoryEvent,
-            nodeHistory
+            nodeHistory // nodeHistory now stores { nodeId, timestamp }
         };
         
         this.activeEvents.set(userId, eventState);

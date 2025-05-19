@@ -394,14 +394,12 @@ class QuestService {
 
     async handleQuestProgression(user, actorId, completionEventIds = [], questToActivate = null) {
         try {
-            // Add validation at the start
             if (!user) {
                 this.logger.error('handleQuestProgression called with undefined user');
-                return null; // Return null instead of [] for compatibility with tests
+                return null;
             }
 
             this.logger.debug('handleQuestProgression called with:', {
-                hasUser: !!user,
                 userId: user._id?.toString(),
                 actorId,
                 completionEventIds,
@@ -409,706 +407,263 @@ class QuestService {
                 userQuestsCount: user.quests?.length || 0
             });
 
-            // Initialize quests array if it doesn't exist
             if (!user.quests) {
                 user.quests = [];
             }
 
             const allQuests = await this.Quest.find();
             let questUpdates = [];
+            let consolidatedMessages = []; // Store all messages here
 
-            // First handle any completion events
+            // --- Process Completion Events ---
             if (completionEventIds && completionEventIds.length > 0) {
-                this.logger.debug('Processing completion events:', { 
-                    completionEventIds,
-                    userQuests: user.quests.map(q => ({
-                        questId: q.questId,
-                        currentEventId: q.currentEventId,
-                        completed: q.completed,
-                        completedEventIds: q.completedEventIds
-                    }))
-                });
-                
                 for (const userQuest of user.quests) {
-                    if (userQuest.completed) {
-                        this.logger.debug('Skipping completed quest:', {
-                            questId: userQuest.questId,
-                            completedAt: userQuest.completedAt
-                        });
-                        continue;
-                    }
+                    if (userQuest.completed) continue;
 
                     const quest = allQuests.find(q => q._id.toString() === userQuest.questId);
-                    if (!quest) {
-                        this.logger.debug('Quest not found:', {
-                            questId: userQuest.questId,
-                            allQuestIds: allQuests.map(q => q._id.toString())
-                        });
-                        continue;
-                    }
+                    if (!quest) continue;
 
-                    // Find the current event
-                    const currentEvent = quest.events.find(e => 
-                        e._id.toString() === userQuest.currentEventId
-                    );
-                    
-                    if (!currentEvent) {
-                        this.logger.debug('Current event not found:', {
-                            currentEventId: userQuest.currentEventId,
-                            questId: quest._id.toString(),
-                            availableEventIds: quest.events.map(e => e._id.toString())
-                        });
-                        continue;
-                    }
+                    const currentEvent = quest.events.find(e => e._id.toString() === userQuest.currentEventId);
+                    if (!currentEvent) continue;
 
-                    this.logger.debug('Checking current event:', {
-                        eventId: currentEvent._id.toString(),
-                        eventType: currentEvent.eventType,
-                        hasChoices: !!currentEvent.choices,
-                        choicesCount: currentEvent.choices?.length,
-                        choices: currentEvent.choices?.map(c => ({
-                            nextEventId: c.nextEventId.toString(),
-                            matchesCompletion: completionEventIds.includes(c.nextEventId.toString())
-                        }))
-                    });
-
-                    // Find ALL choices leading to completion events
-                    const nextEventChoices = currentEvent.choices?.filter(choice => 
+                    const nextEventChoices = currentEvent.choices?.filter(choice =>
                         completionEventIds.includes(choice.nextEventId.toString())
                     );
 
                     if (nextEventChoices && nextEventChoices.length > 0) {
-                        this.logger.debug('Found matching next event choices:', {
-                            currentEventId: currentEvent._id.toString(),
-                            nextEventIds: nextEventChoices.map(c => c.nextEventId.toString()),
-                            questId: quest._id.toString(),
-                            questTitle: quest.title
-                        });
-
-                        // Process each matching choice
                         for (const nextEventChoice of nextEventChoices) {
-                            // Progress to the next event
                             userQuest.completedEventIds.push(currentEvent._id.toString());
                             userQuest.currentEventId = nextEventChoice.nextEventId.toString();
-
-                            // If this is an end event, complete the quest
-                            const nextEvent = quest.events.find(e => 
-                                e._id.toString() === nextEventChoice.nextEventId.toString()
-                            );
+                            const nextEvent = quest.events.find(e => e._id.toString() === nextEventChoice.nextEventId.toString());
 
                             if (nextEvent) {
-                                this.logger.debug('Found next event:', {
-                                    eventId: nextEvent._id.toString(),
-                                    isEnd: nextEvent.isEnd,
-                                    hasRewards: !!nextEvent.rewards?.length,
-                                    rewardCount: nextEvent.rewards?.length || 0
-                                });
-
+                                let userJustUpdated = false;
                                 if (nextEvent.isEnd) {
-                                    this.logger.debug('Found end event:', {
-                                        eventId: nextEvent._id.toString(),
-                                        questId: quest._id.toString(),
-                                        questTitle: quest.title
-                                    });
-
                                     userQuest.completed = true;
                                     userQuest.completedAt = new Date();
-                                    
-                                    // Different sequence based on event type
-                                    if (nextEvent.eventType === 'chat') {
-                                        // For chat events, send actor message first
-                                        this.messageService.sendQuestsMessage(
-                                            user._id.toString(),
-                                            nextEvent.message
-                                        );
-                                        
-                                        // Then send quest completion message
-                                        this.messageService.sendQuestsMessage(
-                                            user._id.toString(),
-                                            `Quest "${quest.title}" completed!`
-                                        );
-                                        
-                                        // Process rewards last
-                                        await this.handleEventRewards(user, nextEvent);
-                                    } else {
-                                        // For non-chat events
-                                        // 1. Send quest completion message
-                                        this.messageService.sendSuccessMessage(
-                                            user._id.toString(),
-                                            `Quest "${quest.title}" completed!`
-                                        );
-                                        
-                                        // 2. Send event message if it exists
-                                        if (nextEvent.message) {
-                                            this.messageService.sendQuestsMessage(
-                                                user._id.toString(),
-                                                nextEvent.message
+                                    // Save immediately before handling rewards for completed quests
+                                    try {
+                                        const questIndex = user.quests.findIndex(q => q.questId === userQuest.questId);
+                                        if (questIndex !== -1) {
+                                            const updatedUserFromDB = await this.User.findOneAndUpdate(
+                                                { _id: user._id },
+                                                { $set: { 
+                                                    [`quests.${questIndex}.completed`]: true, 
+                                                    [`quests.${questIndex}.completedAt`]: userQuest.completedAt,
+                                                    [`quests.${questIndex}.currentEventId`]: userQuest.currentEventId,
+                                                    [`quests.${questIndex}.completedEventIds`]: userQuest.completedEventIds
+                                                }},
+                                                { new: true }
                                             );
+                                            if (updatedUserFromDB) user = updatedUserFromDB;
+                                            userJustUpdated = true;
                                         }
-                                        
-                                        // 3. Process rewards
-                                        await this.handleEventRewards(user, nextEvent);
-                                    }
-
-                                    questUpdates.push({
-                                        type: 'quest_complete',
-                                        questTitle: quest.title
-                                    });
-
-                                    // Add debug logging for quest completion
-                                    this.logger.debug('Quest completed and ready to save:', {
-                                        questId: quest._id.toString(),
-                                        questTitle: quest.title,
-                                        userId: user._id.toString(),
-                                        userQuestStatus: userQuest
-                                    });
-
-                                    // Use findOneAndUpdate instead of save to avoid version conflicts
-                                    try {
-                                        // Find the index of the quest we're updating
-                                        const questIndex = user.quests.findIndex(q => 
-                                            q.questId === userQuest.questId
-                                        );
-                                        
-                                        if (questIndex === -1) {
-                                            throw new Error(`Quest not found in user quests: ${userQuest.questId}`);
-                                        }
-                                        
-                                        // Prepare update object with atomic operators
-                                        const updateQuery = {
-                                            $set: {
-                                                [`quests.${questIndex}.completed`]: true,
-                                                [`quests.${questIndex}.completedAt`]: new Date(),
-                                                [`quests.${questIndex}.currentEventId`]: userQuest.currentEventId,
-                                            }
-                                        };
-                                        
-                                        // Add the completed event ID to the array
-                                        if (currentEvent._id) {
-                                            updateQuery.$push = {
-                                                [`quests.${questIndex}.completedEventIds`]: currentEvent._id.toString()
-                                            };
-                                        }
-                                        
-                                        this.logger.debug('Executing findOneAndUpdate for quest completion:', {
-                                            userId: user._id.toString(),
-                                            questIndex,
-                                            updateQuery
-                                        });
-                                        
-                                        // Execute the atomic update
-                                        const updatedUser = await this.User.findOneAndUpdate(
-                                            { _id: user._id },
-                                            updateQuery,
-                                            { new: true } // Return the updated document
-                                        );
-                                        
-                                        if (!updatedUser) {
-                                            throw new Error(`User not found after update: ${user._id}`);
-                                        }
-                                        
-                                        // Update the user object with the latest data
-                                        user = updatedUser;
-                                        
-                                        this.logger.debug('Quest completion saved successfully with findOneAndUpdate', {
-                                            userId: user._id.toString(),
-                                            questId: quest._id.toString(),
-                                            questTitle: quest.title
-                                        });
-                                        
-                                        // Refresh node data for the player to update actor overrides
-                                        await this.refreshPlayerNode(user._id.toString());
-                                    } catch (updateError) {
-                                        this.logger.error('Error updating user for quest completion:', {
-                                            error: updateError.message,
-                                            userId: user._id.toString(),
-                                            stack: updateError.stack
-                                        });
-                                        
-                                        // Re-throw to maintain existing error handling
-                                        throw updateError;
-                                    }
-
-                                    return questUpdates;
-                                } else {
-                                    this.logger.debug('Next event is not an end event:', {
-                                        eventId: nextEvent._id.toString(),
-                                        isEnd: nextEvent.isEnd
-                                    });
+                                    } catch (e) { this.logger.error('Error saving user on quest completion (end event):', e); }
                                     
-                                    // Use findOneAndUpdate for quest progression
-                                    try {
-                                        // Find the index of the quest we're updating
-                                        const questIndex = user.quests.findIndex(q => 
-                                            q.questId === userQuest.questId
-                                        );
-                                        
-                                        if (questIndex === -1) {
-                                            throw new Error(`Quest not found in user quests: ${userQuest.questId}`);
-                                        }
-                                        
-                                        // Prepare update object
-                                        const updateQuery = {
-                                            $set: {
-                                                [`quests.${questIndex}.currentEventId`]: userQuest.currentEventId
-                                            }
-                                        };
-                                        
-                                        // Add the completed event ID to the array
-                                        if (currentEvent._id) {
-                                            updateQuery.$push = {
-                                                [`quests.${questIndex}.completedEventIds`]: currentEvent._id.toString()
-                                            };
-                                        }
-                                        
-                                        this.logger.debug('Executing findOneAndUpdate for quest progression:', {
-                                            userId: user._id.toString(),
-                                            questIndex,
-                                            updateQuery
-                                        });
-                                        
-                                        // Execute the atomic update
-                                        const updatedUser = await this.User.findOneAndUpdate(
-                                            { _id: user._id },
-                                            updateQuery,
-                                            { new: true } // Return the updated document
-                                        );
-                                        
-                                        if (!updatedUser) {
-                                            throw new Error(`User not found after update: ${user._id}`);
-                                        }
-                                        
-                                        // Update the user object with the latest data
-                                        user = updatedUser;
-                                        
-                                        this.logger.debug('Quest progression saved successfully with findOneAndUpdate', {
-                                            userId: user._id.toString(),
-                                            questId: quest._id.toString(),
-                                            questTitle: quest.title
-                                        });
-                                        
-                                        // Refresh node data for the player to update actor overrides
-                                        await this.refreshPlayerNode(user._id.toString());
-                                        
-                                        // Add the quest update
-                                        questUpdates.push({
-                                            type: 'quest_progress',
-                                            questTitle: quest.title,
-                                            isComplete: false
-                                        });
-                                    } catch (updateError) {
-                                        this.logger.error('Error updating user for quest progression:', {
-                                            error: updateError.message,
-                                            userId: user._id.toString(),
-                                            stack: updateError.stack
-                                        });
-                                        
-                                        // Re-throw to maintain existing error handling
-                                        throw updateError;
+                                    consolidatedMessages.push(`Quest "${quest.title}" completed!`);
+                                    if (nextEvent.message) { // Add event's own message
+                                        consolidatedMessages.push(nextEvent.message);
                                     }
+                                } else { // Not an end event, just progression
+                                     try {
+                                        const questIndex = user.quests.findIndex(q => q.questId === userQuest.questId);
+                                        if (questIndex !== -1) {
+                                            const updatedUserFromDB = await this.User.findOneAndUpdate(
+                                                { _id: user._id },
+                                                { $set: { 
+                                                    [`quests.${questIndex}.currentEventId`]: userQuest.currentEventId,
+                                                    [`quests.${questIndex}.completedEventIds`]: userQuest.completedEventIds
+                                                }},
+                                                { new: true }
+                                            );
+                                            if (updatedUserFromDB) user = updatedUserFromDB;
+                                            userJustUpdated = true;
+                                        }
+                                    } catch (e) { this.logger.error('Error saving user on quest progression (non-end event):', e); }
+                                    if (nextEvent.message) { // Add event's own message for progression
+                                       consolidatedMessages.push(nextEvent.message);
+                                    }
+                                }
+                                
+                                // Handle rewards after user state is potentially saved and reloaded
+                                const rewardMessages = await this.handleEventRewards(user, nextEvent);
+                                consolidatedMessages.push(...rewardMessages);
+
+                                if (nextEvent.isEnd) {
+                                    questUpdates.push({ type: 'quest_complete', questTitle: quest.title });
+                                } else {
+                                     questUpdates.push({ type: 'quest_progress', questTitle: quest.title, isComplete: false });
+                                }
+                                
+                                if (userJustUpdated) { // Refresh node only if DB was updated
+                                     await this.refreshPlayerNode(user._id.toString());
+                                }
+                                // If an end event was processed, we might have fulfilled the completion.
+                                // If multiple completionEventIds could lead to the same quest end,
+                                // we should probably return here to avoid processing other branches for this quest.
+                                if (nextEvent.isEnd) {
+                                     if (consolidatedMessages.length > 0) {
+                                        this.messageService.sendSuccessMessage(user._id.toString(), consolidatedMessages.join('\n'));
+                                    }
+                                    return questUpdates; // Early exit after first completion of a quest
                                 }
                             }
                         }
-                    } else {
-                        this.logger.debug('No matching next event choices found in current event choices');
                     }
                 }
-            } else {
-                this.logger.debug('No completion events to process');
             }
 
-            // Handle direct quest activation if specified
+            // --- Process Quest Activation ---
             if (questToActivate) {
                 const questToStart = allQuests.find(q => q._id.toString() === questToActivate.toString());
-                
-                if (questToStart) {
-                    // Check if quest is already in user's quests (active OR completed)
-                    const questExists = user.quests.some(uq => 
-                        uq.questId === questToStart._id.toString()
-                    );
-
-                    if (questExists) {
-                        this.logger.debug('Quest activation bypassed: quest already active or completed', {
-                            userId: user._id.toString(),
+                if (questToStart && !user.quests.some(uq => uq.questId === questToStart._id.toString())) {
+                    const startEvent = questToStart.events.find(event => event.isStart);
+                    if (startEvent) {
+                        const newQuestData = {
                             questId: questToStart._id.toString(),
-                            questTitle: questToStart.title
-                        });
-                        // Bypass activation and continue
-                        // No need to add or start the quest again
-                        // Just continue with the rest of the logic
-                        // Optionally, you could return here if that's the only purpose
-                        // return { type: 'quest_already_active', questTitle: questToStart.title };
-                    } else {
-                        const startEvent = questToStart.events.find(event => event.isStart);
-                        
-                        if (startEvent) {
-                            // Add reward handling for start event
-                            await this.handleEventRewards(user, startEvent);
-                            
-                            // Prepare new quest object
-                            const newQuest = {
-                                questId: questToStart._id.toString(),
-                                currentEventId: startEvent._id.toString(),
-                                completedEventIds: [],
-                                startedAt: new Date()
-                            };
-                            
-                            this.logger.debug('Auto-starting quest with findOneAndUpdate:', {
-                                userId: user._id.toString(),
-                                questId: questToStart._id.toString(),
-                                questTitle: questToStart.title
-                            });
-                            
-                            try {
-                                // Use $push to add the new quest to the quests array
-                                const updatedUser = await this.User.findOneAndUpdate(
-                                    { _id: user._id },
-                                    { $push: { quests: newQuest } },
-                                    { new: true } // Return the updated document
-                                );
-                                
-                                if (!updatedUser) {
-                                    throw new Error(`User not found after auto-starting quest: ${user._id}`);
-                                }
-                                
-                                // Update the user object with the latest data
-                                user = updatedUser;
-                                
-                                this.logger.debug('Quest auto-start saved successfully with findOneAndUpdate', {
-                                    userId: user._id.toString(),
-                                    questId: questToStart._id.toString(),
-                                    questTitle: questToStart.title
-                                });
-                                
-                                // Refresh node data for the player to update actor overrides
-                                await this.refreshPlayerNode(user._id.toString());
-                            } catch (updateError) {
-                                this.logger.error('Error auto-starting quest with findOneAndUpdate:', {
-                                    error: updateError.message,
-                                    userId: user._id.toString(),
-                                    questId: questToStart._id.toString(),
-                                    stack: updateError.stack
-                                });
-                                
-                                // Re-throw to maintain existing error handling
-                                throw updateError;
-                            }
+                            currentEventId: startEvent._id.toString(),
+                            completedEventIds: [],
+                            startedAt: new Date()
+                        };
+                        try {
+                            const updatedUserFromDB = await this.User.findOneAndUpdate(
+                                { _id: user._id },
+                                { $push: { quests: newQuestData } },
+                                { new: true }
+                            );
+                            if (updatedUserFromDB) user = updatedUserFromDB;
 
-                            // Only send the quest start message if there's a message to send
+                            consolidatedMessages.push(`New Quest: ${questToStart.title}`);
                             if (startEvent.message) {
-                                this.messageService.sendQuestsMessage(
-                                    user._id.toString(),
-                                    `New Quest: ${questToStart.title}\n\n${startEvent.message}`
-                                );
-                            } else {
-                                this.messageService.sendQuestsMessage(
-                                    user._id.toString(),
-                                    `New Quest: ${questToStart.title}`
-                                );
+                                consolidatedMessages.push(startEvent.message);
                             }
+                            const rewardMessages = await this.handleEventRewards(user, startEvent);
+                            consolidatedMessages.push(...rewardMessages);
+                            await this.refreshPlayerNode(user._id.toString());
                             
-                            return {
-                                type: 'quest_start',
-                                questTitle: questToStart.title
-                            };
-                        }
+                            if (consolidatedMessages.length > 0) {
+                                this.messageService.sendQuestsMessage(user._id.toString(), consolidatedMessages.join('\n'));
+                                consolidatedMessages = []; // Clear for next potential operations
+                            }
+                            return { type: 'quest_start', questTitle: questToStart.title }; // Early exit on activation
+                        } catch (e) { this.logger.error('Error saving user on quest activation:', e); }
                     }
                 }
             }
+            
+            // --- Process Actor-Triggered Quest Starts/Progressions (Original Loop) ---
+            // This part handles quests that might start or progress just by talking to an actor,
+            // not through explicit completionEventIds or questToActivate.
+            const availableQuests = allQuests.filter(quest => 
+                !user.quests.some(userQuest => userQuest.questId === quest._id.toString())
+            );
 
-            // Find quests that haven't been started by the user
-            const availableQuests = allQuests.filter(quest => {
-                return !user.quests.some(userQuest => userQuest.questId === quest._id.toString());
-            });
-
-            // Check for new quests to start
-            for (const quest of availableQuests) {
+            for (const quest of availableQuests) { // Check for new quests to start via actor
                 const startEvent = quest.events.find(event => event.isStart);
-                
                 if (startEvent && startEvent.actorId === actorId) {
-                    // Prepare new quest object
-                    const newQuest = {
+                     const newQuestData = {
                         questId: quest._id.toString(),
                         currentEventId: startEvent._id.toString(),
                         completedEventIds: [],
                         startedAt: new Date()
                     };
-                    
-                    this.logger.debug('Auto-starting quest with findOneAndUpdate:', {
-                        userId: user._id.toString(),
-                        questId: quest._id.toString(),
-                        questTitle: quest.title
-                    });
-                    
                     try {
-                        // Use $push to add the new quest to the quests array
-                        const updatedUser = await this.User.findOneAndUpdate(
+                        const updatedUserFromDB = await this.User.findOneAndUpdate(
                             { _id: user._id },
-                            { $push: { quests: newQuest } },
-                            { new: true } // Return the updated document
+                            { $push: { quests: newQuestData } },
+                            { new: true }
                         );
+                        if (updatedUserFromDB) user = updatedUserFromDB;
                         
-                        if (!updatedUser) {
-                            throw new Error(`User not found after auto-starting quest: ${user._id}`);
+                        consolidatedMessages.push(`New Quest: ${quest.title}`);
+                        if (startEvent.message) {
+                            consolidatedMessages.push(startEvent.message);
                         }
-                        
-                        // Update the user object with the latest data
-                        user = updatedUser;
-                        
-                        this.logger.debug('Quest auto-start saved successfully with findOneAndUpdate', {
-                            userId: user._id.toString(),
-                            questId: quest._id.toString(),
-                            questTitle: quest.title
-                        });
-                        
-                        // Refresh node data for the player to update actor overrides
+                        const rewardMessages = await this.handleEventRewards(user, startEvent);
+                        consolidatedMessages.push(...rewardMessages);
                         await this.refreshPlayerNode(user._id.toString());
-                    } catch (updateError) {
-                        this.logger.error('Error auto-starting quest with findOneAndUpdate:', {
-                            error: updateError.message,
-                            userId: user._id.toString(),
-                            questId: quest._id.toString(),
-                            stack: updateError.stack
-                        });
-                        
-                        // Re-throw to maintain existing error handling
-                        throw updateError;
-                    }
 
-                    this.messageService.sendQuestsMessage(
-                        user._id.toString(),
-                        `New Quest: ${quest.title}\n\n${startEvent.message}`
-                    );
-                    
-                    return {
-                        type: 'quest_start',
-                        questTitle: quest.title
-                    };
+                        if (consolidatedMessages.length > 0) {
+                           this.messageService.sendQuestsMessage(user._id.toString(), consolidatedMessages.join('\n'));
+                           consolidatedMessages = []; // Clear for next potential operations
+                        }
+                        return { type: 'quest_start', questTitle: quest.title }; // Early exit on this type of activation
+                    } catch (e) { this.logger.error('Error saving user on actor-triggered quest start:', e); }
                 }
             }
 
-            // Check for quest progression
-            for (const userQuest of user.quests) {
+            for (const userQuest of user.quests) { // Check existing quests for progression via actor
                 if (userQuest.completed) continue;
-
                 const quest = allQuests.find(q => q._id.toString() === userQuest.questId);
                 if (!quest) continue;
-
                 const currentEvent = quest.events.find(e => e._id.toString() === userQuest.currentEventId);
                 if (!currentEvent) continue;
 
-                this.logger.debug('Checking quest event for actor chat progression:', {
-                    questId: quest._id.toString(),
-                    questTitle: quest.title,
-                    currentEventId: currentEvent._id.toString(),
-                    currentEventType: currentEvent.eventType,
-                    actorId: actorId,
-                    hasChoices: currentEvent.choices?.length > 0,
-                    choiceCount: currentEvent.choices?.length || 0
+                const availableChoices = currentEvent.choices?.filter(choice => {
+                    const nextE = quest.events.find(e => e._id.toString() === choice.nextEventId.toString());
+                    return nextE && nextE.actorId && nextE.actorId.toString() === actorId.toString();
                 });
 
-                const availableChoices = currentEvent.choices.filter(choice => {
-                    const nextEvent = quest.events.find(e => e._id.toString() === choice.nextEventId.toString());
-                    
-                    // Debug the comparison
-                    if (nextEvent) {
-                        this.logger.debug('Comparing next event actorId with provided actorId:', {
-                            nextEventId: nextEvent._id.toString(),
-                            nextEventActorId: nextEvent.actorId,
-                            providedActorId: actorId,
-                            isMatch: nextEvent.actorId === actorId,
-                            nextEventActorIdType: typeof nextEvent.actorId,
-                            providedActorIdType: typeof actorId
-                        });
-                    }
-                    
-                    // Convert both to strings for comparison
-                    return nextEvent && 
-                           nextEvent.actorId && 
-                           nextEvent.actorId.toString() === actorId.toString();
-                });
-
-                this.logger.debug('Available choices after filtering:', {
-                    availableChoicesCount: availableChoices.length,
-                    availableChoices: availableChoices.map(c => c.nextEventId.toString())
-                });
-
-                if (availableChoices.length > 0) {
+                if (availableChoices && availableChoices.length > 0) {
                     const nextEvent = quest.events.find(e => e._id.toString() === availableChoices[0].nextEventId.toString());
-                    
-                    this.logger.debug('[QUEST PROGRESS] Before update', {
-                        userId: user._id?.toString(),
-                        questId: userQuest.questId,
-                        prevCurrentEventId: userQuest.currentEventId,
-                        prevCompletedEventIds: [...userQuest.completedEventIds]
-                    });
-
-                    userQuest.completedEventIds.push(currentEvent._id.toString());
-                    userQuest.currentEventId = nextEvent._id.toString();
-                    
-                    const isComplete = nextEvent.isEnd || nextEvent.choices.length === 0;
-                    if (isComplete) {
-                        // Process event rewards before marking complete
-                        await this.handleEventRewards(user, nextEvent);
+                    if (nextEvent) {
+                        userQuest.completedEventIds.push(currentEvent._id.toString());
+                        userQuest.currentEventId = nextEvent._id.toString();
+                        const isComplete = nextEvent.isEnd || nextEvent.choices.length === 0;
                         
-                        userQuest.completed = true;
-                        userQuest.completedAt = new Date();
-                        
-                        // For chat events, we'll combine the completion message with the actor's message
-                        // to avoid displaying two separate messages
-                        if (nextEvent.eventType === 'chat') {
-                            // First, just send the actor's chat message
-                            this.messageService.sendQuestsMessage(
-                                user._id.toString(),
-                                nextEvent.message
-                            );
-                            
-                            // Then send the quest completion notification
-                            this.messageService.sendQuestsMessage(
-                                user._id.toString(),
-                                `Quest "${quest.title}" completed!`
-                            );
-                        } else {
-                            // For non-chat events, we process rewards first (keeping previous behavior)
-                            // Process rewards first, then send messages
-                            await this.handleEventRewards(user, nextEvent);
-                            
-                            // For non-chat events, send the completion message separately
-                            this.messageService.sendSuccessMessage(
-                                user._id.toString(),
-                                `Quest "${quest.title}" completed!`
-                            );
-                            
-                            // Only send the quest message if it exists and this isn't a chat event
-                            if (nextEvent.message) {
-                                this.messageService.sendQuestsMessage(
-                                    user._id.toString(),
-                                    nextEvent.message
+                        try {
+                            const questIndex = user.quests.findIndex(q => q.questId === userQuest.questId);
+                            if (questIndex !== -1) {
+                                const updateFields = {
+                                    [`quests.${questIndex}.currentEventId`]: userQuest.currentEventId,
+                                    [`quests.${questIndex}.completedEventIds`]: userQuest.completedEventIds
+                                };
+                                if (isComplete) {
+                                    updateFields[`quests.${questIndex}.completed`] = true;
+                                    updateFields[`quests.${questIndex}.completedAt`] = new Date();
+                                    userQuest.completed = true; // Ensure local copy reflects this for reward handling
+                                }
+                                const updatedUserFromDB = await this.User.findOneAndUpdate(
+                                    { _id: user._id },
+                                    { $set: updateFields }, { new: true }
                                 );
+                                if (updatedUserFromDB) user = updatedUserFromDB;
                             }
-                        }
-                    } else {
-                        // Not a completion, just send the quest message
+                        } catch (e) { this.logger.error('Error saving user on actor-triggered quest progression:', e); }
+
                         if (nextEvent.message) {
-                            this.messageService.sendQuestsMessage(
-                                user._id.toString(),
-                                nextEvent.message
-                            );
+                            consolidatedMessages.push(nextEvent.message);
                         }
-                    }
-                    
-                    // Use findOneAndUpdate instead of save
-                    try {
-                        // Find the index of the quest we're updating
-                        const questIndex = user.quests.findIndex(q => 
-                            q.questId === userQuest.questId
-                        );
-                        
-                        if (questIndex === -1) {
-                            throw new Error(`Quest not found in user quests: ${userQuest.questId}`);
-                        }
-                        
-                        // Prepare update object with atomic operators
-                        const updateQuery = {
-                            $set: {
-                                [`quests.${questIndex}.currentEventId`]: userQuest.currentEventId,
-                            }
-                        };
-                        
-                        // Add completedEventIds
-                        if (userQuest.completedEventIds?.length > 0) {
-                            updateQuery.$set = {
-                                [`quests.${questIndex}.completedEventIds`]: userQuest.completedEventIds
-                            };
-                        }
-                        
-                        // Handle completion if needed
                         if (isComplete) {
-                            updateQuery.$set = {
-                                [`quests.${questIndex}.completed`]: true,
-                                [`quests.${questIndex}.completedAt`]: new Date(),
-                            };
+                            consolidatedMessages.push(`Quest "${quest.title}" completed!`);
                         }
-                        
-                        this.logger.debug('Executing findOneAndUpdate for quest progress/completion:', {
-                            userId: user._id.toString(),
-                            questIndex,
-                            updateQuery,
-                            isComplete
-                        });
-                        
-                        // Execute the atomic update
-                        const updatedUser = await this.User.findOneAndUpdate(
-                            { _id: user._id },
-                            updateQuery,
-                            { new: true } // Return the updated document
-                        );
-                        
-                        if (!updatedUser) {
-                            throw new Error(`User not found after update: ${user._id}`);
-                        }
-                        
-                        // Update the user object with the latest data
-                        user = updatedUser;
-                        
-                        this.logger.debug('Quest progress/completion saved successfully with findOneAndUpdate', {
-                            userId: user._id.toString(),
-                            questId: quest._id.toString(),
-                            questTitle: quest.title,
-                            isComplete
-                        });
-                        
-                        // Refresh node data for the player to update actor overrides
+                        const rewardMessages = await this.handleEventRewards(user, nextEvent); // Pass potentially updated user
+                        consolidatedMessages.push(...rewardMessages);
                         await this.refreshPlayerNode(user._id.toString());
-                    } catch (updateError) {
-                        this.logger.error('Error updating user for quest progress/completion:', {
-                            error: updateError.message,
-                            userId: user._id.toString(),
-                            stack: updateError.stack
-                        });
-                        
-                        // Don't rethrow, try to continue
+
+                        if (consolidatedMessages.length > 0) {
+                            this.messageService.sendQuestsMessage(user._id.toString(), consolidatedMessages.join('\n'));
+                            // Do not clear consolidatedMessages here if we want to return something below
+                        }
+                        return { type: 'quest_progress', questTitle: quest.title, isComplete, message: consolidatedMessages.join('\n') }; // Return all messages
                     }
-
-                    this.logger.debug('[QUEST PROGRESS] After update', {
-                        userId: user._id?.toString(),
-                        questId: userQuest.questId,
-                        newCurrentEventId: userQuest.currentEventId,
-                        newCompletedEventIds: [...userQuest.completedEventIds]
-                    });
-
-                    return {
-                        type: 'quest_progress',
-                        questTitle: quest.title,
-                        isComplete,
-                        message: nextEvent.message
-                    };
                 }
             }
+            
+            // Final catch-all for any remaining messages if no specific return happened
+            if (consolidatedMessages.length > 0) {
+                 this.messageService.sendSuccessMessage(user._id.toString(), consolidatedMessages.join('\n'));
+            }
 
-            return null;
+            return questUpdates.length > 0 ? questUpdates : null; // Changed from [] to null
         } catch (error) {
             this.logger.error('Error in handleQuestProgression:', error, {
                 userId: user?._id?.toString(),
                 completionEventIds,
                 questToActivate
             });
-            
-            // Define a local questUpdates variable if it doesn't exist in this scope
-            // This is needed because the original variable could be out of scope in the catch block
-            let localQuestUpdates = [];
-            
-            try {
-                // Try to use the existing questUpdates if defined
-                if (typeof questUpdates !== 'undefined' && questUpdates) {
-                    localQuestUpdates = questUpdates;
-                }
-            } catch (scopeError) {
-                // If questUpdates is really undefined, just use the empty array we created
-                this.logger.debug('Using empty questUpdates array in error handler');
-            }
-            
-            return localQuestUpdates.length > 0 ? localQuestUpdates : [];
+            // Ensure we return null instead of potentially undefined questUpdates
+            return null; 
         }
     }
 
@@ -1180,7 +735,56 @@ class QuestService {
                                 userQuest.completedEventIds.push(currentEvent._id.toString());
                                 userQuest.currentEventId = nextEvent._id.toString();
                                 
-                                // Add reward handling before sending messages
+                                // Determine if the quest is now complete
+                                const isKillQuestComplete = nextEvent.isEnd;
+
+                                if (isKillQuestComplete) {
+                                    userQuest.completed = true;
+                                    userQuest.completedAt = new Date();
+                                }
+                                
+                                // Now clear the kill progress *before saving* if it's cleared upon meeting requirement
+                                userQuest.killProgress = userQuest.killProgress.filter(kp => 
+                                    kp.eventId !== nextEvent._id.toString()
+                                );
+                                userNeedsSaving = true; // Ensure user is saved due to killProgress and potential completion
+
+                                // Save user state BEFORE handling rewards if the quest is complete or progress is made
+                                // This ensures the user.quests array is up-to-date
+                                if (userNeedsSaving) {
+                                     try {
+                                        const questIndex = user.quests.findIndex(q => q.questId === userQuest.questId);
+                                        if (questIndex !== -1) {
+                                            const updateFields = {
+                                                [`quests.${questIndex}.currentEventId`]: userQuest.currentEventId,
+                                                [`quests.${questIndex}.completedEventIds`]: userQuest.completedEventIds,
+                                                [`quests.${questIndex}.killProgress`]: userQuest.killProgress // Save updated killProgress
+                                            };
+                                            if (isKillQuestComplete) {
+                                                updateFields[`quests.${questIndex}.completed`] = true;
+                                                updateFields[`quests.${questIndex}.completedAt`] = new Date();
+                                            }
+
+                                            const tempUpdatedUser = await this.User.findOneAndUpdate(
+                                                { _id: user._id },
+                                                { $set: updateFields },
+                                                { new: true }
+                                            );
+                                            if (tempUpdatedUser) {
+                                                user = tempUpdatedUser; // Update user with the latest from DB
+                                            } else {
+                                                 this.logger.error('User not found after mob kill update attempt during save');
+                                            }
+                                        } else {
+                                            this.logger.error('Quest not found in user.quests during mob kill save');
+                                        }
+                                        userNeedsSaving = false; // Reset flag as we've saved
+                                    } catch (error) {
+                                        this.logger.error('Error saving user during mob kill progression/completion:', error);
+                                    }
+                                }
+                                
+                                // Add reward handling AFTER saving and updating user state
                                 await this.handleEventRewards(user, nextEvent);
 
                                 this.messageService.sendQuestsMessage(
@@ -1188,15 +792,7 @@ class QuestService {
                                     `Quest "${quest.title}" updated: Kill requirement complete!${nextEvent.message ? '\n\n' + nextEvent.message : ''}`
                                 );
 
-                                // Now clear the kill progress
-                                userQuest.killProgress = userQuest.killProgress.filter(kp => 
-                                    kp.eventId !== nextEvent._id.toString()
-                                );
-                                userNeedsSaving = true;
-
-                                if (nextEvent.isEnd) {
-                                    userQuest.completed = true;
-                                    userQuest.completedAt = new Date();
+                                if (isKillQuestComplete) {
                                     this.messageService.sendSuccessMessage(
                                         user._id.toString(),
                                         `Quest "${quest.title}" completed!`
@@ -1206,7 +802,7 @@ class QuestService {
                                 questUpdates.push({
                                     type: 'quest_progress',
                                     questTitle: quest.title,
-                                    isComplete: nextEvent.isEnd,
+                                    isComplete: isKillQuestComplete,
                                     message: nextEvent.message
                                 });
                             } else {
@@ -1278,111 +874,98 @@ class QuestService {
             rewards: event?.rewards?.map(r => ({type: r.type, value: r.value}))
         });
         
+        const allRewardMessages = [];
+
         if (!event.rewards || event.rewards.length === 0) {
-            this.logger.debug('No rewards found in event, returning early');
-            return;
+            this.logger.debug('No rewards found in event, returning empty messages array');
+            return allRewardMessages;
         }
 
         for (const reward of event.rewards) {
             if (reward.type === 'gainClass') {
                 try {
-                    // Verify the class exists
                     const classDoc = await this.Class.findById(reward.value);
                     if (!classDoc) {
                         this.logger.error('Class not found for reward:', {
                             classId: reward.value,
                             userId: user._id
                         });
+                        allRewardMessages.push('[Error: Class not found for reward.]');
                         continue;
                     }
-
-                    // Use the new setUserClass method
-                    const result = await this.userService.setUserClass(user._id, classDoc._id);
-                    
-                    if (result.success) {
-                        this.messageService.sendSuccessMessage(
-                            user._id.toString(),
-                            `You have gained the ${result.className} class!\n` +
-                            `Your hitpoints are now ${result.stats.hitpoints}.\n` +
-                            `You have gained ${result.moveCount} class moves!`
-                        );
-
-                        this.logger.debug('Class reward granted:', {
+                    // UserService.setUserClass now returns an object with a messages array
+                    const classResult = await this.userService.setUserClass(user._id, classDoc._id);
+                    if (classResult.success && classResult.messages) {
+                        allRewardMessages.push(...classResult.messages);
+                        this.logger.debug('Collected class reward messages for batch:', {
                             userId: user._id,
-                            className: result.className,
-                            stats: result.stats
+                            messages: classResult.messages
                         });
+                    } else if (!classResult.success && classResult.messages) {
+                        allRewardMessages.push(...classResult.messages); // Include error messages if any
+                        this.logger.error('Error setting user class, but got messages:', { userId: user._id, messages: classResult.messages, error: classResult.error });
+                    } else {
+                         this.logger.error('Error setting user class and no messages provided:', { userId: user._id, error: classResult.error });
+                         allRewardMessages.push('[Error: Could not set class.]');
                     }
                 } catch (error) {
-                    this.logger.error('Error handling class reward:', error);
+                    this.logger.error('Exception handling class reward:', error);
+                    allRewardMessages.push('[Error: An exception occurred while granting class reward.]');
                 }
             } else if (reward.type === 'experiencePoints') {
                 try {
                     const experiencePoints = parseInt(reward.value);
-                    this.logger.debug('Processing experience points reward:', {
-                        userId: user._id?.toString(),
-                        experiencePoints,
-                        rawValue: reward.value,
-                        isValid: !isNaN(experiencePoints) && experiencePoints > 0
-                    });
-                    
                     if (!isNaN(experiencePoints) && experiencePoints > 0) {
-                        this.logger.debug('Awarding event experience points:', {
-                            userId: user._id,
-                            experiencePoints
-                        });
-
+                        // UserService.awardExperience now returns an object with a messages array
                         const experienceResult = await this.userService.awardExperience(user._id.toString(), experiencePoints);
-                        
-                        this.logger.debug('Event experience award result:', {
-                            success: experienceResult.success,
-                            experienceGained: experienceResult.experienceGained,
-                            leveledUp: experienceResult.leveledUp,
-                            newLevel: experienceResult.newLevel
-                        });
-
-                        if (experienceResult.success) {
-                            this.messageService.sendSuccessMessage(
-                                user._id.toString(),
-                                `You gained ${experiencePoints} experience points!` +
-                                (experienceResult.leveledUp ? `\nYou reached level ${experienceResult.newLevel}!` : '')
-                            );
+                        if (experienceResult.success && experienceResult.messages) {
+                            allRewardMessages.push(...experienceResult.messages);
+                            this.logger.debug('Collected XP reward messages for batch:', {
+                                userId: user._id,
+                                messages: experienceResult.messages
+                            });
+                        } else if (!experienceResult.success && experienceResult.messages) {
+                            allRewardMessages.push(...experienceResult.messages); // Include error messages if any
+                            this.logger.error('Error awarding XP, but got messages:', { userId: user._id, messages: experienceResult.messages, error: experienceResult.error });
+                        } else {
+                            this.logger.error('Error awarding XP and no messages provided:', { userId: user._id, error: experienceResult.error });
+                            allRewardMessages.push('[Error: Could not award experience points.]');
                         }
                     }
                 } catch (error) {
-                    this.logger.error('Error handling experience points reward:', error, {
+                    this.logger.error('Exception handling experience points reward:', error, {
                         userId: user._id,
                         experiencePoints: reward.value
                     });
+                    allRewardMessages.push('[Error: An exception occurred while granting experience points.]');
                 }
             } else if (reward.type === 'resetCharacter') {
                 try {
                     const resetResult = await this.userService.resetCharacter(user._id);
                     if (resetResult.success) {
-                        this.messageService.sendSuccessMessage(
-                            user._id.toString(),
-                            'Your character has been reset to a new character!'
-                        );
-                        this.logger.debug('resetCharacter reward applied:', {
+                        allRewardMessages.push('Your character has been reset to a new character!');
+                        this.logger.debug('resetCharacter reward applied (message to be batched):', {
                             userId: user._id
                         });
                     } else {
-                        this.messageService.sendErrorMessage(
-                            user._id.toString(),
-                            'There was a problem resetting your character.'
-                        );
+                        const errorMessage = resetResult.error || 'There was a problem resetting your character.';
+                        allRewardMessages.push(`[Error: ${errorMessage}]`);
                         this.logger.error('resetCharacter reward failed:', {
                             userId: user._id,
                             error: resetResult.error
                         });
                     }
                 } catch (error) {
-                    this.logger.error('Error handling resetCharacter reward:', error, {
+                    this.logger.error('Exception handling resetCharacter reward:', error, {
                         userId: user._id
                     });
+                    allRewardMessages.push('[Error: An exception occurred while resetting your character.]');
                 }
             }
         }
+
+        this.logger.debug('handleEventRewards returning messages:', { userId: user._id, count: allRewardMessages.length, messages: allRewardMessages });
+        return allRewardMessages; 
     }
 
     async getUserQuestInfo(userId) {

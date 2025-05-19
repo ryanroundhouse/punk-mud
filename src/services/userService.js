@@ -167,170 +167,122 @@ flee.............Attempt to escape combat
         }
     }
 
-    async awardExperience(userId, amount, suppressMessage = false) {
+    async awardExperience(userId, amount) {
         try {
-            const user = await this.User.findById(userId).populate('class');
+            let user = await this.User.findById(userId).populate('class');
             if (!user) {
                 throw new Error('User not found');
             }
 
-            // Check if player is dead
             if (user.stats.currentHitpoints <= 0) {
-                await this.handlePlayerDeath(userId);
+                await this.handlePlayerDeath(userId); // This might send its own messages
                 return {
                     success: false,
-                    message: 'Player was defeated'
+                    messages: ['Player was defeated.'],
+                    leveledUp: false
                 };
             }
 
+            const messagesToReturn = [];
             const oldLevel = user.stats.level;
             const newExperience = user.stats.experience + amount;
 
-            // Level thresholds
+            messagesToReturn.push(`You gained ${amount} experience points!`);
+
             const levelThresholds = [
-                0,      // Level 1
-                100,    // Level 2
-                241,    // Level 3
-                465,    // Level 4
-                781,    // Level 5
-                1202,   // Level 6
-                1742,   // Level 7
-                2415,   // Level 8
-                3236,   // Level 9
-                4220,   // Level 10
-                5383    // Level 11
+                0, 100, 241, 465, 781, 1202, 1742, 2415, 3236, 4220, 5383
             ];
 
-            // Check for level up
             let newLevel = oldLevel;
             while (newLevel < levelThresholds.length && newExperience >= levelThresholds[newLevel]) {
                 newLevel++;
             }
 
-            // Initialize result object
             const result = {
                 success: true,
-                levelUp: false,
+                leveledUp: false,
                 oldLevel: oldLevel,
                 newLevel: newLevel,
                 experienceGained: amount,
-                totalExperience: newExperience
+                totalExperience: newExperience,
+                messages: [], // Will be populated
+                statIncreasesMessage: '', 
+                newMovesMessage: ''       
             };
 
-            // If level changed, update stats
             if (newLevel > oldLevel) {
-                // Calculate stat increases
-                const updates = {
+                result.leveledUp = true;
+                messagesToReturn.push(`Congratulations! You have reached level ${newLevel}!`);
+
+                const userUpdates = {
                     $set: {
                         'stats.experience': newExperience,
                         'stats.level': newLevel,
-                        'stats.body': user.stats.body + 1,
-                        'stats.reflexes': user.stats.reflexes + 1,
-                        'stats.agility': user.stats.agility + 1,
-                        'stats.charisma': user.stats.charisma + 1,
-                        'stats.tech': user.stats.tech + 1,
-                        'stats.luck': user.stats.luck + 1
+                        // HP will be set based on new body stat
+                    },
+                    $inc: {
+                        'stats.body': 1,
+                        'stats.reflexes': 1,
+                        'stats.agility': 1,
+                        'stats.charisma': 1,
+                        'stats.tech': 1,
+                        'stats.luck': 1
                     }
                 };
-
-                // Calculate new hitpoints
-                const baseHP = 20;
-                const levelBonus = 3 * newLevel;
-                const bodyBonus = Math.ceil((user.stats.body + 1) * 2.5);
-                const newHitpoints = baseHP + levelBonus + bodyBonus;
-
-                updates.$set['stats.hitpoints'] = newHitpoints;
-                updates.$set['stats.currentHitpoints'] = newHitpoints;
-
-                // Update the user with all new stats
-                const updatedUser = await this.User.findByIdAndUpdate(
-                    userId,
-                    updates,
-                    { new: true, runValidators: true }
-                );
-
-                if (!updatedUser) {
-                    throw new Error('Failed to update user stats');
-                }
-
-                // Update moves for the new level
-                await this.updateUserMovesForLevel(userId, newLevel);
-
-                // Update result object with level up info
-                result.levelUp = true;
-                result.newHP = newHitpoints;
                 
-                this.logger.debug('Level up detected', {
-                    userId,
-                    oldLevel,
-                    newLevel,
-                    newHP: newHitpoints
-                });
+                // Calculate new HP based on the incremented body stat
+                const newBodyStat = user.stats.body + 1;
+                const baseHP = 20; 
+                const levelBonusHP = 3 * newLevel; 
+                const bodyBonusHP = Math.ceil(newBodyStat * 2.5); 
+                const newHitpoints = baseHP + levelBonusHP + bodyBonusHP;
 
-                // Send level up message using messageService if not suppressed
-                if (!suppressMessage) {
-                    try {
-                        this.logger.debug('Sending level up message for user:', userId);
-                        
-                        this.messageService.sendSuccessMessage(
-                            userId,
-                            `Congratulations! You have reached level ${updatedUser.stats.level}!\n` +
-                            `Your stats have increased!\n` +
-                            `Your maximum health is now ${updatedUser.stats.hitpoints} points.`
-                        );
-                        
-                        this.logger.debug('Level up message sent');
-                    } catch (error) {
-                        this.logger.error('Error sending level up message:', error);
+                userUpdates.$set['stats.hitpoints'] = newHitpoints;
+                userUpdates.$set['stats.currentHitpoints'] = newHitpoints; // Heal to full
+
+                const updatedUser = await this.User.findByIdAndUpdate(userId, userUpdates, { new: true, runValidators: true });
+                if (!updatedUser) {
+                    throw new Error("Failed to update user stats on level up.");
+                }
+                user = updatedUser; // Refresh local user variable
+
+                messagesToReturn.push("Your stats have increased!");
+                messagesToReturn.push(`Your maximum health is now ${newHitpoints} points.`);
+                result.statIncreasesMessage = `Your stats have increased! Your maximum health is now ${newHitpoints} points.`;
+
+                const moveUpdateResult = await this.updateUserMovesForLevel(userId, newLevel); // userId is updatedUser._id
+                if (moveUpdateResult.success && moveUpdateResult.messages.length > 0) {
+                    messagesToReturn.push(...moveUpdateResult.messages);
+                    if (moveUpdateResult.newMoves.length > 0) {
+                         result.newMovesMessage = moveUpdateResult.messages.join(' '); // Use the actual message
                     }
                 }
-            } else {
-                // Just update experience if no level up
-                const updates = {
-                    $set: {
-                        'stats.experience': newExperience
-                    }
-                };
-
-                const updatedUser = await this.User.findByIdAndUpdate(
+                
+                this.messageService.sendPlayerStatusMessage(
                     userId,
-                    updates,
-                    { new: true, runValidators: true }
+                    `HP: ${newHitpoints}/${newHitpoints} | Energy: ${user.stats.currentEnergy}/${user.stats.energy}`
                 );
 
-                if (!updatedUser) {
-                    throw new Error('Failed to update user experience');
-                }
-            }
-
-            // Send player status update to update health/energy bars
-            // This should be sent after the user is saved and regardless of suppressMessage
-            try {
-                const finalUser = await this.User.findById(userId);
-                if (finalUser) {
-                    this.messageService.sendPlayerStatusMessage(
-                        userId,
-                        `HP: ${finalUser.stats.currentHitpoints}/${finalUser.stats.hitpoints} | Energy: ${finalUser.stats.currentEnergy}/${finalUser.stats.energy}`
-                    );
-                }
-            } catch (error) {
-                this.logger.error('Error sending player status update:', error);
-                // Continue execution, don't throw here
+            } else {
+                // No level up, just update experience
+                user = await this.User.findByIdAndUpdate(userId, { $set: { 'stats.experience': newExperience } }, {new: true });
             }
             
+            result.messages = messagesToReturn;
+            this.logger.debug('Experience awarded', result);
             return result;
+
         } catch (error) {
-            this.logger.error('Error awarding experience:', error);
-            throw error;
+            this.logger.error('Error awarding experience:', error, { userId, amount });
+            return {
+                success: false,
+                messages: [`Error awarding experience: ${error.message}`],
+                leveledUp: false,
+                error: error.message
+            };
         }
     }
 
-    /**
-     * Updates a user's moves based on their current level
-     * @param {string} userId - The user's ID
-     * @param {number} level - The user's new level
-     * @returns {Promise<Object>} - Result of the operation
-     */
     async updateUserMovesForLevel(userId, level) {
         try {
             const user = await this.User.findById(userId).populate('class');
@@ -338,56 +290,61 @@ flee.............Attempt to escape combat
                 throw new Error('User not found');
             }
 
+            const messagesToReturn = [];
+            let newMovesLearned = [];
+
             if (!user.class) {
                 this.logger.debug('User has no class assigned, skipping move update');
-                return { success: false, message: 'No class assigned' };
+                return { success: true, messages: [], newMoves: [], moveCount: user.moves.length };
             }
 
-            // Get the class with populated moveGrowth
-            const classDoc = await this.Class.findById(user.class).populate('moveGrowth.move');
+            const classDoc = await this.Class.findById(user.class._id).populate('moveGrowth.move');
             if (!classDoc) {
                 throw new Error('Class not found');
             }
 
-            // Get all moves the user should have at their current level
-            const availableMoves = classDoc.moveGrowth
+            const currentMoveIds = new Set(user.moves.map(m => m.toString()));
+            const allPotentialMovesForLevel = classDoc.moveGrowth
                 .filter(mg => mg.level <= level)
-                .map(mg => mg.move._id);
-
-            // Get newly unlocked moves
-            const newMoves = classDoc.moveGrowth
-                .filter(mg => mg.level <= level && mg.level > (level - 1))
                 .map(mg => mg.move);
 
-            // Update the user's moves
-            user.moves = availableMoves;
+            const finalMoveIds = [];
+            for (const move of allPotentialMovesForLevel) {
+                if (move && move._id) { // Ensure move and move._id are valid
+                    finalMoveIds.push(move._id);
+                    if (!currentMoveIds.has(move._id.toString())) {
+                        newMovesLearned.push(move);
+                    }
+                }
+            }
+            
+            user.moves = finalMoveIds;
             await user.save();
 
-            // Send notification about new moves if any were unlocked
-            if (newMoves.length > 0) {
-                const moveNames = newMoves.map(move => move.name).join(', ');
-                this.messageService.sendSuccessMessage(
-                    userId,
-                    `You've unlocked new ${newMoves.length > 1 ? 'moves' : 'a move'}: ${moveNames}!`
-                );
+            if (newMovesLearned.length > 0) {
+                const moveNames = newMovesLearned.map(move => move.name).join(', ');
+                messagesToReturn.push(`You've unlocked new ${newMovesLearned.length > 1 ? 'moves' : 'a move'}: ${moveNames}!`);
             }
 
             this.logger.debug('Updated user moves for level', {
                 userId, 
                 level, 
-                moveCount: availableMoves.length,
-                newMoveCount: newMoves.length
+                moveCount: user.moves.length,
+                newMoveCount: newMovesLearned.length
             });
 
             return {
                 success: true,
-                moveCount: availableMoves.length,
-                newMoves: newMoves.map(move => move.name)
+                messages: messagesToReturn,
+                newMoves: newMovesLearned.map(move => move.name),
+                moveCount: user.moves.length
             };
         } catch (error) {
             this.logger.error('Error updating user moves for level:', error);
             return {
                 success: false,
+                messages: [`Error updating moves: ${error.message}`],
+                newMoves: [],
                 error: error.message
             };
         }
@@ -395,7 +352,7 @@ flee.............Attempt to escape combat
 
     async setUserClass(userId, classId) {
         try {
-            const user = await this.User.findById(userId);
+            let user = await this.User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
             }
@@ -404,64 +361,75 @@ flee.............Attempt to escape combat
             if (!classDoc) {
                 throw new Error('Class not found');
             }
+            
+            const messagesToReturn = [];
+            messagesToReturn.push(`You have gained the ${classDoc.name} class!`);
 
-            // Store the class
             user.class = classDoc._id;
+            user.moves = []; // Reset moves, they will be added by updateUserMovesForLevel
 
-            // Reset all stats to 1 first
-            const stats = ['body', 'reflexes', 'agility', 'tech', 'luck', 'charisma'];
-            stats.forEach(stat => {
-                user.stats[stat] = 1;
+            const statsToUpdate = ['body', 'reflexes', 'agility', 'tech', 'luck', 'charisma'];
+            statsToUpdate.forEach(stat => {
+                user.stats[stat] = 1; // Base stat
             });
 
-            // Calculate level-based stat bonuses
-            const level = user.stats.level;
-            stats.forEach(stat => {
-                let bonus = level; // Base +1 per level for all stats
-
+            const currentLevel = user.stats.level; // Use user's current level
+            statsToUpdate.forEach(stat => {
+                let bonus = currentLevel; 
                 if (stat === classDoc.primaryStat) {
-                    bonus += level * 2; // Additional +2 for primary stat (+3 total)
+                    bonus += currentLevel * 2; 
                 } else if (classDoc.secondaryStats.includes(stat)) {
-                    bonus += level; // Additional +1 for secondary stats (+2 total)
+                    bonus += currentLevel; 
                 }
-
                 user.stats[stat] += bonus;
             });
 
-            // Calculate hitpoints
             const baseHP = classDoc.baseHitpoints;
-            const levelBonus = classDoc.hpPerLevel * level;
-            const bodyBonus = Math.ceil(classDoc.hpPerBod * user.stats.body);
-            user.stats.hitpoints = baseHP + levelBonus + bodyBonus;
-            user.stats.currentHitpoints = user.stats.hitpoints;
+            const levelBonusHP = classDoc.hpPerLevel * currentLevel;
+            const bodyBonusHP = Math.ceil(classDoc.hpPerBod * user.stats.body);
+            user.stats.hitpoints = baseHP + levelBonusHP + bodyBonusHP;
+            user.stats.currentHitpoints = user.stats.hitpoints; 
 
-            // Set moves based on level
-            const availableMoves = classDoc.moveGrowth
-                .filter(mg => mg.level <= level)
-                .map(mg => mg.move._id);
-            user.moves = availableMoves;
+            // Save user to persist class and stat changes BEFORE updating moves,
+            // so updateUserMovesForLevel reads the correct class.
+            await user.save(); 
+            user = await this.User.findById(userId).populate('class'); // Re-fetch to ensure populated class for updateUserMovesForLevel
 
-            await user.save();
+            const moveUpdateResult = await this.updateUserMovesForLevel(userId, currentLevel);
+            if (moveUpdateResult.success && moveUpdateResult.messages.length > 0) {
+                messagesToReturn.push(...moveUpdateResult.messages);
+            }
+            // user.moves is already saved by updateUserMovesForLevel
 
+            messagesToReturn.push(`Your maximum health is now ${user.stats.hitpoints} points.`);
+            if (moveUpdateResult.success) {
+                 if (moveUpdateResult.newMoves.length === 0) { // Only add this if no "new moves" message was added
+                    messagesToReturn.push(`You have ${moveUpdateResult.moveCount} class moves.`);
+                 }
+            }
+            
             this.logger.debug('User class set successfully:', {
                 userId: user._id,
                 className: classDoc.name,
-                level: level,
+                level: currentLevel,
                 hitpoints: user.stats.hitpoints,
-                primaryStat: classDoc.primaryStat,
-                secondaryStats: classDoc.secondaryStats,
-                moveCount: availableMoves.length
+                moveCount: user.moves.length
             });
 
             return {
                 success: true,
+                messages: messagesToReturn,
                 className: classDoc.name,
-                stats: user.stats,
-                moveCount: availableMoves.length
+                stats: user.stats, 
+                moveCount: user.moves.length 
             };
         } catch (error) {
             this.logger.error('Error setting user class:', error);
-            throw error;
+            return {
+                success: false,
+                messages: [`Error setting class: ${error.message}`],
+                error: error.message
+            };
         }
     }
 
@@ -497,7 +465,6 @@ flee.............Attempt to escape combat
             const oldNode = user.currentNode;
             user.currentNode = targetNode.address;
 
-            // Log the node addresses
             this.logger.debug('Node addresses for movement:', {
                 oldNode,
                 newNode: targetNode.address,
@@ -507,24 +474,20 @@ flee.............Attempt to escape combat
 
             await user.save();
 
-            // Handle node client management
             this.stateService.removeUserFromNodeAndUpdateUsernames(userId, oldNode);
             await this.stateService.addUserToNodeAndUpdateUsernames(userId, targetNode.address);
             
-            // Update chat subscriptions - unsubscribe from old node and subscribe to new one
             if (oldNode) {
                 await this.socketService.unsubscribeFromNodeChat(oldNode);
             }
             await this.socketService.subscribeToNodeChat(targetNode.address);
 
-            // Send movement messages using the new dedicated function
             await this.systemMessageService.publishUserMoveSystemMessage(
                 oldNode,
                 targetNode.address,
                 user
             );
 
-            // Clear any existing mob and check for new spawn
             this.mobService.clearUserMob(userId);
         } catch (error) {
             this.logger.error('Error moving user to node:', error);
@@ -532,78 +495,104 @@ flee.............Attempt to escape combat
         }
     }
 
-    /**
-     * Resets a user's character to default values, preserving email, avatarName, description, image, authCode, and isBuilder.
-     * @param {string} userId - The user's ID
-     * @returns {Promise<Object>} - Result of the operation
-     */
     async resetCharacter(userId) {
         try {
             const user = await this.User.findById(userId);
             if (!user) {
-                throw new Error('User not found');
+                this.logger.warn(`User not found for resetCharacter: ${userId}`);
+                return { success: false, error: 'User not found' };
             }
-
-            // Preserve these fields
-            const preserved = {
+    
+            const defaultUser = new this.User(); // Creates a new user instance with defaults
+    
+            // Preserve specific fields
+            const preservedFields = {
                 email: user.email,
                 avatarName: user.avatarName,
                 description: user.description,
-                image: user.image,
+                image: user.image, // User's avatar image, not node image
                 authCode: user.authCode,
-                isBuilder: user.isBuilder
+                isBuilder: user.isBuilder,
+                // Preserve existing inventory, gold, quests, and completed events
+                inventory: user.inventory,
+                gold: user.gold,
+                roles: user.roles, // Preserve roles
+                // _id, createdAt, updatedAt are inherently preserved or managed by mongoose
             };
+    
+            // Reset stats, class, moves, current node, etc., to defaults
+            user.stats = defaultUser.stats;
+            user.class = defaultUser.class; // This will be null or ObjectId if there's a default class
+            user.quests = defaultUser.quests;
+            user.moves = ["67e5ee92505d5890de625149"];
+            user.currentNode = defaultUser.currentNode; // Reset to default starting node
+            user.state = defaultUser.state;
+            
+            // Re-apply preserved fields
+            for (const key in preservedFields) {
+                if (preservedFields.hasOwnProperty(key)) {
+                    user[key] = preservedFields[key];
+                }
+            }
 
-            // Resettable fields (from User.js defaults)
-            const defaults = {
-                class: undefined,
-                quests: [],
-                stats: {
-                    hitpoints: 20,
-                    currentHitpoints: 20,
-                    armor: 0,
-                    body: 1,
-                    reflexes: 1,
-                    agility: 1,
-                    charisma: 1,
-                    tech: 1,
-                    luck: 1,
-                    experience: 0,
-                    level: 1,
-                    energy: 20,
-                    currentEnergy: 20
-                },
-                activeEffects: [],
-                moves: ['67e5ee92505d5890de625149'],
-                currentNode: '122.124.10.10'
-            };
-
-            // Apply resets
-            user.class = defaults.class;
-            user.quests = defaults.quests;
-            user.stats = defaults.stats;
-            user.activeEffects = defaults.activeEffects;
-            user.moves = defaults.moves;
-            user.currentNode = defaults.currentNode;
-
+            // If there's a default class defined in the schema, try to apply it
+            // (Assuming defaultUser.class might be set by schema defaults if applicable)
+            if (user.class) { // if a default class ID was set
+                const classUpdateResult = await this.setUserClass(userId, user.class);
+                // setUserClass now returns messages, but for resetCharacter, we have a generic message.
+                // We could potentially incorporate class specific messages if desired in future.
+                if (!classUpdateResult.success) {
+                     this.logger.warn(`Failed to apply default class during resetCharacter for user ${userId}: ${classUpdateResult.error}`);
+                     // Continue with reset even if class application fails
+                }
+            } else {
+                 // Ensure stats are set correctly even if no default class (e.g. level 1 stats)
+                user.stats.level = 1;
+                user.stats.experience = 0;
+                const baseStatValue = 1; // Default for level 1, no class
+                ['body', 'reflexes', 'agility', 'tech', 'luck', 'charisma'].forEach(stat => {
+                    user.stats[stat] = baseStatValue + user.stats.level; // Each stat = base + level (1+1 = 2 for level 1)
+                });
+                const baseHP = 20;
+                const levelBonusHP = 3 * user.stats.level;
+                const bodyBonusHP = Math.ceil(user.stats.body * 2.5);
+                user.stats.hitpoints = baseHP + levelBonusHP + bodyBonusHP;
+                user.stats.currentHitpoints = user.stats.hitpoints;
+                user.stats.energy = 20 + user.stats.level; // Default energy
+                user.stats.currentEnergy = user.stats.energy;
+            }
+    
             await user.save();
-
-            this.logger.debug('User character reset successfully:', {
-                userId: user._id,
-                avatarName: user.avatarName
-            });
-
+    
+            // After saving, refresh the player's node data
+            if (this.questService && typeof this.questService.refreshPlayerNode === 'function') {
+                 await this.questService.refreshPlayerNode(userId);
+            } else if (this.nodeService && typeof this.nodeService.getNodeDataForUser === 'function') { // Fallback if direct questService is tricky
+                const socket = this.stateService.getClient(userId);
+                if (socket && user.currentNode) {
+                    const nodeData = await this.nodeService.getNodeDataForUser(user.currentNode, userId);
+                    if (nodeData) {
+                        nodeData.suppressImageDisplay = true; // Prevent image flicker
+                        socket.emit('node data', nodeData);
+                    }
+                }
+            }
+            
+            this.logger.info(`Character reset for user: ${userId}`);
             return { success: true };
+    
         } catch (error) {
-            this.logger.error('Error resetting user character:', error);
+            this.logger.error(`Error resetting character for user ${userId}:`, error);
             return { success: false, error: error.message };
         }
     }
 }
 
-// Export a singleton instance with default dependencies
+// Create a singleton instance
 const userService = new UserService();
+
+// Export the singleton instance as the main export (for backward compatibility)
 module.exports = userService;
 
-// Also export the class for testing purposes
+// Add the class constructor as a property for new code that wants to instantiate directly
 module.exports.UserService = UserService; 

@@ -252,51 +252,57 @@ class EventService {
 
     async startEvent(userId, event) {
         try {
-            this.logger.debug('Starting event:', {
+            // rootNode is directly from the event object, assumed to be pristine from DB
+            const rootNode = event.rootNode; 
+            
+            if (!rootNode || !rootNode._id) {
+                this.logger.error('Event has no rootNode or rootNode._id, cannot start', { eventId: event._id });
+                return null;
+            }
+            const rootNodeId = rootNode._id.toString();
+
+            this.logger.debug('Starting event with rootNodeId:', {
                 userId,
                 eventId: event._id,
-                hasActivateQuest: !!event.rootNode.activateQuestId,
-                activateQuestId: event.rootNode.activateQuestId?._id?.toString()
+                rootNodeId,
+                hasActivateQuest: !!rootNode.activateQuestId,
+                activateQuestId: rootNode.activateQuestId?._id?.toString()
             });
 
-            // Get user data to check restrictions
             const user = await this.User.findById(userId);
             if (!user) {
                 this.logger.error('User not found when starting event:', { userId });
                 return null;
             }
 
-            if (!this.passesNodeRestrictions(event.rootNode, user)) {
+            // Pass rootNode (object) for initial restriction checks
+            if (!this.passesNodeRestrictions(rootNode, user)) {
                 return null;
             }
 
-            // Store event state using eventStateManager
+            // Store event state using eventStateManager with IDs
             this.eventStateManager.setActiveEvent(
                 userId, 
-                event._id, 
-                event.rootNode,
-                event.actorId
+                event._id.toString(), 
+                rootNodeId, // Pass rootNodeId
+                event.actorId ? event.actorId.toString() : null
+                // isStoryEvent can be added if it's part of the 'event' object schema
             );
 
-            await this.handleQuestActivation(userId, event.rootNode, event.actorId);
+            // Pass rootNode (object) for quest activation
+            await this.handleQuestActivation(userId, rootNode, event.actorId);
 
-            // Handle quest completion events
-            if (event.rootNode.questCompletionEvents?.length > 0) {
-                // Implement quest completion logic here
-                // This would need to be coordinated with questService
-            }
+            // rootNode.questCompletionEvents would be checked here if starting an event
+            // could immediately complete a quest step (usually not the case for rootNode).
+            // This logic might need to be in eventChoiceProcessor if choices from root can complete quests.
 
-            // Only try to publish system message if the required services are available
-            // This prevents errors during testing
             if (this.actorService && this.systemMessageService && 
                 typeof this.actorService.findActorById === 'function' && 
                 typeof this.systemMessageService.publishEventSystemMessage === 'function') {
                 
                 try {
-                    // Get the actor's name for the system message
                     const actor = await this.actorService.findActorById(event.actorId);
                     if (actor && user.currentNode) {
-                        // Publish event system message
                         await this.systemMessageService.publishEventSystemMessage(
                             user.currentNode,
                             {
@@ -308,13 +314,12 @@ class EventService {
                         );
                     }
                 } catch (err) {
-                    // Log error but don't fail the event start
                     this.logger.error('Error publishing system message for event start:', err);
                 }
             }
 
-            // Pass userId to formatEventResponse
-            return await this.formatEventResponse(event.rootNode, userId);
+            // Pass rootNode (object) for initial response formatting
+            return await this.eventChoiceProcessor.formatEventResponse(rootNode, userId);
         } catch (error) {
             this.logger.error('Error starting event:', error);
             return null;
@@ -414,18 +419,19 @@ class EventService {
         }
     }
 
-    async handleEventChoice(userId, choice) {
+    async handleEventChoice(userId, choiceInput) {
         try {
-            // Get active event
-            const activeEvent = this.eventStateManager.getActiveEvent(userId);
+            // Get active event IDs from state manager
+            const activeEventState = this.eventStateManager.getActiveEvent(userId);
             
-            if (!activeEvent) {
+            if (!activeEventState) {
                 this.logger.debug('No active event found for user', { userId });
                 return null;
             }
             
-            // Delegate to the EventChoiceProcessor
-            return await this.eventChoiceProcessor.processEventChoice(userId, activeEvent, choice);
+            // Delegate to the EventChoiceProcessor, passing the activeEventState (with IDs)
+            // and the user's choiceInput.
+            return await this.eventChoiceProcessor.processEventChoice(userId, activeEventState, choiceInput);
         } catch (error) {
             this.logger.error('Error in handleEventChoice:', { 
                 error: error.message, 
@@ -436,37 +442,6 @@ class EventService {
         }
     }
 
-    async formatEventResponse(node, userId) {
-        let response = node.prompt + '\n\n';
-        
-        if (node.choices && node.choices.length > 0) {
-            // Get user data to check quests and class
-            const user = await this.User.findById(userId);
-            
-            // Use the EventChoiceProcessor to filter choices
-            const validChoices = this.eventChoiceProcessor.filterChoicesByRestrictions(node.choices, user);
-
-            if (validChoices.length > 0) {
-                response += 'Responses:\n';
-                validChoices.forEach(({ choice }, index) => {
-                    response += `${index + 1}. ${choice.text}\n`;
-                });
-            }
-
-            return {
-                message: response.trim(),
-                hasChoices: validChoices.length > 0,
-                isEnd: validChoices.length === 0
-            };
-        }
-
-        return {
-            message: response.trim(),
-            hasChoices: false,
-            isEnd: true
-        };
-    }
-
     isInEvent(userId) {
         return this.eventStateManager.isInEvent(userId);
     }
@@ -474,72 +449,35 @@ class EventService {
     async processEventInput(userId, input) {
         this.logger.debug('processEventInput called:', { userId, input });
         
-        const activeEvent = this.eventStateManager.getActiveEvent(userId);
-        this.logger.debug('Active event state:', { exists: !!activeEvent, activeEvent });
+        // activeEventState now contains { eventId, currentNodeId, actorId, nodeHistory, isStoryEvent }
+        const activeEventState = this.eventStateManager.getActiveEvent(userId);
+        this.logger.debug('Active event state from manager:', { exists: !!activeEventState, activeEventState });
         
-        if (!activeEvent) {
-            this.logger.debug('No active event found');
+        if (!activeEventState) {
+            this.logger.debug('No active event found in processEventInput');
             return null;
         }
 
-        // Load the full event from the database to get the latest data
         try {
-            // Always use the Event model since there is no separate StoryEvent model
-            const currentNodeId = activeEvent.currentNode._id?.toString();
-            
-            this.logger.debug('Finding current node from database:', {
-                eventId: activeEvent.eventId,
+            // eventId and currentNodeId are from activeEventState
+            const { eventId, currentNodeId } = activeEventState;
+
+            this.logger.debug('Processing input for node from database:', {
+                eventId,
                 currentNodeId,
-                isStoryEvent: activeEvent.isStoryEvent
+                isStoryEvent: activeEventState.isStoryEvent
             });
 
-            // Use EventNodeService to load node from database
-            const currentNodeFromDb = await this.eventNodeService.loadNodeFromDatabase(
-                activeEvent.eventId, 
-                currentNodeId
-            );
-            
-            if (!currentNodeFromDb) {
-                this.logger.error('Current node not found in event tree:', {
-                    eventId: activeEvent.eventId,
-                    currentNodeId
-                });
-                // Fall back to stored node if we can't find it in the database
-                return this.handleEventChoice(userId, input);
-            }
-            
-            this.logger.debug('Found node in database:', {
-                nodeId: currentNodeFromDb._id?.toString(),
-                prompt: currentNodeFromDb.prompt?.substring(0, 30) + '...',
-                choicesCount: currentNodeFromDb.choices?.length || 0,
-                hasQuestCompletionEvents: currentNodeFromDb.questCompletionEvents?.length > 0
-            });
+            // Directly call handleEventChoice which will now internally load the node if needed
+            // or be refactored to accept the loaded node.
+            // For now, we assume processEventChoice in eventChoiceProcessor will handle loading.
+            return await this.handleEventChoice(userId, input);
 
-            // Log first few choices for debugging
-            if (currentNodeFromDb.choices && currentNodeFromDb.choices.length > 0) {
-                currentNodeFromDb.choices.slice(0, 3).forEach((choice, idx) => {
-                    this.logger.debug(`Choice ${idx + 1} details:`, {
-                        text: choice.text.substring(0, 30) + '...',
-                        hasNextNode: !!choice.nextNode,
-                        nextNodeQuestCompletionEvents: choice.nextNode?.questCompletionEvents?.length,
-                        nextNodeHasActivateQuest: !!choice.nextNode?.activateQuestId
-                    });
-                });
-            }
-
-            // Create a merged event state for processing
-            const mergedEvent = {
-                ...activeEvent,
-                // Replace the currentNode with the one from the database
-                currentNode: currentNodeFromDb
-            };
-
-            return this.handleEventChoice(userId, input);
         } catch (error) {
-            this.logger.error('Error loading event from database:', { 
+            this.logger.error('Error processing event input:', { 
                 error: error.message, 
                 stack: error.stack,
-                eventId: activeEvent.eventId
+                eventId: activeEventState ? activeEventState.eventId : 'unknown'
             });
             return null;
         }

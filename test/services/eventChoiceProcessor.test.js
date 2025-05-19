@@ -23,7 +23,7 @@ describe('EventChoiceProcessor', () => {
     
     // Mock user data
     mockUserData = {
-      _id: 'mock-user-id',
+      _id: 'user123',
       avatarName: 'TestUser',
       currentNode: 'test-node',
       stats: {
@@ -105,6 +105,20 @@ describe('EventChoiceProcessor', () => {
   });
   
   describe('filterChoicesByRestrictions', () => {
+    it('should filter out choices that activate quests the user already has', () => {
+      const choices = [
+        { text: 'Choice 1', nextNode: {} },
+        { text: 'Choice 2', nextNode: { activateQuestId: 'existing-quest' } },
+        { text: 'Choice 3', nextNode: { activateQuestId: 'new-quest' } }
+      ];
+      
+      const result = processor.filterChoicesByRestrictions(choices, mockUserData);
+      
+      expect(result).toHaveLength(2);
+      expect(result[0].choice.text).toBe('Choice 1');
+      expect(result[1].choice.text).toBe('Choice 3');
+    });
+    
     it('should filter out choices with blockIfQuestEventIds that match user completed events', () => {
       // Update mockUserData to include completedEventIds
       const userWithCompletedEvents = {
@@ -226,6 +240,20 @@ describe('EventChoiceProcessor', () => {
       const result = processor.filterChoicesByRestrictions(choices, mockUserData);
       
       expect(result).toHaveLength(3);
+    });
+    
+    it('should keep track of original indices', () => {
+      const choices = [
+        { text: 'Choice 1', nextNode: {} },
+        { text: 'Choice 2', nextNode: { activateQuestId: 'existing-quest' } },
+        { text: 'Choice 3', nextNode: { activateQuestId: 'new-quest' } }
+      ];
+      
+      const result = processor.filterChoicesByRestrictions(choices, mockUserData);
+      
+      expect(result).toHaveLength(2);
+      expect(result[0].originalIndex).toBe(0);
+      expect(result[1].originalIndex).toBe(2);
     });
   });
   
@@ -705,6 +733,7 @@ describe('EventChoiceProcessor', () => {
       
       const result = await processor.executeChoice(choice, mockUserData, 'user123', activeEvent);
       
+      expect(mockEventNodeService.ensureConsistentQuestEvents).toHaveBeenCalled();
       expect(mockEventStateManager.setActiveEvent).toHaveBeenCalled();
       
       // Check response is what was returned from formatEventResponse
