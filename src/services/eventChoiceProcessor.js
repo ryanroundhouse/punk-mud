@@ -71,7 +71,13 @@ class EventChoiceProcessor {
   filterChoicesByRestrictions(choices, user) {
     this.logger.debug('Filtering choices by restrictions', {
       userId: user._id.toString(),
-      totalChoices: choices.length
+      totalChoices: choices.length,
+      userQuests: user.quests?.map(q => ({
+        questId: q.questId,
+        currentEventId: q.currentEventId,
+        completed: q.completed,
+        completedEventIds: q.completedEventIds
+      }))
     });
     
     // Get the user's completed quest event IDs and current event IDs
@@ -101,14 +107,6 @@ class EventChoiceProcessor {
     return choices
       .map((choice, index) => ({ choice, originalIndex: index }))
       .filter(({ choice }) => {
-        // Check quest activation restriction
-        if (choice.nextNode?.activateQuestId) {
-          const hasQuest = user.quests?.some(userQuest => 
-            userQuest.questId.toString() === choice.nextNode.activateQuestId.toString()
-          );
-          if (hasQuest) return false;
-        }
-        
         // Check blockIfQuestEventIds - if user has completed or is on any of these events, block the choice
         if (choice.nextNode?.blockIfQuestEventIds && choice.nextNode.blockIfQuestEventIds.length > 0) {
           const hasBlockingEvent = choice.nextNode.blockIfQuestEventIds.some(eventId => 
@@ -116,15 +114,12 @@ class EventChoiceProcessor {
           );
           
           if (hasBlockingEvent) {
-            this.logger.debug('Choice blocked by blockIfQuestEventIds', {
+            this.logger.debug('[CHOICE FILTER] Excluded by blockIfQuestEventIds', {
               userId: user._id.toString(),
-              blockingEventIds: choice.nextNode.blockIfQuestEventIds,
-              userCompletedEventIds: userCompletedQuestEventIds.filter(id => 
-                choice.nextNode.blockIfQuestEventIds.includes(id)
-              ),
-              userCurrentEventIds: userCurrentQuestEventIds.filter(id => 
-                choice.nextNode.blockIfQuestEventIds.includes(id)
-              )
+              choiceText: choice.text,
+              blockIfQuestEventIds: choice.nextNode.blockIfQuestEventIds,
+              userCompletedEventIds: userCompletedQuestEventIds,
+              userCurrentEventIds: userCurrentQuestEventIds
             });
             return false;
           }
@@ -135,15 +130,29 @@ class EventChoiceProcessor {
           for (const restriction of choice.nextNode.restrictions) {
             // 'noClass' restriction - only show if user has no class
             if (restriction === 'noClass' && user.class) {
+              this.logger.debug('[CHOICE FILTER] Excluded by noClass restriction', {
+                userId: user._id.toString(),
+                choiceText: choice.text,
+                userClass: user.class
+              });
               return false;
             }
             // 'enforcerOnly' restriction - only show if user is enforcer class
             if (restriction === 'enforcerOnly' && (!user.class || user.class.name !== 'Enforcer')) {
+              this.logger.debug('[CHOICE FILTER] Excluded by enforcerOnly restriction', {
+                userId: user._id.toString(),
+                choiceText: choice.text,
+                userClass: user.class
+              });
               return false;
             }
           }
         }
 
+        this.logger.debug('[CHOICE FILTER] Included', {
+          userId: user._id.toString(),
+          choiceText: choice.text
+        });
         return true;
       });
   }
@@ -455,27 +464,45 @@ class EventChoiceProcessor {
     let updatedUser = user;
 
     try {
-      const { nextNode } = choice;
-      
+      // PATCH: Support questCompletionEvents on the choice itself, not just nextNode
+      let questCompletionEvents = [];
+      if (Array.isArray(choice.questCompletionEvents) && choice.questCompletionEvents.length > 0) {
+        questCompletionEvents = choice.questCompletionEvents;
+      } else if (
+        choice.nextNode &&
+        Array.isArray(choice.nextNode.questCompletionEvents) &&
+        choice.nextNode.questCompletionEvents.length > 0
+      ) {
+        questCompletionEvents = choice.nextNode.questCompletionEvents;
+      }
+
+      // DEBUG LOGGING: Print the selected choice text and questCompletionEvents being processed
+      this.logger.debug('[DEBUG] handleQuestEvents: Choice selected', {
+        userId,
+        choiceText: choice.text,
+        questCompletionEvents,
+        hasChoiceQCE: Array.isArray(choice.questCompletionEvents),
+        choiceQCELength: choice.questCompletionEvents ? choice.questCompletionEvents.length : undefined,
+        hasNextNodeQCE: choice.nextNode && Array.isArray(choice.nextNode.questCompletionEvents),
+        nextNodeQCELength: choice.nextNode && choice.nextNode.questCompletionEvents ? choice.nextNode.questCompletionEvents.length : undefined
+      });
+
       // SAFETY CHECK: Check for Exit choices by text and prevent quest completions
-      if (choice.text && choice.text.toLowerCase().includes("exit") && 
-          (!nextNode.questCompletionEvents || nextNode.questCompletionEvents.length === 0)) {
+      if (
+        choice.text &&
+        choice.text.toLowerCase().includes("exit") &&
+        questCompletionEvents.length === 0
+      ) {
         this.logger.debug('Skipping quest processing for Exit option', {
           userId,
           choiceText: choice.text
         });
         return updatedUser;
       }
-      
-      // FIXED: Process quest completion events if they exist AND they're not empty
-      // This prevents an empty array from triggering quest completions
-      if (nextNode && 
-          nextNode.questCompletionEvents && 
-          Array.isArray(nextNode.questCompletionEvents) && 
-          nextNode.questCompletionEvents.length > 0) {
-        
-        this.logger.debug(`Processing quest completion events: ${nextNode.questCompletionEvents.join(', ')}`);
-        
+
+      // Process quest completion events if they exist AND they're not empty
+      if (questCompletionEvents.length > 0) {
+        this.logger.debug(`Processing quest completion events: ${questCompletionEvents.join(', ')}`);
         this.logger.debug('User state before quest completion processing:', {
           userId,
           version: updatedUser.__v,
@@ -484,17 +511,14 @@ class EventChoiceProcessor {
           completedQuests: updatedUser.quests?.filter(q => q.completed)?.length || 0,
           questIds: updatedUser.quests?.map(q => ({ id: q.questId, completed: q.completed }))
         });
-        
         await this.questService.handleQuestProgression(
           updatedUser,
           actorId,
-          nextNode.questCompletionEvents
+          questCompletionEvents
         );
-        
         // Refresh user after quest progression
         const UserModel = this.User;
         updatedUser = await UserModel.findById(userId);
-        
         this.logger.debug('User state after quest completion processing:', {
           userId,
           version: updatedUser.__v,
@@ -507,34 +531,30 @@ class EventChoiceProcessor {
         // Add explicit log when skipping quest processing
         this.logger.debug('Skipping quest completion processing - no valid quest events', {
           userId,
-          hasQuestCompletionEvents: !!nextNode?.questCompletionEvents,
-          isArray: Array.isArray(nextNode?.questCompletionEvents),
-          length: nextNode?.questCompletionEvents?.length || 0
+          hasQuestCompletionEvents: !!questCompletionEvents,
+          isArray: Array.isArray(questCompletionEvents),
+          length: questCompletionEvents.length
         });
       }
 
       // Process quest activation if it exists
-      if (nextNode && nextNode.activateQuestId) {
-        this.logger.debug(`Processing quest activation: ${nextNode.activateQuestId}`);
-        
+      if (choice.nextNode && choice.nextNode.activateQuestId) {
+        this.logger.debug(`Processing quest activation: ${choice.nextNode.activateQuestId}`);
         this.logger.debug('User state before quest activation:', {
           userId,
           version: updatedUser.__v,
           questCount: updatedUser.quests?.length || 0,
-          activatingQuestId: nextNode.activateQuestId?.toString?.() || nextNode.activateQuestId
+          activatingQuestId: choice.nextNode.activateQuestId?.toString?.() || choice.nextNode.activateQuestId
         });
-        
         await this.questService.handleQuestProgression(
           updatedUser,
           actorId,
           [],
-          nextNode.activateQuestId
+          choice.nextNode.activateQuestId
         );
-        
         // Refresh user after quest activation
         const UserModel = this.User;
         updatedUser = await UserModel.findById(userId);
-        
         this.logger.debug('User state after quest activation:', {
           userId,
           version: updatedUser.__v,
@@ -565,8 +585,28 @@ class EventChoiceProcessor {
    */
   async executeChoice(choice, user, userId, activeEvent) {
     try {
+      // DEBUG LOGGING: Print the selected choice and its nextNode questCompletionEvents before cloning
+      this.logger.debug('[DEBUG] executeChoice: Before clone', {
+        choiceText: choice.text,
+        hasChoiceQCE: Array.isArray(choice.questCompletionEvents),
+        choiceQCELength: choice.questCompletionEvents ? choice.questCompletionEvents.length : undefined,
+        choiceQCE: choice.questCompletionEvents,
+        hasNextNodeQCE: choice.nextNode && Array.isArray(choice.nextNode.questCompletionEvents),
+        nextNodeQCELength: choice.nextNode && choice.nextNode.questCompletionEvents ? choice.nextNode.questCompletionEvents.length : undefined,
+        nextNodeQCE: choice.nextNode && choice.nextNode.questCompletionEvents
+      });
       // Use eventNodeService to clone the selected choice
       let clonedChoice = this.eventNodeService.cloneNode(choice);
+      // DEBUG LOGGING: Print the cloned choice and its nextNode questCompletionEvents after cloning
+      this.logger.debug('[DEBUG] executeChoice: After clone', {
+        choiceText: clonedChoice.text,
+        hasChoiceQCE: Array.isArray(clonedChoice.questCompletionEvents),
+        choiceQCELength: clonedChoice.questCompletionEvents ? clonedChoice.questCompletionEvents.length : undefined,
+        choiceQCE: clonedChoice.questCompletionEvents,
+        hasNextNodeQCE: clonedChoice.nextNode && Array.isArray(clonedChoice.nextNode.questCompletionEvents),
+        nextNodeQCELength: clonedChoice.nextNode && clonedChoice.nextNode.questCompletionEvents ? clonedChoice.nextNode.questCompletionEvents.length : undefined,
+        nextNodeQCE: clonedChoice.nextNode && clonedChoice.nextNode.questCompletionEvents
+      });
       
       // Add logging
       this.logger.debug('Selected choice details:', {
@@ -685,7 +725,7 @@ class EventChoiceProcessor {
       });
 
       // Ensure consistent questCompletionEvents before storing
-      clonedChoice.nextNode = this.eventNodeService.ensureConsistentQuestEvents(clonedChoice.nextNode);
+      // REMOVED: clonedChoice.nextNode = this.eventNodeService.ensureConsistentQuestEvents(clonedChoice.nextNode);
       
       // Update the active event state
       this.eventStateManager.setActiveEvent(
@@ -785,7 +825,7 @@ class EventChoiceProcessor {
       const currentNode = activeEvent.currentNode;
 
       // Ensure the node has consistent quest completion events
-      this.eventNodeService.ensureConsistentQuestEvents(currentNode);
+      // REMOVED: this.eventNodeService.ensureConsistentQuestEvents(currentNode);
 
       // If no choices available, end event and allow new one to start
       if (!currentNode.choices || currentNode.choices.length === 0) {

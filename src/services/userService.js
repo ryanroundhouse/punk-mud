@@ -531,6 +531,74 @@ flee.............Attempt to escape combat
             throw error;
         }
     }
+
+    /**
+     * Resets a user's character to default values, preserving email, avatarName, description, image, authCode, and isBuilder.
+     * @param {string} userId - The user's ID
+     * @returns {Promise<Object>} - Result of the operation
+     */
+    async resetCharacter(userId) {
+        try {
+            const user = await this.User.findById(userId);
+            if (!user) {
+                throw new Error('User not found');
+            }
+
+            // Preserve these fields
+            const preserved = {
+                email: user.email,
+                avatarName: user.avatarName,
+                description: user.description,
+                image: user.image,
+                authCode: user.authCode,
+                isBuilder: user.isBuilder
+            };
+
+            // Resettable fields (from User.js defaults)
+            const defaults = {
+                class: undefined,
+                quests: [],
+                stats: {
+                    hitpoints: 20,
+                    currentHitpoints: 20,
+                    armor: 0,
+                    body: 1,
+                    reflexes: 1,
+                    agility: 1,
+                    charisma: 1,
+                    tech: 1,
+                    luck: 1,
+                    experience: 0,
+                    level: 1,
+                    energy: 20,
+                    currentEnergy: 20
+                },
+                activeEffects: [],
+                moves: ['67e5ee92505d5890de625149'],
+                currentNode: '122.124.10.10'
+            };
+
+            // Apply resets
+            user.class = defaults.class;
+            user.quests = defaults.quests;
+            user.stats = defaults.stats;
+            user.activeEffects = defaults.activeEffects;
+            user.moves = defaults.moves;
+            user.currentNode = defaults.currentNode;
+
+            await user.save();
+
+            this.logger.debug('User character reset successfully:', {
+                userId: user._id,
+                avatarName: user.avatarName
+            });
+
+            return { success: true };
+        } catch (error) {
+            this.logger.error('Error resetting user character:', error);
+            return { success: false, error: error.message };
+        }
+    }
 }
 
 // Export a singleton instance with default dependencies

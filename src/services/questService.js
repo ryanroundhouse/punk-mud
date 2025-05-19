@@ -727,7 +727,18 @@ class QuestService {
                         uq.questId === questToStart._id.toString()
                     );
 
-                    if (!questExists) {
+                    if (questExists) {
+                        this.logger.debug('Quest activation bypassed: quest already active or completed', {
+                            userId: user._id.toString(),
+                            questId: questToStart._id.toString(),
+                            questTitle: questToStart.title
+                        });
+                        // Bypass activation and continue
+                        // No need to add or start the quest again
+                        // Just continue with the rest of the logic
+                        // Optionally, you could return here if that's the only purpose
+                        // return { type: 'quest_already_active', questTitle: questToStart.title };
+                    } else {
                         const startEvent = questToStart.events.find(event => event.isStart);
                         
                         if (startEvent) {
@@ -925,6 +936,13 @@ class QuestService {
                 if (availableChoices.length > 0) {
                     const nextEvent = quest.events.find(e => e._id.toString() === availableChoices[0].nextEventId.toString());
                     
+                    this.logger.debug('[QUEST PROGRESS] Before update', {
+                        userId: user._id?.toString(),
+                        questId: userQuest.questId,
+                        prevCurrentEventId: userQuest.currentEventId,
+                        prevCompletedEventIds: [...userQuest.completedEventIds]
+                    });
+
                     userQuest.completedEventIds.push(currentEvent._id.toString());
                     userQuest.currentEventId = nextEvent._id.toString();
                     
@@ -1051,6 +1069,13 @@ class QuestService {
                         
                         // Don't rethrow, try to continue
                     }
+
+                    this.logger.debug('[QUEST PROGRESS] After update', {
+                        userId: user._id?.toString(),
+                        questId: userQuest.questId,
+                        newCurrentEventId: userQuest.currentEventId,
+                        newCompletedEventIds: [...userQuest.completedEventIds]
+                    });
 
                     return {
                         type: 'quest_progress',
@@ -1328,6 +1353,32 @@ class QuestService {
                     this.logger.error('Error handling experience points reward:', error, {
                         userId: user._id,
                         experiencePoints: reward.value
+                    });
+                }
+            } else if (reward.type === 'resetCharacter') {
+                try {
+                    const resetResult = await this.userService.resetCharacter(user._id);
+                    if (resetResult.success) {
+                        this.messageService.sendSuccessMessage(
+                            user._id.toString(),
+                            'Your character has been reset to a new character!'
+                        );
+                        this.logger.debug('resetCharacter reward applied:', {
+                            userId: user._id
+                        });
+                    } else {
+                        this.messageService.sendErrorMessage(
+                            user._id.toString(),
+                            'There was a problem resetting your character.'
+                        );
+                        this.logger.error('resetCharacter reward failed:', {
+                            userId: user._id,
+                            error: resetResult.error
+                        });
+                    }
+                } catch (error) {
+                    this.logger.error('Error handling resetCharacter reward:', error, {
+                        userId: user._id
                     });
                 }
             }

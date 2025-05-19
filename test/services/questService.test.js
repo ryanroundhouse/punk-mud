@@ -260,7 +260,8 @@ describe('QuestService', () => {
             setUserClass: jest.fn().mockImplementation((user, classId) => {
                 user.class = classId;
                 return Promise.resolve(user);
-            })
+            }),
+            resetCharacter: jest.fn().mockResolvedValue({ success: true })
         };
         
         mockEventNodeService = {
@@ -1225,7 +1226,8 @@ describe('QuestService', () => {
                     success: true,
                     newExperience: 100,
                     level: 1
-                })
+                }),
+                resetCharacter: jest.fn().mockResolvedValue({ success: true })
             };
             
             // Clear and set up logger mock
@@ -1353,6 +1355,28 @@ describe('QuestService', () => {
             // Assert - manually check if error was logged
             expect(mockLogger.error).toHaveBeenCalled();
             expect(mockLogger.error.mock.calls[0][0]).toContain('Error handling experience points reward');
+        });
+        
+        it('should process resetCharacter reward correctly', async () => {
+            // Arrange
+            const user = getMockUser();
+            mockUserService.resetCharacter = jest.fn().mockResolvedValue({ success: true });
+            testEvent.rewards = [
+                {
+                    type: 'resetCharacter',
+                    value: ''
+                }
+            ];
+
+            // Act
+            await questService.handleEventRewards(user, testEvent);
+
+            // Assert
+            expect(mockUserService.resetCharacter).toHaveBeenCalledWith(user._id);
+            expect(mockMessageService.sendSuccessMessage).toHaveBeenCalledWith(
+                user._id.toString(),
+                'Your character has been reset to a new character!'
+            );
         });
     });
 }); 

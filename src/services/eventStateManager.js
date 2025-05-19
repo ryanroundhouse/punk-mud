@@ -80,9 +80,6 @@ class EventStateManager {
             }
         }
         
-        // Ensure consistent questCompletionEvents across choices
-        clonedNode = this.ensureConsistentQuestEvents(clonedNode);
-        
         const eventState = {
             userId,
             eventId,
@@ -94,41 +91,6 @@ class EventStateManager {
         
         this.activeEvents.set(userId, eventState);
         return eventState;
-    }
-
-    /**
-     * Ensure consistent quest completion events across all choices in a node
-     * 
-     * @param {Object} node - The node to process
-     * @returns {Object} - The processed node with consistent quest events
-     */
-    ensureConsistentQuestEvents(node) {
-        if (!node || !node.choices || node.choices.length === 0) {
-            return node;
-        }
-        
-        // Find a reference questCompletionEvents array if any exist
-        let referenceEvents = null;
-        let found = false;
-        
-        for (const choice of node.choices) {
-            if (choice.nextNode && choice.nextNode.questCompletionEvents && choice.nextNode.questCompletionEvents.length > 0) {
-                referenceEvents = choice.nextNode.questCompletionEvents;
-                found = true;
-                break;
-            }
-        }
-        
-        // If we found a reference, apply it to all choices that don't have questCompletionEvents
-        if (found && referenceEvents) {
-            for (const choice of node.choices) {
-                if (choice.nextNode && (!choice.nextNode.questCompletionEvents || choice.nextNode.questCompletionEvents.length === 0)) {
-                    choice.nextNode.questCompletionEvents = JSON.parse(JSON.stringify(referenceEvents));
-                }
-            }
-        }
-        
-        return node;
     }
 
     /**

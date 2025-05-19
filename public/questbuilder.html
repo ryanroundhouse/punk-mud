@@ -1627,12 +1627,19 @@
                         rewards: Array.from(event.querySelectorAll('.reward-entry'))
                             .map(reward => {
                                 const type = reward.querySelector('.reward-type-select').value;
-                                const valueElement = reward.querySelector(type === 'experiencePoints' ? '.reward-value-input' : '.reward-value-select');
-                                const value = valueElement.value;
-                                
+                                let value;
+                                if (type === 'experiencePoints') {
+                                    const valueElement = reward.querySelector('.reward-value-input');
+                                    value = parseInt(valueElement.value);
+                                } else if (type === 'gainClass') {
+                                    const valueElement = reward.querySelector('.reward-value-select');
+                                    value = valueElement.value;
+                                } else if (type === 'resetCharacter') {
+                                    value = '';
+                                }
                                 return {
                                     type,
-                                    value: type === 'experiencePoints' ? parseInt(value) : value,
+                                    value,
                                     valueRef: type === 'gainClass' ? 'Class' : undefined
                                 };
                             }),
@@ -1992,11 +1999,13 @@
 
         function createRewardEntry(reward = {}) {
             const isExpPoints = reward.type === 'experiencePoints';
+            const isResetCharacter = reward.type === 'resetCharacter';
             return `
                 <div class="reward-entry">
                     <select class="reward-type-select" onchange="handleRewardTypeChange(this)">
                         <option value="gainClass" ${reward.type === 'gainClass' ? 'selected' : ''}>Class</option>
                         <option value="experiencePoints" ${isExpPoints ? 'selected' : ''}>Experience Points</option>
+                        <option value="resetCharacter" ${isResetCharacter ? 'selected' : ''}>Reset Character</option>
                     </select>
                     ${isExpPoints ? `
                         <input type="number" 
@@ -2005,6 +2014,8 @@
                                value="${reward.value || 0}" 
                                placeholder="Enter XP amount"
                                style="width: 150px;">
+                    ` : isResetCharacter ? `
+                        <input type="text" class="reward-value-input" value="" style="display:none;" disabled>
                     ` : `
                         <select class="reward-value-select">
                             <option value="">Select Class</option>
@@ -2027,6 +2038,7 @@
         function handleRewardTypeChange(select) {
             const rewardEntry = select.closest('.reward-entry');
             const isExpPoints = select.value === 'experiencePoints';
+            const isResetCharacter = select.value === 'resetCharacter';
             const valueContainer = rewardEntry.querySelector('.reward-value-select, .reward-value-input');
             
             if (valueContainer) {
@@ -2037,6 +2049,8 @@
                            value="0" 
                            placeholder="Enter XP amount"
                            style="width: 150px;">
+                ` : isResetCharacter ? `
+                    <input type="text" class="reward-value-input" value="" style="display:none;" disabled>
                 ` : `
                     <select class="reward-value-select">
                         <option value="">Select Class</option>

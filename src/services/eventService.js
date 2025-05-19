@@ -252,14 +252,11 @@ class EventService {
 
     async startEvent(userId, event) {
         try {
-            // Ensure consistent quest events in the root node
-            const rootNode = this.eventNodeService.ensureConsistentQuestEvents(event.rootNode);
-            
             this.logger.debug('Starting event:', {
                 userId,
                 eventId: event._id,
-                hasActivateQuest: !!rootNode.activateQuestId,
-                activateQuestId: rootNode.activateQuestId?._id?.toString()
+                hasActivateQuest: !!event.rootNode.activateQuestId,
+                activateQuestId: event.rootNode.activateQuestId?._id?.toString()
             });
 
             // Get user data to check restrictions
@@ -269,7 +266,7 @@ class EventService {
                 return null;
             }
 
-            if (!this.passesNodeRestrictions(rootNode, user)) {
+            if (!this.passesNodeRestrictions(event.rootNode, user)) {
                 return null;
             }
 
@@ -277,14 +274,14 @@ class EventService {
             this.eventStateManager.setActiveEvent(
                 userId, 
                 event._id, 
-                rootNode,
+                event.rootNode,
                 event.actorId
             );
 
-            await this.handleQuestActivation(userId, rootNode, event.actorId);
+            await this.handleQuestActivation(userId, event.rootNode, event.actorId);
 
             // Handle quest completion events
-            if (rootNode.questCompletionEvents?.length > 0) {
+            if (event.rootNode.questCompletionEvents?.length > 0) {
                 // Implement quest completion logic here
                 // This would need to be coordinated with questService
             }
@@ -317,7 +314,7 @@ class EventService {
             }
 
             // Pass userId to formatEventResponse
-            return await this.formatEventResponse(rootNode, userId);
+            return await this.formatEventResponse(event.rootNode, userId);
         } catch (error) {
             this.logger.error('Error starting event:', error);
             return null;

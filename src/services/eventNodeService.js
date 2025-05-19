@@ -39,7 +39,13 @@ class EventNodeService {
             
             // Convert node._id to string if it exists, then compare
             if (node._id && node._id.toString() === searchNodeId) {
-                logger.debug('Found node in event tree', { nodeId: searchNodeId, path });
+                logger.debug('[DEBUG] findNodeInEventTree: Found node', {
+                  nodeId: searchNodeId,
+                  path,
+                  hasQCE: Array.isArray(node.questCompletionEvents),
+                  qceLength: node.questCompletionEvents ? node.questCompletionEvents.length : undefined,
+                  questCompletionEvents: node.questCompletionEvents
+                });
                 return node;
             }
             
@@ -56,7 +62,7 @@ class EventNodeService {
             }
         }
         
-        logger.warn('Node not found in event tree', { searchedNodeId: searchNodeId });
+        logger.warn('[DEBUG] findNodeInEventTree: Node not found', { searchedNodeId: searchNodeId });
         return null;
     }
 
@@ -92,9 +98,6 @@ class EventNodeService {
                 return null;
             }
             
-            // Only ensure consistent quest events, ID generation is now handled by the system
-            this.ensureConsistentQuestEvents(node);
-            
             return node;
         } catch (error) {
             logger.error('Error loading node from database:', { 
@@ -118,74 +121,13 @@ class EventNodeService {
         if (!node) {
             throw new Error('Invalid node: cannot clone null or undefined');
         }
+        logger.debug('[DEBUG] cloneNode: Cloning node', {
+          nodeId: node._id ? node._id.toString() : undefined,
+          hasQCE: Array.isArray(node.questCompletionEvents),
+          qceLength: node.questCompletionEvents ? node.questCompletionEvents.length : undefined,
+          questCompletionEvents: node.questCompletionEvents
+        });
         return JSON.parse(JSON.stringify(node));
-    }
-    
-    /**
-     * Ensure consistent quest completion events across all choices in a node.
-     * FIXED: This function was causing a bug where quest completion events were incorrectly applied
-     * to choices that shouldn't have them, like "Exit" options.
-     * 
-     * @param {Object} node - The node to process
-     * @returns {Object} - The processed node with consistent quest events
-     */
-    ensureConsistentQuestEvents(node) {
-        if (!node || !node.choices || node.choices.length === 0) {
-            return node;
-        }
-        
-        // First pass: ensure all nextNode have questCompletionEvents property (even if empty)
-        // This prevents accidental additions of quest events where they shouldn't be
-        for (const choice of node.choices) {
-            if (choice.nextNode) {
-                // If questCompletionEvents is missing entirely, set it to an empty array
-                if (!Object.prototype.hasOwnProperty.call(choice.nextNode, 'questCompletionEvents')) {
-                    choice.nextNode.questCompletionEvents = [];
-                }
-            }
-        }
-        
-        // Find a reference questCompletionEvents array if any exist
-        let referenceEvents = null;
-        let found = false;
-        
-        for (const choice of node.choices) {
-            if (choice.nextNode && 
-                Array.isArray(choice.nextNode.questCompletionEvents) && 
-                choice.nextNode.questCompletionEvents.length > 0) {
-                referenceEvents = choice.nextNode.questCompletionEvents;
-                found = true;
-                break;
-            }
-        }
-        
-        // If we found a reference, apply it carefully
-        if (found && referenceEvents) {
-            let fixedCount = 0;
-            
-            for (const choice of node.choices) {
-                // We should NOT apply quest events to choices that:
-                // 1. Already have questCompletionEvents set (empty or not)
-                // 2. Are "Exit" options or other options that shouldn't complete quests
-                if (choice.nextNode && 
-                    // Only apply to choices that have undefined questCompletionEvents
-                    !Object.prototype.hasOwnProperty.call(choice.nextNode, 'questCompletionEvents')) {
-                    
-                    choice.nextNode.questCompletionEvents = JSON.parse(JSON.stringify(referenceEvents));
-                    fixedCount++;
-                }
-            }
-            
-            if (fixedCount > 0) {
-                logger.debug('Fixed questCompletionEvents for ' + fixedCount + ' choices', {
-                    fixedCount,
-                    totalChoices: node.choices.length,
-                    referenceEvents
-                });
-            }
-        }
-        
-        return node;
     }
 }
 

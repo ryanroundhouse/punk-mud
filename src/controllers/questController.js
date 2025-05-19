@@ -135,7 +135,7 @@ async function createOrUpdateQuest(req, res) {
             // Validate rewards if they exist
             if (event.rewards && event.rewards.length > 0) {
                 for (const reward of event.rewards) {
-                    if (!reward.type || !reward.value) {
+                    if (!reward.type || (reward.type !== 'resetCharacter' && !reward.value)) {
                         return res.status(400).json({
                             error: 'Invalid reward data',
                             details: 'Each reward must have a type and value'

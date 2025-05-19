@@ -138,31 +138,6 @@ describe('Job Board Exit Choice Issue', () => {
       // We're using the REAL eventNodeService, which contains the bug
     });
 
-    // SHOULD FAIL - This test demonstrates the actual bug
-    it('BUG: Exit option should NOT complete quest events but does with real implementation', async () => {
-      // Get the active event
-      const activeEvent = mockEventStateManager.getActiveEvent();
-      const userId = 'user123';
-      const choiceInput = '4'; // The Exit option
-
-      // Log the structure before
-      console.log('BEFORE processing - Node structure:', 
-        JSON.stringify(logNode(activeEvent.currentNode), null, 2));
-          
-      // Actual bug: ensureConsistentQuestEvents is modifying the Exit option's questCompletionEvents
-      // Let's verify this by calling it directly
-      const processedNode = eventNodeService.ensureConsistentQuestEvents(
-        eventNodeService.cloneNode(activeEvent.currentNode));
-      console.log('AFTER ensureConsistentQuestEvents:',
-        JSON.stringify(logNode(processedNode), null, 2));
-
-      // Process the Exit choice using the real implementation
-      await processor.processEventChoice(userId, activeEvent, choiceInput);
-
-      // The bug: handleQuestProgression should NOT be called, but it is
-      expect(mockQuestService.handleQuestProgression).not.toHaveBeenCalled();
-    });
-
     // SHOULD PASS - This test shows the correct behavior for class options
     it('should complete quest events when selecting a class option', async () => {
       // Get the active event

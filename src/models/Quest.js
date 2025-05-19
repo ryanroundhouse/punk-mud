@@ -53,7 +53,7 @@ const questSchema = new mongoose.Schema({
             type: {
                 type: String,
                 required: true,
-                enum: ['gainClass', 'experiencePoints'],
+                enum: ['gainClass', 'experiencePoints', 'resetCharacter'],
                 default: 'gainClass'
             },
             value: {

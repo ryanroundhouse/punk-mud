@@ -404,10 +404,10 @@ class NodeService {
         // Check quest requirement
         if (exit.requiredQuestId) {
             const hasRequiredQuest = userQuestInfo.activeQuestIds && 
-                userQuestInfo.activeQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+                userQuestInfo.activeQuestIds.some(id => id && exit.requiredQuestId && id.toString() === exit.requiredQuestId.toString());
             
             const hasCompletedQuest = userQuestInfo.completedQuestIds && 
-                userQuestInfo.completedQuestIds.some(id => id.toString() === exit.requiredQuestId.toString());
+                userQuestInfo.completedQuestIds.some(id => id && exit.requiredQuestId && id.toString() === exit.requiredQuestId.toString());
             
             if (!hasRequiredQuest && !hasCompletedQuest) {
                 logger.debug('Exit not accessible - missing required quest', {
@@ -425,16 +425,16 @@ class NodeService {
                 questDetails: userQuestInfo.quests?.map(q => ({
                     questId: q.questId,
                     currentEventId: q.currentEventId,
-                    currentEventMatches: q.currentEventId?.toString() === exit.requiredQuestEventId.toString(),
+                    currentEventMatches: q.currentEventId && exit.requiredQuestEventId && q.currentEventId.toString() === exit.requiredQuestEventId.toString(),
                     completedEventIds: q.completedEventIds,
-                    hasCompletedEvent: q.completedEventIds?.some(id => id.toString() === exit.requiredQuestEventId.toString())
+                    hasCompletedEvent: q.completedEventIds?.some(id => id && exit.requiredQuestEventId && id.toString() === exit.requiredQuestEventId.toString())
                 }))
             });
 
             // Check if the event is either completed or is the current event in any quest
             const hasRequiredQuestEvent = userQuestInfo.quests && userQuestInfo.quests.some(quest => {
-                const isCurrentEvent = quest.currentEventId && quest.currentEventId.toString() === exit.requiredQuestEventId.toString();
-                const isCompletedEvent = quest.completedEventIds && quest.completedEventIds.some(id => id.toString() === exit.requiredQuestEventId.toString());
+                const isCurrentEvent = quest.currentEventId && exit.requiredQuestEventId && quest.currentEventId.toString() === exit.requiredQuestEventId.toString();
+                const isCompletedEvent = quest.completedEventIds && quest.completedEventIds.some(id => id && exit.requiredQuestEventId && id.toString() === exit.requiredQuestEventId.toString());
                 
                 logger.debug('Quest event check details', {
                     questId: quest.questId,
